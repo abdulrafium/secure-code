@@ -8,16 +8,16 @@ import {
   RefreshCw, ChevronUp, FileText, Code, FileCode, Info,
   CheckSquare, File as GenericFile, Settings, AlertTriangle
 } from 'lucide-react';
-import { Panel, Group as PanelGroup, Separator as PanelResizeHandle, ImperativePanelHandle } from 'react-resizable-panels';
+import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import FileTree, { FileNode } from './FileTree';
 
-const TerminalPane = dynamic(() => import('./TerminalPane'), { ssr: false });
 import OutputPane from './OutputPane';
 import PortsPane, { ForwardedPort } from './PortsPane';
-import CodeEditor from './CodeEditor';
+
+const TerminalPane = dynamic(() => import('./TerminalPane'), { ssr: false });
 
 interface OpenFile {
   path: string;
@@ -66,7 +66,7 @@ export default function IDEWorkspace() {
   const [activeFolderPath, setActiveFolderPath] = useState<string>('');
   const [refreshToggle, setRefreshToggle] = useState(0);
   
-  const terminalPanelRef = useRef<ImperativePanelHandle>(null);
+  const terminalPanelRef = useRef<any>(null);
 
   const addTerminal = () => {
     const newId = `term-${Date.now()}`;
@@ -296,7 +296,7 @@ export default function IDEWorkspace() {
       
       <PanelGroup orientation="horizontal">
         {/* Side Bar */}
-        <Panel defaultSize={"20"} minSize={"15"} maxSize={"40"} className="flex flex-col bg-[#252526] border-r border-[#3c3c3c]">
+        <Panel defaultSize={20} minSize={15} maxSize={40} className="flex flex-col bg-[#252526] border-r border-[#3c3c3c]">
           <div className="flex items-center justify-between px-4 py-2 bg-[#2d2d2d] border-b border-[#3c3c3c]">
             <span className="text-xs font-semibold text-slate-300 tracking-wider">EXPLORER</span>
             <div className="flex space-x-1">
@@ -421,7 +421,7 @@ export default function IDEWorkspace() {
 
           <PanelGroup orientation="vertical" className="flex-1 min-h-0 w-full">
             {/* Editor Top Section */}
-            <Panel defaultSize={"60"} minSize={"20"} className="flex flex-col min-h-0 bg-[#1e1e1e]">
+            <Panel defaultSize={60} minSize={20} className="flex flex-col min-h-0 bg-[#1e1e1e]">
               
               {/* Editor Tabs */}
               <div className="flex bg-[#2d2d2d] overflow-x-auto overflow-y-hidden h-[35px] border-b border-[#1e1e1e] flex-shrink-0">
@@ -484,7 +484,8 @@ export default function IDEWorkspace() {
                 <PanelResizeHandle className="h-[1px] bg-[#333] hover:bg-[#007fd4] hover:h-[4px] transition-all cursor-row-resize z-50" />
                 
                 {/* Bottom Panel (Terminal) */}
-                <Panel ref={terminalPanelRef} defaultSize={"40"} minSize={"15"} maxSize={"80"} className="bg-[#1e1e1e] flex min-h-0">
+                {/* @ts-ignore */}
+                <Panel ref={(node: any) => { terminalPanelRef.current = node; }} defaultSize={40} minSize={15} maxSize={80} className="bg-[#1e1e1e] flex min-h-0">
                   {/* Terminal Content Area */}
                   <div className="flex-1 flex flex-col min-w-0">
                     <div className="flex px-4 h-[35px] border-b border-[#333333] flex-shrink-0">
