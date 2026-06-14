@@ -1,0 +1,105 @@
+import { Controller, Patch, Get, Post, Delete, Param, Body, UseGuards, Request, UnauthorizedException } from '@nestjs/common';
+import { UsersService } from './users.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import * as bcrypt from 'bcrypt';
+
+@Controller('users')
+export class UsersController {
+  constructor(private readonly usersService: UsersService) {}
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('profile')
+  async updateProfile(@Request() req: any, @Body() body: any) {
+    const { oldPassword, newUsername, newPassword } = body;
+    const userId = req.user.id;
+
+    // Verify old password
+    const user = await this.usersService.findByUsername(req.user.username);
+    if (!user) throw new UnauthorizedException('User not found');
+
+    const isMatch = await bcrypt.compare(oldPassword, user.passwordHash);
+    if (!isMatch) {
+      throw new UnauthorizedException('Incorrect old password');
+    }
+
+    // Update profile
+    const updatedUser = await this.usersService.updateProfile(userId, { newUsername, newPassword });
+    
+    // Omit password hash from response
+    const { passwordHash, ...result } = updatedUser;
+    return result;
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('backup-code')
+  async getBackupCode(@Request() req: any) {
+    const user = await this.usersService.findByUsername(req.user.username);
+    if (!user) throw new UnauthorizedException('User not found');
+    return { backupCode: user.backupCode || '' };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('backup-code')
+  async updateBackupCode(@Request() req: any, @Body() body: any) {
+    const { backupCode } = body;
+    if (backupCode === undefined) {
+      throw new UnauthorizedException('Backup code is required');
+    }
+    await this.usersService.updateBackupCode(req.user.id, backupCode);
+    return { success: true };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('verify-password')
+  async verifyPassword(@Request() req: any, @Body() body: any) {
+    const { password } = body;
+    const user = await this.usersService.findByUsername(req.user.username);
+    if (!user) throw new UnauthorizedException('User not found');
+    
+    const isMatch = await bcrypt.compare(password, user.passwordHash);
+    if (!isMatch) {
+      throw new UnauthorizedException('Incorrect password');
+    }
+    
+    return { success: true };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('stats')
+  async getStats() {
+    return this.usersService.getStats();
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get()
+  async findAll() {
+    return this.usersService.findAll();
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post()
+  async createUser(@Body() body: any) {
+    const { username, password, role, status, allowIp, publicKey } = body;
+    const formattedRole = role ? (role.charAt(0).toUpperCase() + role.slice(1).toLowerCase()) : undefined;
+    const formattedStatus = status ? (status.charAt(0).toUpperCase() + status.slice(1).toLowerCase()) : undefined;
+    const newUser = await this.usersService.create(username, password, formattedRole, formattedStatus, allowIp, publicKey);
+    const { passwordHash, ...result } = newUser;
+    return result;
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Delete(':id')
+  async deleteUser(@Param('id') id: string) {
+    await this.usersService.delete(id);
+    return { success: true };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch(':id')
+  async adminUpdateUser(@Param('id') id: string, @Body() body: any) {
+    const { username, role, status, allowIp, publicKey } = body;
+    const updatedUser = await this.usersService.adminUpdateUser(id, { username, role, status, allowIp, publicKey });
+    const { passwordHash, ...result } = updatedUser;
+    return result;
+  }
+}
