@@ -45,5 +45,5 @@ yarn-error.log*
 Thumbs.db
 
 workspaces/
-admin/
+/admin/
 backend/test.zip
