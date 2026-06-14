@@ -1,9 +1,23 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
   reactCompiler: true,
   output: 'standalone',
+  async rewrites() {
+    // Read the internal backend URL from the Docker environment
+    const backendUrl = process.env.BACKEND_INTERNAL_URL || 'http://localhost:3001';
+    
+    return [
+      {
+        source: '/api/:path*',
+        destination: `${backendUrl}/:path*`, // Proxy to Backend
+      },
+      {
+        source: '/socket.io/:path*',
+        destination: `${backendUrl}/socket.io/:path*`, // Proxy WebSockets
+      }
+    ];
+  },
 };
 
 export default nextConfig;
