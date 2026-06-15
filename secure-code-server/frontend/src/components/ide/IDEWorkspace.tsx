@@ -207,7 +207,16 @@ export default function IDEWorkspace() {
 
     // Fetch tree first
     const endpoint = projectId ? `/editor/tree?path=&projectId=${projectId}` : `/editor/tree?path=`;
-    api.get(endpoint).then(data => setTree(data)).catch(err => console.error('Failed to fetch tree', err));
+    
+    const fetchFullTree = () => {
+      api.get(endpoint).then(data => {
+        setTree(data);
+        setRefreshToggle(prev => prev + 1); // Triggers FileTree to also refresh expanded sub-folders
+      }).catch(err => console.error('Failed to fetch tree', err));
+    };
+
+    fetchFullTree();
+    const treeInterval = setInterval(fetchFullTree, 5000);
 
     // Restore saved workspace state
     if (!stateKey) {
@@ -300,6 +309,8 @@ export default function IDEWorkspace() {
     }).catch(() => {
       hasRestoredState.current = true;
     });
+
+    return () => clearInterval(treeInterval);
   }, [projectId]);
 
 

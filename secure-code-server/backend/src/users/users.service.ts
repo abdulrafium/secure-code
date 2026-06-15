@@ -72,13 +72,13 @@ export class UsersService implements OnApplicationBootstrap {
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(passwordPlain, salt);
 
-    const roleString = roleInput.charAt(0).toUpperCase() + roleInput.slice(1).toLowerCase();
+    const roleString = roleInput.trim().charAt(0).toUpperCase() + roleInput.trim().slice(1).toLowerCase();
     let role = Role.Viewer;
     if (Object.values(Role).includes(roleString as Role)) {
       role = roleString as Role;
     }
 
-    const statusString = statusInput.charAt(0).toUpperCase() + statusInput.slice(1).toLowerCase();
+    const statusString = statusInput.trim().charAt(0).toUpperCase() + statusInput.trim().slice(1).toLowerCase();
     let status = Status.Active;
     if (Object.values(Status).includes(statusString as Status)) {
       status = statusString as Status;
@@ -101,9 +101,16 @@ export class UsersService implements OnApplicationBootstrap {
     if (user?.username === 'admin') {
       throw new ConflictException('The master admin user cannot be deleted.');
     }
-    const result = await this.usersRepository.delete(id);
-    if (result.affected === 0) {
-      throw new Error('User not found');
+    try {
+      const result = await this.usersRepository.delete(id);
+      if (result.affected === 0) {
+        throw new Error('User not found');
+      }
+    } catch (err: any) {
+      if (err.code === '23503' || err.message.includes('foreign key constraint')) {
+        throw new ConflictException('This user is currently assigned to one or more projects. Please unassign them from all projects before deleting.');
+      }
+      throw err;
     }
   }
 

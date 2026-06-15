@@ -33,7 +33,7 @@ export default function DeveloperLogin() {
         try {
             const response = await api.post('/auth/login', { username, password });
             
-            if (response.role?.toLowerCase() !== 'developer' && response.role?.toLowerCase() !== 'admin') {
+            if (response.role?.trim().toLowerCase() !== 'developer' && response.role?.trim().toLowerCase() !== 'admin') {
                 setIsLoading(false);
                 setErrorMsg('Access denied: You must be a developer to log in here.');
                 setTimeout(() => setErrorMsg(''), 5000);
