@@ -62,8 +62,8 @@ export default function TerminalPane({ projectId, isViewer }: { projectId?: stri
       xtermRef.current = term;
       fitAddonRef.current = fitAddon;
 
-      // Connect to WebSocket backend
-      const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+      // Connect to WebSocket backend using Next.js proxy
+      const backendUrl = typeof window !== 'undefined' ? '' : (process.env.BACKEND_INTERNAL_URL || 'http://localhost:3001');
       
       const getCookie = (name: string) => {
         const value = `; ${document.cookie}`;
