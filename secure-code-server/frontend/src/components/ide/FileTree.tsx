@@ -291,7 +291,7 @@ export default function FileTree({
               )}
             </div>
 
-            {node.isDirectory && isExpanded && (
+            {node.isDirectory && (isExpanded || (showNewItemInput && activeFolderPath === node.path)) && (
               <FileTree
                 nodes={children}
                 onFileClick={onFileClick}
