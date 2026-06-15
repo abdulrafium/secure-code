@@ -294,7 +294,7 @@ export default function IDEWorkspace() {
   return (
     <div className="flex h-screen w-full bg-[#1e1e1e] text-[#cccccc] overflow-hidden font-sans select-none">
       
-      <PanelGroup orientation="horizontal">
+      <PanelGroup orientation="horizontal" id="ide-layout-horizontal-v2">
         {/* Side Bar */}
         <Panel defaultSize={20} minSize={15} maxSize={40} className="flex flex-col bg-[#252526] border-r border-[#3c3c3c]">
           <div className="flex items-center justify-between px-4 py-2 bg-[#2d2d2d] border-b border-[#3c3c3c]">
@@ -419,7 +419,7 @@ export default function IDEWorkspace() {
             </div>
           </div>
 
-          <PanelGroup orientation="vertical" className="flex-1 min-h-0 w-full">
+          <PanelGroup orientation="vertical" id="ide-layout-vertical-v2" className="flex-1 min-h-0 w-full">
             {/* Editor Top Section */}
             <Panel defaultSize={60} minSize={20} className="flex flex-col min-h-0 bg-[#1e1e1e]">
               
