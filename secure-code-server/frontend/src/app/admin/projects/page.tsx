@@ -301,12 +301,14 @@ export default function ProjectsPage() {
         formData.append('file', file);
 
         try {
-            // Assuming api wrapper supports raw fetch or use standard XMLHttpRequest / fetch
-            // but for progress we need axios. Since api wrapper might not support progress natively,
-            // let's just use standard fetch and fake progress or rely on api if possible.
-            // Wait, we can just use native fetch for simplicity.
-            await fetch(`http://localhost:3001/projects/${activeProject.id}/import`, {
+            // Send the file to the backend through the Next.js proxy
+            await fetch(`/api/projects/${activeProject.id}/import`, {
                 method: 'POST',
+                headers: {
+                    ...(document.cookie.includes('accessToken') 
+                        ? { 'Authorization': `Bearer ${document.cookie.split('; ').find(row => row.startsWith('accessToken='))?.split('=')[1]}` }
+                        : {})
+                },
                 body: formData,
             });
             fetchProjects();
