@@ -62,8 +62,11 @@ export default function TerminalPane({ projectId, isViewer }: { projectId?: stri
       xtermRef.current = term;
       fitAddonRef.current = fitAddon;
 
-      // Connect to WebSocket backend using Next.js proxy
-      const backendUrl = typeof window !== 'undefined' ? '' : (process.env.BACKEND_INTERNAL_URL || 'http://localhost:3001');
+      // Connect directly to the backend URL to avoid Next.js WebSocket proxy drops
+      const defaultApiUrl = typeof window !== 'undefined' ? `http://${window.location.hostname}:3001` : 'http://localhost:3001';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || defaultApiUrl;
+      // Socket.io should connect to the root of the API
+      const backendUrl = apiUrl.replace('/api', '');
       
       const getCookie = (name: string) => {
         const value = `; ${document.cookie}`;

@@ -243,7 +243,9 @@ export default function UsersPage() {
                                     <tr key={idx} className="border-b border-slate-800/60 hover:bg-[#0f172a]/30 transition-colors bg-[#080d18]">
                                         <td className="px-8 py-6 text-[15px] font-medium text-slate-200">{user.username}</td>
                                         <td className="px-8 py-6 text-[15px] text-slate-400">{user.allowIp || 'N/A'}</td>
-                                        <td className="px-8 py-6 text-[15px] text-slate-400">{user.publicKey ? 'Yes' : 'N/A'}</td>
+                                        <td className="px-8 py-6 text-[15px] text-slate-400">
+                                            {user.role === 'Admin' ? 'All Projects' : `${user.projects?.length || 0} Project${user.projects?.length === 1 ? '' : 's'}`}
+                                        </td>
                                         <td className="px-8 py-6">
                                             <div className="flex justify-center">
                                                 <span className={`px-4 py-1.5 border rounded-md text-[13px] font-medium tracking-wide capitalize ${getRoleStyle(user.role)}`}>

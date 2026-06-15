@@ -42,6 +42,11 @@ export class TerminalGateway implements OnGatewayConnection, OnGatewayDisconnect
   // Map socket IDs to their user object
   private users = new Map<string, any>();
 
+  // Map<projectId, Map<userId, count>> for real-time online tracking
+  public static projectSessions = new Map<string, Map<string, number>>();
+  // Map<socketId, { projectId: string, userId: string }>
+  private static socketSessions = new Map<string, { projectId: string; userId: string }>();
+
   async handleConnection(client: Socket) {
     console.log(`Terminal client connected: ${client.id}`);
     
@@ -50,7 +55,7 @@ export class TerminalGateway implements OnGatewayConnection, OnGatewayDisconnect
     const projectId = client.handshake.query?.projectId as string;
     
     // Set cwd to the workspace directory
-    let cwd = path.resolve(process.cwd(), '..');
+    let cwd = process.env.WORKSPACES_DIR || path.resolve(process.cwd(), '..', 'workspaces');
     
     const token = client.handshake.query?.token as string;
     let user: any = null;
@@ -61,6 +66,16 @@ export class TerminalGateway implements OnGatewayConnection, OnGatewayDisconnect
       } catch (e) {
         console.error('Failed to verify token for terminal', e);
       }
+    }
+
+    if (projectId && user) {
+      TerminalGateway.socketSessions.set(client.id, { projectId, userId: user.id });
+      let projectMap = TerminalGateway.projectSessions.get(projectId);
+      if (!projectMap) {
+        projectMap = new Map<string, number>();
+        TerminalGateway.projectSessions.set(projectId, projectMap);
+      }
+      projectMap.set(user.id, (projectMap.get(user.id) || 0) + 1);
     }
 
     if (projectId) {
@@ -108,6 +123,24 @@ export class TerminalGateway implements OnGatewayConnection, OnGatewayDisconnect
 
   handleDisconnect(client: Socket) {
     console.log(`Terminal client disconnected: ${client.id}`);
+    const session = TerminalGateway.socketSessions.get(client.id);
+    if (session) {
+      const { projectId, userId } = session;
+      const projectMap = TerminalGateway.projectSessions.get(projectId);
+      if (projectMap) {
+        const count = projectMap.get(userId) || 0;
+        if (count > 1) {
+          projectMap.set(userId, count - 1);
+        } else {
+          projectMap.delete(userId);
+          if (projectMap.size === 0) {
+            TerminalGateway.projectSessions.delete(projectId);
+          }
+        }
+      }
+      TerminalGateway.socketSessions.delete(client.id);
+    }
+
     const ptyProcess = this.ptys.get(client.id);
     if (ptyProcess) {
       ptyProcess.kill();

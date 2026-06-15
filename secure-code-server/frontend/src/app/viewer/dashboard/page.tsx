@@ -15,6 +15,10 @@ export default function ViewerDashboardPage() {
 
     useEffect(() => {
         fetchAssignedProjects();
+        const interval = setInterval(() => {
+            fetchAssignedProjects();
+        }, 5000);
+        return () => clearInterval(interval);
     }, []);
 
     const fetchAssignedProjects = async () => {
@@ -66,6 +70,7 @@ export default function ViewerDashboardPage() {
                                 <tr className="border-b border-slate-800/80 text-[14px] text-slate-300 bg-[#070b14]">
                                     <th className="px-8 py-5 font-semibold tracking-wide">Project Name</th>
                                     <th className="px-8 py-5 font-semibold tracking-wide">Storage Size</th>
+                                    <th className="px-8 py-5 font-semibold tracking-wide">Online</th>
                                     <th className="px-8 py-5 font-semibold tracking-wide">Status</th>
                                     <th className="px-8 py-5 font-semibold tracking-wide">Action</th>
                                 </tr>
@@ -87,6 +92,16 @@ export default function ViewerDashboardPage() {
 
                                         {/* Storage Size */}
                                         <td className="px-8 py-6 text-[14px] text-slate-400">{formatBytes(project.storageBytes || 0)}</td>
+
+                                        {/* Online */}
+                                        <td className="px-8 py-6">
+                                            <div className="flex items-center space-x-2">
+                                                <div className={`w-2.5 h-2.5 rounded-full ${project.onlineUsers && project.onlineUsers > 0 ? 'bg-green-500' : 'bg-slate-500'}`}></div>
+                                                <span className={`text-[14px] font-medium ${project.onlineUsers && project.onlineUsers > 0 ? 'text-green-400' : 'text-slate-400'}`}>
+                                                    {project.onlineUsers || 0} User{(project.onlineUsers || 0) === 1 ? '' : 's'}
+                                                </span>
+                                            </div>
+                                        </td>
 
                                         {/* Status */}
                                         <td className="px-8 py-6">

@@ -83,7 +83,11 @@ export default function ProjectsPage() {
 
     React.useEffect(() => {
         fetchProjects();
+        const interval = setInterval(() => {
+            fetchProjects();
+        }, 5000);
         fetchAllUsers();
+        return () => clearInterval(interval);
     }, []);
 
     const fetchAllUsers = async () => {
@@ -133,7 +137,8 @@ export default function ProjectsPage() {
         setGitProgress(0);
         try {
             const token = document.cookie.split('; ').find(row => row.startsWith('accessToken='))?.split('=')[1];
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+            const defaultApiUrl = typeof window !== 'undefined' ? `http://${window.location.hostname}:3001` : 'http://localhost:3001';
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL || defaultApiUrl;
 
             const response = await fetch(`${apiUrl}/projects/${activeProject.id}/git-pull`, {
                 method: 'POST',
@@ -163,7 +168,11 @@ export default function ProjectsPage() {
                             if (data.type === 'progress') {
                                 setGitProgress(data.percentage);
                             } else if (data.type === 'error') {
-                                throw new Error(data.message);
+                                setGitError(data.message || 'Git clone failed. Please check the repository URL and branch.');
+                                setTimeout(() => setGitError(''), 5000);
+                                setIsGitLoading(false);
+                                setGitProgress(null);
+                                return;
                             } else if (data.type === 'complete') {
                                 setShowGitModal(false);
                                 setGitUrl('');
@@ -171,7 +180,9 @@ export default function ProjectsPage() {
                                 setGitProgress(null);
                                 fetchProjects();
                             }
-                        } catch (e) { }
+                        } catch (e) {
+                            // Ignore JSON parse errors for incomplete chunks
+                        }
                     }
                 }
             }
@@ -476,8 +487,10 @@ export default function ProjectsPage() {
                                         {/* Online */}
                                         <td className="px-8 py-6">
                                             <div className="flex items-center space-x-2">
-                                                <div className="w-2.5 h-2.5 rounded-full bg-slate-500"></div>
-                                                <span className="text-[14px] text-slate-400 font-medium">0 Users</span>
+                                                <div className={`w-2.5 h-2.5 rounded-full ${project.onlineUsers && project.onlineUsers > 0 ? 'bg-green-500' : 'bg-slate-500'}`}></div>
+                                                <span className={`text-[14px] font-medium ${project.onlineUsers && project.onlineUsers > 0 ? 'text-green-400' : 'text-slate-400'}`}>
+                                                    {project.onlineUsers || 0} User{(project.onlineUsers || 0) === 1 ? '' : 's'}
+                                                </span>
                                             </div>
                                         </td>
 
@@ -847,7 +860,21 @@ export default function ProjectsPage() {
                                 <input
                                     type="text"
                                     value={gitUrl}
-                                    onChange={(e) => setGitUrl(e.target.value)}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setGitUrl(val);
+                                        if (val.length > 0) {
+                                            const isValid = /^https:\/\/(www\.)?(github\.com|gitlab\.com)\/[^\/]+\/[^\/]+/.test(val) || /^git@(github\.com|gitlab\.com):[^\/]+\/[^\/]+/.test(val);
+                                            if (!isValid) {
+                                                setGitError('Invalid format. Please use a valid GitHub or GitLab URL.');
+                                                setTimeout(() => setGitError(''), 5000);
+                                            } else {
+                                                setGitError('');
+                                            }
+                                        } else {
+                                            setGitError('');
+                                        }
+                                    }}
                                     placeholder="Git/Gitlab SSH/HTTPS url"
                                     className="w-full bg-[#050810] border border-slate-800/60 rounded-xl px-4 py-3.5 text-[14px] text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 focus:bg-[#070b14] transition-all shadow-inner"
                                 />
@@ -934,8 +961,8 @@ export default function ProjectsPage() {
                                     {/* Dropdown for matched users */}
                                     {showUserDropdown && newMemberUsername.trim() !== '' && (
                                         <div className="absolute top-full left-0 right-0 mt-1 bg-[#0a0f1c] border border-slate-700/60 rounded-lg shadow-lg z-50 overflow-hidden">
-                                            {allUsers.filter(u => u.username.toLowerCase().includes(newMemberUsername.toLowerCase())).length > 0 ? (
-                                                allUsers.filter(u => u.username.toLowerCase().includes(newMemberUsername.toLowerCase())).map(u => (
+                                            {allUsers.filter(u => u.role !== 'Admin' && u.username.toLowerCase().includes(newMemberUsername.toLowerCase())).length > 0 ? (
+                                                allUsers.filter(u => u.role !== 'Admin' && u.username.toLowerCase().includes(newMemberUsername.toLowerCase())).map(u => (
                                                     <div
                                                         key={u.id}
                                                         className="px-4 py-2 hover:bg-[#141b2d] cursor-pointer text-[13.5px] text-slate-300 transition-colors"

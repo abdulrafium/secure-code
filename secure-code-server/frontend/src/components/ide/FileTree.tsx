@@ -1,8 +1,13 @@
-import React, { useState } from 'react';
-import { ChevronDown, ChevronRight, Settings, FileText, Code, FileCode, Info, CheckSquare, File as GenericFile, Folder, FolderOpen } from 'lucide-react';
-import { 
-  SiPython, SiJavascript, SiTypescript, SiReact, SiHtml5, SiCss, SiMarkdown, 
-  SiDocker, SiC, SiCplusplus, SiGit, SiJupyter, SiPhp, SiRuby, 
+"use client";
+
+import React, { useState, useEffect } from 'react';
+import {
+  ChevronDown, ChevronRight, Settings, FileText, Code,
+  Info, CheckSquare, File as GenericFile, Folder, FolderOpen
+} from 'lucide-react';
+import {
+  SiPython, SiJavascript, SiTypescript, SiReact, SiHtml5, SiCss, SiMarkdown,
+  SiDocker, SiC, SiCplusplus, SiGit, SiJupyter, SiPhp, SiRuby,
   SiRust, SiGo, SiSwift, SiKotlin, SiYaml, SiVuedotjs, SiSvelte,
   SiGraphql, SiMysql
 } from 'react-icons/si';
@@ -35,6 +40,11 @@ interface FileTreeProps {
   handleCreateItem?: () => void;
   setShowNewItemInput?: (val: 'file' | 'folder' | null) => void;
   currentPath?: string;
+  // Global state passed down from root FileTree to prevent localStorage race conditions
+  globalExpandedNodes?: Record<string, boolean>;
+  setGlobalExpandedNodes?: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
+  globalLoadedChildren?: Record<string, FileNode[]>;
+  setGlobalLoadedChildren?: React.Dispatch<React.SetStateAction<Record<string, FileNode[]>>>;
 }
 
 const getFileIcon = (fileName: string) => {
@@ -72,62 +82,164 @@ const getFileIcon = (fileName: string) => {
   if (name.endsWith('.graphql') || name.endsWith('.gql')) return <SiGraphql className="w-3.5 h-3.5 mr-1.5 text-[#E10098]" />;
   if (name.endsWith('.sql')) return <SiMysql className="w-3.5 h-3.5 mr-1.5 text-[#4479A1]" />;
   if (name.endsWith('.yml') || name.endsWith('.yaml')) return <SiYaml className="w-3.5 h-3.5 mr-1.5 text-[#CB171E]" />;
-  
+
   return <GenericFile className="w-3.5 h-3.5 mr-1.5 text-slate-500" />;
 };
 
-export default function FileTree({ 
-  nodes, onFileClick, level = 0, projectId, isViewer, activeNodePath, onNodeSelect, refreshToggle,
-  showNewItemInput, activeFolderPath, newItemName, setNewItemName, handleCreateItem, setShowNewItemInput, currentPath = ''
-}: FileTreeProps) {
-  const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({});
-  const [loadedChildren, setLoadedChildren] = useState<Record<string, FileNode[]>>({});
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-  React.useEffect(() => {
-    if (refreshToggle && refreshToggle > 0) {
-      const paths = Object.keys(expandedNodes).filter(p => expandedNodes[p]);
-      paths.forEach(async (p) => {
+function loadExpandedState(projectId: string | null | undefined): Record<string, boolean> {
+  if (typeof window === 'undefined' || !projectId) return {};
+  try {
+    const raw = localStorage.getItem(`ide-tree-${projectId}`);
+    return raw ? (JSON.parse(raw) as Record<string, boolean>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveExpandedState(projectId: string | null | undefined, state: Record<string, boolean>) {
+  if (typeof window === 'undefined' || !projectId) return;
+  try {
+    localStorage.setItem(`ide-tree-${projectId}`, JSON.stringify(state));
+  } catch { /* quota */ }
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
+export default function FileTree({
+  nodes, onFileClick, level = 0, projectId, isViewer, activeNodePath, onNodeSelect, refreshToggle,
+  showNewItemInput, activeFolderPath, newItemName, setNewItemName, handleCreateItem,
+  setShowNewItemInput, currentPath = '',
+  globalExpandedNodes, setGlobalExpandedNodes,
+  globalLoadedChildren, setGlobalLoadedChildren
+}: FileTreeProps) {
+
+  // Create state only at the root level, otherwise use passed-down state
+  const isRoot = level === 0;
+
+  const [localExpandedNodes, setLocalExpandedNodes] = useState<Record<string, boolean>>(() => {
+    if (!isRoot) return {};
+    const saved = loadExpandedState(projectId);
+    // Always ensure root node is expanded
+    if (nodes && nodes.length === 1 && nodes[0].path === '') {
+      saved[''] = true;
+    }
+    return saved;
+  });
+
+  const [localLoadedChildren, setLocalLoadedChildren] = useState<Record<string, FileNode[]>>({});
+
+  const expandedNodes = globalExpandedNodes || localExpandedNodes;
+  const setExpandedNodes = setGlobalExpandedNodes || setLocalExpandedNodes;
+  const loadedChildren = globalLoadedChildren || localLoadedChildren;
+  const setLoadedChildren = setGlobalLoadedChildren || setLocalLoadedChildren;
+
+  const hasRestoredState = React.useRef(false);
+
+  // ── Persist expanded state on every change (Root only) ──────────────────────
+  useEffect(() => {
+    if (!isRoot || !projectId) return;
+    if (!hasRestoredState.current) return;
+    saveExpandedState(projectId, expandedNodes);
+  }, [expandedNodes, projectId, isRoot]);
+
+  // ── Auto-expand root node when tree data arrives (Root only) ───────────────
+  useEffect(() => {
+    if (!isRoot) return;
+    if (nodes && nodes.length === 1 && nodes[0].path === '') {
+      setExpandedNodes(prev => ({ ...prev, '': true }));
+    }
+  }, [nodes, isRoot, setExpandedNodes]);
+
+  // ── On mount: re-fetch children for any folders restored as expanded ─────────
+  useEffect(() => {
+    if (!isRoot) return;
+    const expandedPaths = Object.keys(expandedNodes).filter(p => expandedNodes[p] && p !== '');
+    if (expandedPaths.length === 0) {
+      hasRestoredState.current = true;
+      return;
+    }
+
+    Promise.all(
+      expandedPaths.map(async (p) => {
         try {
-          const endpoint = projectId 
+          const endpoint = projectId
             ? `/editor/tree?path=${encodeURIComponent(p)}&projectId=${projectId}`
             : `/editor/tree?path=${encodeURIComponent(p)}`;
           const data = await api.get(endpoint);
-          setLoadedChildren(prev => ({ ...prev, [p]: data }));
-        } catch (err) {
-          console.error("Failed to reload folder", err);
+          return { path: p, data };
+        } catch {
+          return null;
         }
+      })
+    ).then(results => {
+      const updates: Record<string, FileNode[]> = {};
+      results.forEach(res => {
+        if (res) updates[res.path] = res.data;
       });
-    }
-  }, [refreshToggle]);
+      if (Object.keys(updates).length > 0) {
+        setLoadedChildren(prev => ({ ...prev, ...updates }));
+      }
+      hasRestoredState.current = true;
+    }).catch(() => {
+      hasRestoredState.current = true;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
+  // ── Refresh: reload all expanded folders (Root only) ────────────────────────
+  useEffect(() => {
+    if (!isRoot || !refreshToggle || refreshToggle <= 0) return;
+    const paths = Object.keys(expandedNodes).filter(p => expandedNodes[p] && p !== '');
+    paths.forEach(async (p) => {
+      try {
+        const endpoint = projectId
+          ? `/editor/tree?path=${encodeURIComponent(p)}&projectId=${projectId}`
+          : `/editor/tree?path=${encodeURIComponent(p)}`;
+        const data = await api.get(endpoint);
+        setLoadedChildren(prev => ({ ...prev, [p]: data }));
+      } catch (err) {
+        console.error('Failed to reload folder', err);
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshToggle, isRoot]);
+
+  // ── Toggle folder open/close ─────────────────────────────────────────────────
   const toggleFolder = async (node: FileNode) => {
     const isExpanded = !!expandedNodes[node.path];
-    
-    // Toggle state instantly
     setExpandedNodes(prev => ({ ...prev, [node.path]: !isExpanded }));
 
-    // Fetch children if not loaded
+    // Root node children are pre-loaded by backend — no API call needed
+    if (node.path === '') return;
+
+    // Lazy-load children if not yet fetched
     if (!isExpanded && !loadedChildren[node.path]) {
       try {
-        const endpoint = projectId 
+        const endpoint = projectId
           ? `/editor/tree?path=${encodeURIComponent(node.path)}&projectId=${projectId}`
           : `/editor/tree?path=${encodeURIComponent(node.path)}`;
         const data = await api.get(endpoint);
         setLoadedChildren(prev => ({ ...prev, [node.path]: data }));
       } catch (err) {
-        console.error("Failed to load folder", err);
+        console.error('Failed to load folder', err);
       }
     }
   };
 
+  // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col w-full">
       {showNewItemInput && activeFolderPath === currentPath && (
         <div className="flex items-center py-0.5" style={{ paddingLeft: `${(level * 12) + 4}px` }}>
-          {showNewItemInput === 'file' ? <GenericFile className="w-3.5 h-3.5 mr-1.5 text-slate-500" /> : <ChevronRight className="w-4 h-4 mr-1 opacity-80" />}
-          <input 
+          {showNewItemInput === 'file'
+            ? <GenericFile className="w-3.5 h-3.5 mr-1.5 text-slate-500" />
+            : <ChevronRight className="w-4 h-4 mr-1 opacity-80" />
+          }
+          <input
             autoFocus
-            type="text" 
+            type="text"
             value={newItemName || ''}
             onChange={e => setNewItemName && setNewItemName(e.target.value)}
             onKeyDown={e => {
@@ -139,13 +251,17 @@ export default function FileTree({
           />
         </div>
       )}
+
       {nodes.map(node => {
         const isExpanded = !!expandedNodes[node.path];
-        const children = loadedChildren[node.path] || node.children || [];
+        // Root node uses pre-loaded children from backend; sub-folders use lazy-loaded children
+        const children = node.path === ''
+          ? (node.children || [])
+          : (loadedChildren[node.path] || node.children || []);
 
         return (
           <div key={node.path} className="flex flex-col">
-            <div 
+            <div
               className={`flex items-center py-0.5 cursor-pointer select-none ${activeNodePath === node.path ? 'bg-[#37373d] text-white' : 'text-[#cccccc] hover:bg-[#2a2d2e]'}`}
               style={{ paddingLeft: `${(level * 12) + 4}px` }}
               onClick={() => {
@@ -156,28 +272,34 @@ export default function FileTree({
             >
               {node.isDirectory ? (
                 <>
-                  {isExpanded ? <ChevronDown className="w-4 h-4 mr-1 opacity-80" /> : <ChevronRight className="w-4 h-4 mr-1 opacity-80" />}
-                  {isExpanded ? <FolderOpen className="w-3.5 h-3.5 mr-1.5 text-blue-400" /> : <Folder className="w-3.5 h-3.5 mr-1.5 text-blue-400" />}
-                  <span className="truncate">{node.name}</span>
+                  {isExpanded
+                    ? <ChevronDown className="w-4 h-4 mr-1 opacity-80" />
+                    : <ChevronRight className="w-4 h-4 mr-1 opacity-80" />
+                  }
+                  {isExpanded
+                    ? <FolderOpen className="w-3.5 h-3.5 mr-1.5 text-blue-400" />
+                    : <Folder className="w-3.5 h-3.5 mr-1.5 text-blue-400" />
+                  }
+                  <span className="truncate text-[13px]">{node.name}</span>
                 </>
               ) : (
                 <>
-                  <div className="w-4 mr-1" /> {/* Spacer for file to align with folders */}
+                  <div className="w-4 mr-1 flex-shrink-0" />
                   {getFileIcon(node.name)}
-                  <span className="truncate">{node.name}</span>
+                  <span className="truncate text-[13px]">{node.name}</span>
                 </>
               )}
             </div>
-            
+
             {node.isDirectory && isExpanded && (
-              <FileTree 
-                nodes={children} 
-                onFileClick={onFileClick} 
-                level={level + 1} 
-                projectId={projectId} 
-                isViewer={isViewer} 
-                activeNodePath={activeNodePath} 
-                onNodeSelect={onNodeSelect} 
+              <FileTree
+                nodes={children}
+                onFileClick={onFileClick}
+                level={level + 1}
+                projectId={projectId}
+                isViewer={isViewer}
+                activeNodePath={activeNodePath}
+                onNodeSelect={onNodeSelect}
                 refreshToggle={refreshToggle}
                 showNewItemInput={showNewItemInput}
                 activeFolderPath={activeFolderPath}
@@ -186,6 +308,10 @@ export default function FileTree({
                 handleCreateItem={handleCreateItem}
                 setShowNewItemInput={setShowNewItemInput}
                 currentPath={node.path}
+                globalExpandedNodes={expandedNodes}
+                setGlobalExpandedNodes={setExpandedNodes}
+                globalLoadedChildren={loadedChildren}
+                setGlobalLoadedChildren={setLoadedChildren}
               />
             )}
           </div>

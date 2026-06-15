@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  reactCompiler: true,
+  reactCompiler: false,
   output: 'standalone',
   async rewrites() {
     // Read the internal backend URL from the Docker environment

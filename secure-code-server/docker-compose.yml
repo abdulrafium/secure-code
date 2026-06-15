@@ -41,6 +41,8 @@ services:
       - JWT_SECRET=super-secret-change-this-in-production
     ports:
       - "3001:3001"
+    volumes:
+      - workspaces_data:/workspaces
     networks:
       - secure_code_network
     depends_on:
@@ -69,6 +71,7 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  workspaces_data:
 
 networks:
   secure_code_network:

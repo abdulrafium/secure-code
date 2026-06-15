@@ -47,7 +47,7 @@ export class EditorService {
         throw new BadRequestException('Project not found');
       }
       const safeName = this.sanitizeProjectName(project.name);
-      const workspacesDir = path.resolve(process.cwd(), '..', 'workspaces');
+      const workspacesDir = process.env.WORKSPACES_DIR || path.resolve(process.cwd(), '..', 'workspaces');
       const newPath = path.join(workspacesDir, safeName);
       const oldPath = path.join(workspacesDir, projectId);
 
@@ -61,7 +61,7 @@ export class EditorService {
 
       return newPath;
     }
-    return path.resolve(process.cwd(), '..');
+    return process.env.WORKSPACES_DIR || path.resolve(process.cwd(), '..', 'workspaces');
   }
 
   async getTree(dirPath: string = '', projectId?: string, recursive: boolean = false): Promise<any[]> {
@@ -107,7 +107,23 @@ export class EditorService {
         return nodes;
       };
 
-      return await readDirRecursive(targetPath, dirPath);
+      const children = await readDirRecursive(targetPath, dirPath);
+
+      // If this is a project root request (no sub-path), wrap in a root folder node
+      // so the project folder name appears at the top of the tree (like VS Code)
+      if (projectId && !dirPath) {
+        const project = await this.projectsRepository.findOne({ where: { id: projectId } });
+        const projectName = project ? project.name : path.basename(rootPath);
+        return [{
+          name: projectName,
+          path: '',
+          isDirectory: true,
+          children,
+          isRootNode: true,
+        }];
+      }
+
+      return children;
     } catch (err) {
       if (err.code === 'ENOENT') return [];
       throw new BadRequestException(`Failed to read directory: ${err.message}`);

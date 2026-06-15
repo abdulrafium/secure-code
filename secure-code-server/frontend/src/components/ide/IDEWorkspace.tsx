@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Editor from '@monaco-editor/react';
-import { 
+import {
   ChevronDown, ChevronRight, X, Plus, Terminal as TerminalIcon,
   Search, Type, Languages, Hash, FilePlus, FolderPlus,
   RefreshCw, ChevronUp, FileText, Code, FileCode, Info,
@@ -55,7 +55,7 @@ export default function IDEWorkspace() {
   const [forwardedPorts, setForwardedPorts] = useState<ForwardedPort[]>([]);
   const [userRole, setUserRole] = useState('');
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
-  
+
   const activeFile = openFiles.find(f => f.path === activeFilePath) || null;
   const isViewer = userRole.toLowerCase() === 'viewer';
 
@@ -65,12 +65,54 @@ export default function IDEWorkspace() {
   const [activeNodePath, setActiveNodePath] = useState<string | null>(null);
   const [activeFolderPath, setActiveFolderPath] = useState<string>('');
   const [refreshToggle, setRefreshToggle] = useState(0);
-  
+
   const terminalPanelRef = useRef<any>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mainAreaRef = useRef<HTMLDivElement>(null);
+
+  // Panel sizes in percent
+  const [sidebarWidth, setSidebarWidth] = useState(20);
+  const [terminalHeight, setTerminalHeight] = useState(35);
+
+  // Drag handlers for sidebar (horizontal)
+  const startHDrag = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = sidebarWidth;
+    const onMove = (ev: MouseEvent) => {
+      if (!containerRef.current) return;
+      const totalW = containerRef.current.offsetWidth;
+      const delta = ((ev.clientX - startX) / totalW) * 100;
+      setSidebarWidth(w => Math.min(60, Math.max(10, startW + delta)));
+    };
+    const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  };
+
+  // Drag handlers for terminal (vertical)
+  const startVDrag = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startH = terminalHeight;
+    const onMove = (ev: MouseEvent) => {
+      if (!mainAreaRef.current) return;
+      const totalH = mainAreaRef.current.offsetHeight;
+      const delta = (-(ev.clientY - startY) / totalH) * 100;
+      setTerminalHeight(h => Math.min(85, Math.max(15, startH + delta)));
+    };
+    const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  };
+
+  const toggleTerminalMaximized = () => {
+    setTerminalHeight(h => h > 70 ? 35 : 85);
+  };
 
   const addTerminal = () => {
     const newId = `term-${Date.now()}`;
-    setTerminals(prev => [...prev.map(t => ({...t, active: false})), { id: newId, active: true }]);
+    setTerminals(prev => [...prev.map(t => ({ ...t, active: false })), { id: newId, active: true }]);
     setTerminalOpen(true);
   };
 
@@ -89,26 +131,6 @@ export default function IDEWorkspace() {
     });
   };
 
-  const toggleTerminalMaximized = () => {
-    if (terminalPanelRef.current) {
-      const size = terminalPanelRef.current.getSize();
-      if (size > 70) {
-        terminalPanelRef.current.resize(30);
-      } else {
-        terminalPanelRef.current.resize(85);
-      }
-    }
-  };
-
-  useEffect(() => {
-    if (terminalOpen && terminalPanelRef.current) {
-      setTimeout(() => {
-        if (terminalPanelRef.current) {
-          terminalPanelRef.current.resize(40);
-        }
-      }, 50);
-    }
-  }, [terminalOpen]);
 
   const handleCreateItem = async () => {
     if (!newItemName.trim()) {
@@ -124,7 +146,7 @@ export default function IDEWorkspace() {
       });
       setRefreshToggle(prev => prev + 1);
       const treeEndpoint = projectId ? `/editor/tree?path=&projectId=${projectId}` : `/editor/tree?path=`;
-      api.get(treeEndpoint).then(data => setTree(data)).catch(() => {});
+      api.get(treeEndpoint).then(data => setTree(data)).catch(() => { });
     } catch (err: any) {
       setAlertMessage("Failed to create: " + err.message);
     } finally {
@@ -139,7 +161,7 @@ export default function IDEWorkspace() {
       setActiveFolderPath(node.path);
     } else {
       const parts = node.path.split('/');
-      parts.pop(); 
+      parts.pop();
       setActiveFolderPath(parts.join('/'));
     }
   };
@@ -160,18 +182,126 @@ export default function IDEWorkspace() {
     }
   };
 
+  // ── Workspace State Persistence (VS Code style) ─────────────────────────
+  const stateKey = projectId ? `ide-workspace-${projectId}` : null;
+  const hasRestoredState = useRef(false);
+
+  // Save state to localStorage whenever anything meaningful changes
+  useEffect(() => {
+    if (!stateKey || !hasRestoredState.current) return;
+    const state = {
+      openFilePaths: openFiles.map(f => f.path),
+      activeFilePath,
+      terminalOpen,
+      sidebarWidth,
+      terminalHeight,
+    };
+    try {
+      localStorage.setItem(stateKey, JSON.stringify(state));
+    } catch { /* quota exceeded – ignore */ }
+  }, [openFiles, activeFilePath, terminalOpen, sidebarWidth, terminalHeight, stateKey]);
+
   useEffect(() => {
     const roleCookie = document.cookie.split('; ').find(row => row.startsWith('userRole='));
-    if (roleCookie) {
-      setUserRole(roleCookie.split('=')[1]);
-    }
+    if (roleCookie) setUserRole(roleCookie.split('=')[1]);
+
+    // Fetch tree first
     const endpoint = projectId ? `/editor/tree?path=&projectId=${projectId}` : `/editor/tree?path=`;
-    api.get(endpoint).then(data => {
-      setTree(data);
-    }).catch(err => {
-      console.error("Failed to fetch tree", err);
+    api.get(endpoint).then(data => setTree(data)).catch(err => console.error('Failed to fetch tree', err));
+
+    // Restore saved workspace state
+    if (!stateKey) {
+      hasRestoredState.current = true;
+      return;
+    }
+    let savedState: { openFilePaths?: string[]; activeFilePath?: string | null; terminalOpen?: boolean; sidebarWidth?: number; terminalHeight?: number } | null = null;
+    try {
+      const raw = localStorage.getItem(stateKey);
+      if (raw) savedState = JSON.parse(raw);
+    } catch { savedState = null; }
+
+    if (!savedState) {
+      hasRestoredState.current = true;
+      return;
+    }
+
+    // Restore panel sizes immediately (no async needed)
+    if (typeof savedState.sidebarWidth === 'number') setSidebarWidth(savedState.sidebarWidth);
+    if (typeof savedState.terminalHeight === 'number') setTerminalHeight(savedState.terminalHeight);
+    if (typeof savedState.terminalOpen === 'boolean') setTerminalOpen(savedState.terminalOpen);
+
+    // Re-open files from saved paths
+    const pathsToRestore = savedState.openFilePaths || [];
+    const savedActivePath = savedState.activeFilePath || null;
+    if (pathsToRestore.length === 0) {
+      hasRestoredState.current = true;
+      return;
+    }
+
+    Promise.all(
+      pathsToRestore.map(async (filePath) => {
+        try {
+          const fileExt = filePath.split('.').pop() || '';
+          if (['png', 'jpg', 'jpeg', 'gif', 'svg'].includes(fileExt.toLowerCase())) {
+            const url = `${process.env.NEXT_PUBLIC_API_URL}/editor/file-blob?path=${encodeURIComponent(filePath)}&projectId=${projectId}`;
+            const resp = await fetch(url);
+            const blob = await resp.blob();
+            const objectUrl = URL.createObjectURL(blob);
+            const name = filePath.split('/').pop() || filePath;
+            return { path: filePath, name, content: objectUrl, isBinary: true, originalContent: '' } as OpenFile;
+          } else {
+            const ep = projectId
+              ? `/editor/file?path=${encodeURIComponent(filePath)}&projectId=${projectId}`
+              : `/editor/file?path=${encodeURIComponent(filePath)}`;
+            const data = await api.get(ep);
+            const name = filePath.split('/').pop() || filePath;
+            const n = name.toLowerCase();
+            let language = 'plaintext';
+            if (n.endsWith('.ts') || n.endsWith('.tsx')) language = 'typescript';
+            else if (n.endsWith('.js') || n.endsWith('.jsx')) language = 'javascript';
+            else if (n.endsWith('.json')) language = 'json';
+            else if (n.endsWith('.md')) language = 'markdown';
+            else if (n.endsWith('.html') || n.endsWith('.htm')) language = 'html';
+            else if (n.endsWith('.css')) language = 'css';
+            else if (n.endsWith('.py')) language = 'python';
+            else if (n.endsWith('.java')) language = 'java';
+            else if (n.endsWith('.c') || n.endsWith('.h')) language = 'c';
+            else if (n.endsWith('.cpp') || n.endsWith('.cc') || n.endsWith('.cxx')) language = 'cpp';
+            else if (n.endsWith('.cs')) language = 'csharp';
+            else if (n.endsWith('.go')) language = 'go';
+            else if (n.endsWith('.rs')) language = 'rust';
+            else if (n.endsWith('.php')) language = 'php';
+            else if (n.endsWith('.rb')) language = 'ruby';
+            else if (n.endsWith('.sql')) language = 'sql';
+            else if (n.endsWith('.xml')) language = 'xml';
+            else if (n.endsWith('.yaml') || n.endsWith('.yml')) language = 'yaml';
+            else if (n.endsWith('.sh') || n.endsWith('.bash')) language = 'shell';
+            else if (n.endsWith('.dockerfile') || n === 'dockerfile') language = 'dockerfile';
+            else if (n.endsWith('.graphql') || n.endsWith('.gql')) language = 'graphql';
+            else if (n.endsWith('.kt') || n.endsWith('.kts')) language = 'kotlin';
+            else if (n.endsWith('.swift')) language = 'swift';
+            return { path: filePath, name, content: data.content, originalContent: data.content, language } as OpenFile;
+          }
+        } catch {
+          return null; // File may have been deleted — silently skip
+        }
+      })
+    ).then(results => {
+      const validFiles = results.filter(Boolean) as OpenFile[];
+      if (validFiles.length > 0) {
+        setOpenFiles(validFiles);
+        // Restore active tab — default to last valid file if saved path is gone
+        const restoredActive = savedActivePath && validFiles.find(f => f.path === savedActivePath)
+          ? savedActivePath
+          : validFiles[validFiles.length - 1].path;
+        setActiveFilePath(restoredActive);
+      }
+      hasRestoredState.current = true;
+    }).catch(() => {
+      hasRestoredState.current = true;
     });
   }, [projectId]);
+
 
   const handleFileClick = async (node: FileNode) => {
     if (node.isDirectory) return;
@@ -184,23 +314,23 @@ export default function IDEWorkspace() {
 
     try {
       const fileExt = node.path.split('.').pop() || '';
-      
+
       if (['png', 'jpg', 'jpeg', 'gif', 'svg'].includes(fileExt.toLowerCase())) {
         const url = `${process.env.NEXT_PUBLIC_API_URL}/editor/file-blob?path=${encodeURIComponent(node.path)}&projectId=${projectId}`;
         const resp = await fetch(url);
         const blob = await resp.blob();
         const objectUrl = URL.createObjectURL(blob);
-        
+
         const newFile: OpenFile = { path: node.path, name: node.name, content: objectUrl, isBinary: true, originalContent: '' };
         setOpenFiles(prev => [...prev, newFile]);
         setActiveFilePath(node.path);
         setSystemLogs(prev => [...prev, `Opened binary file: ${node.name}`]);
       } else {
-        const endpoint = projectId 
+        const endpoint = projectId
           ? `/editor/file?path=${encodeURIComponent(node.path)}&projectId=${projectId}`
           : `/editor/file?path=${encodeURIComponent(node.path)}`;
         const data = await api.get(endpoint);
-        
+
         let language = 'plaintext';
         const name = node.name.toLowerCase();
         if (name.endsWith('.ts') || name.endsWith('.tsx')) language = 'typescript';
@@ -234,7 +364,7 @@ export default function IDEWorkspace() {
           originalContent: data.content,
           language
         };
-        
+
         setOpenFiles(prev => [...prev, newFile]);
         setActiveFilePath(node.path);
         setSystemLogs(prev => [...prev, `Opened file: ${node.name}`]);
@@ -256,7 +386,7 @@ export default function IDEWorkspace() {
 
   const handleEditorChange = (value: string | undefined) => {
     if (!activeFile || value === undefined) return;
-    
+
     setOpenFiles(prev => prev.map(f => {
       if (f.path === activeFilePath) {
         return { ...f, content: value };
@@ -292,277 +422,272 @@ export default function IDEWorkspace() {
   }, [activeFile]);
 
   return (
-    <div className="flex h-screen w-full bg-[#1e1e1e] text-[#cccccc] overflow-hidden font-sans select-none">
-      
-      <PanelGroup orientation="horizontal" id="ide-layout-horizontal-v2">
-        {/* Side Bar */}
-        <Panel defaultSize={20} minSize={15} maxSize={40} className="flex flex-col bg-[#252526] border-r border-[#3c3c3c]">
-          <div className="flex items-center justify-between px-4 py-2 bg-[#2d2d2d] border-b border-[#3c3c3c]">
-            <span className="text-xs font-semibold text-slate-300 tracking-wider">EXPLORER</span>
-            <div className="flex space-x-1">
-              <FilePlus 
-                className={`w-4 h-4 text-slate-400 ${isViewer ? 'opacity-30 cursor-not-allowed' : 'hover:text-white cursor-pointer'}`} 
-                onClick={() => !isViewer && setShowNewItemInput('file')}
-              />
-              <FolderPlus 
-                className={`w-4 h-4 text-slate-400 ${isViewer ? 'opacity-30 cursor-not-allowed' : 'hover:text-white cursor-pointer'}`} 
-                onClick={() => !isViewer && setShowNewItemInput('folder')}
-              />
-              <div className="relative flex items-center">
-                <div 
-                  className="flex items-center cursor-pointer hover:bg-white/10 rounded px-1.5 py-0.5"
-                  onClick={() => setShowTerminalMenu(!showTerminalMenu)}
-                  title="Terminal Options"
-                >
-                  {showTerminalMenu ? (
-                    <ChevronUp className="w-4 h-4 text-slate-400 hover:text-white" />
-                  ) : (
-                    <ChevronDown className="w-4 h-4 text-slate-400 hover:text-white" />
-                  )}
-                </div>
-                
-                {showTerminalMenu && (
-                  <>
-                    <div className="fixed inset-0 z-40" onClick={() => setShowTerminalMenu(false)} />
-                    <div className="absolute top-6 right-0 z-50 bg-[#252526] border border-[#454545] rounded shadow-xl py-1 min-w-[140px]">
-                      <button 
-                        className="w-full text-left px-3 py-1.5 text-[12px] text-slate-300 hover:bg-[#094771] hover:text-white flex items-center"
-                        onClick={() => {
-                          const newId = `term-${Date.now()}`;
-                          if (!terminalOpen) {
-                            setTerminals([{ id: newId, active: true }]);
-                            setTerminalOpen(true);
-                          } else {
-                            setTerminals(prev => [...prev.map(t => ({...t, active: false})), { id: newId, active: true }]);
-                          }
-                          setShowTerminalMenu(false);
-                        }}
-                      >
-                        <Plus className="w-3 h-3 mr-2" />
-                        New Terminal
-                      </button>
-                    </div>
-                  </>
+    <div ref={containerRef} className="flex h-screen w-full bg-[#1e1e1e] text-[#cccccc] overflow-hidden font-sans select-none">
+
+      {/* Side Bar */}
+      <div style={{ width: `${sidebarWidth}%`, minWidth: '10%', maxWidth: '60%', flexShrink: 0 }} className="flex flex-col bg-[#252526] border-r border-[#3c3c3c]">
+        <div className="flex items-center justify-between px-4 py-2 bg-[#2d2d2d] border-b border-[#3c3c3c]">
+          <span className="text-xs font-semibold text-slate-300 tracking-wider">EXPLORER</span>
+          <div className="flex space-x-1">
+            <FilePlus
+              className={`w-4 h-4 text-slate-400 ${isViewer ? 'opacity-30 cursor-not-allowed' : 'hover:text-white cursor-pointer'}`}
+              onClick={() => !isViewer && setShowNewItemInput('file')}
+            />
+            <FolderPlus
+              className={`w-4 h-4 text-slate-400 ${isViewer ? 'opacity-30 cursor-not-allowed' : 'hover:text-white cursor-pointer'}`}
+              onClick={() => !isViewer && setShowNewItemInput('folder')}
+            />
+            <div className="relative flex items-center">
+              <div
+                className="flex items-center cursor-pointer hover:bg-white/10 rounded px-1.5 py-0.5"
+                onClick={() => setShowTerminalMenu(!showTerminalMenu)}
+                title="Terminal Options"
+              >
+                {showTerminalMenu ? (
+                  <ChevronUp className="w-4 h-4 text-slate-400 hover:text-white" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-slate-400 hover:text-white" />
                 )}
               </div>
-              <RefreshCw className="w-4 h-4 text-slate-400 hover:text-white cursor-pointer" onClick={(e) => {
-                e.stopPropagation();
-                e.preventDefault();
-                setRefreshToggle(prev => prev + 1);
-                const endpoint = projectId ? `/editor/tree?path=&projectId=${projectId}` : `/editor/tree?path=`;
-                api.get(endpoint).then(data => setTree(data)).catch(console.error);
-              }} />
-            </div>
-          </div>
 
-          <div className="flex-1 overflow-y-auto custom-scrollbar p-2" onClick={(e) => {
-            // If they click the empty space, reset active folder to root
-            if (e.target === e.currentTarget) {
-              setActiveNodePath(null);
-              setActiveFolderPath('');
-            }
-          }}>
-            <FileTree 
-              nodes={tree} 
-              onFileClick={handleFileClick} 
-              projectId={projectId || ''} 
-              isViewer={isViewer} 
-              activeNodePath={activeNodePath || undefined} 
-              onNodeSelect={handleNodeSelect} 
-              refreshToggle={refreshToggle} 
-              showNewItemInput={showNewItemInput}
-              activeFolderPath={activeFolderPath}
-              newItemName={newItemName}
-              setNewItemName={setNewItemName}
-              handleCreateItem={handleCreateItem}
-              setShowNewItemInput={setShowNewItemInput}
-            />
-          </div>
-        </Panel>
-
-        <PanelResizeHandle className="w-[1px] bg-[#333] hover:bg-[#007fd4] hover:w-[4px] transition-all cursor-col-resize z-50" />
-
-        {/* Main Editor & Terminal Area */}
-        <Panel className="flex flex-col min-w-0 bg-[#1e1e1e] relative">
-          
-          {/* Floating Top Right Tools */}
-          <div className="absolute top-2 right-4 z-50 flex flex-col items-end pointer-events-none">
-            <div className="flex items-center space-x-1 bg-[#1e1e1e]/80 backdrop-blur border border-[#333] rounded-full px-2 py-1 mb-2 pointer-events-auto shadow-lg">
-              <div className="flex flex-col items-center px-2 cursor-pointer hover:bg-white/10 rounded">
-                <div className="w-4 h-4 rounded-full border border-[#00FF00] flex items-center justify-center mb-0.5"><div className="w-1.5 h-1.5 bg-[#00FF00] rounded-full"></div></div>
-                <span className="text-[8px] text-slate-300">Code</span>
-              </div>
-              <div className="flex flex-col items-center px-2 cursor-pointer hover:bg-white/10 rounded">
-                <div className="w-4 h-4 rounded-full border border-blue-400 flex items-center justify-center mb-0.5"><div className="w-1.5 h-1.5 bg-blue-400 rounded-full"></div></div>
-                <span className="text-[8px] text-slate-300">Build</span>
-              </div>
-              <div className="flex flex-col items-center px-2 cursor-pointer hover:bg-white/10 rounded">
-                <div className="w-4 h-4 rounded-full border border-purple-400 flex items-center justify-center mb-0.5"><div className="w-1.5 h-1.5 bg-purple-400 rounded-full"></div></div>
-                <span className="text-[8px] text-slate-300">Test</span>
-              </div>
-              <div className="flex flex-col items-center px-2 cursor-pointer hover:bg-white/10 rounded">
-                <div className="w-4 h-4 rounded-full border border-pink-400 flex items-center justify-center mb-0.5"><div className="w-1.5 h-1.5 bg-pink-400 rounded-full"></div></div>
-                <span className="text-[8px] text-slate-300">Deploy</span>
-              </div>
-              <div className="flex flex-col items-center px-2 cursor-pointer hover:bg-white/10 rounded">
-                <div className="w-4 h-4 rounded-full border border-blue-500 flex items-center justify-center mb-0.5"><div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div></div>
-                <span className="text-[8px] text-slate-300">Live</span>
-              </div>
-            </div>
-            <div className="flex space-x-2 pointer-events-auto">
-              <button className="bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-medium px-3 py-1 rounded shadow-lg">
-                code push
-              </button>
-              <button className="bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-medium px-3 py-1 rounded shadow-lg">
-                Live link
-              </button>
-            </div>
-          </div>
-
-          <PanelGroup orientation="vertical" id="ide-layout-vertical-v2" className="flex-1 min-h-0 w-full">
-            {/* Editor Top Section */}
-            <Panel defaultSize={60} minSize={20} className="flex flex-col min-h-0 bg-[#1e1e1e]">
-              
-              {/* Editor Tabs */}
-              <div className="flex bg-[#2d2d2d] overflow-x-auto overflow-y-hidden h-[35px] border-b border-[#1e1e1e] flex-shrink-0">
-                {openFiles.map((file) => {
-                  const isActive = activeFilePath === file.path;
-                  return (
-                    <div 
-                      key={file.path}
-                      onClick={() => setActiveFilePath(file.path)}
-                      className={`flex items-center px-3 h-full cursor-pointer group border-r border-[#1e1e1e] min-w-fit ${isActive ? 'bg-[#1e1e1e] text-white border-t border-t-blue-500' : 'bg-[#2d2d2d] text-[#969696] hover:bg-[#2b2b2b]'}`}
+              {showTerminalMenu && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowTerminalMenu(false)} />
+                  <div className="absolute top-6 right-0 z-50 bg-[#252526] border border-[#454545] rounded shadow-xl py-1 min-w-[140px]">
+                    <button
+                      className="w-full text-left px-3 py-1.5 text-[12px] text-slate-300 hover:bg-[#094771] hover:text-white flex items-center"
+                      onClick={() => {
+                        const newId = `term-${Date.now()}`;
+                        if (!terminalOpen) {
+                          setTerminals([{ id: newId, active: true }]);
+                          setTerminalOpen(true);
+                        } else {
+                          setTerminals(prev => [...prev.map(t => ({ ...t, active: false })), { id: newId, active: true }]);
+                        }
+                        setShowTerminalMenu(false);
+                      }}
                     >
-                      <span className="text-[13px] mr-2">{file.name}</span>
-                      <div 
-                        className={`w-5 h-5 flex items-center justify-center rounded-md hover:bg-[#4d4d4d] ${isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
-                        onClick={(e) => closeFile(e, file.path)}
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                      <Plus className="w-3 h-3 mr-2" />
+                      New Terminal
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+            <RefreshCw className="w-4 h-4 text-slate-400 hover:text-white cursor-pointer" onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              setRefreshToggle(prev => prev + 1);
+              const endpoint = projectId ? `/editor/tree?path=&projectId=${projectId}` : `/editor/tree?path=`;
+              api.get(endpoint).then(data => setTree(data)).catch(console.error);
+            }} />
+          </div>
+        </div>
 
-              {/* Breadcrumbs & Actions */}
-              {activeFile && (
-                <div className="flex items-center justify-between px-4 h-[22px] bg-[#1e1e1e] flex-shrink-0">
-                  <span className="text-[#cccccc] text-[12px] opacity-80 truncate">{activeFile.path.split('/').join(' > ')}</span>
-                  {!isViewer && (
-                    <div className="flex items-center space-x-2">
-                      <span className="text-[10px] text-red-400 hover:text-red-300 cursor-pointer" onClick={handleDeleteItem}>Delete File</span>
-                    </div>
-                  )}
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-2" onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            setActiveNodePath(null);
+            setActiveFolderPath('');
+          }
+        }}>
+          <FileTree
+            nodes={tree}
+            onFileClick={handleFileClick}
+            projectId={projectId || ''}
+            isViewer={isViewer}
+            activeNodePath={activeNodePath || undefined}
+            onNodeSelect={handleNodeSelect}
+            refreshToggle={refreshToggle}
+            showNewItemInput={showNewItemInput}
+            activeFolderPath={activeFolderPath}
+            newItemName={newItemName}
+            setNewItemName={setNewItemName}
+            handleCreateItem={handleCreateItem}
+            setShowNewItemInput={setShowNewItemInput}
+          />
+        </div>
+      </div>
+
+      {/* Horizontal Resize Handle */}
+      <div
+        onMouseDown={startHDrag}
+        className="w-[3px] flex-shrink-0 bg-[#333] hover:bg-[#007fd4] cursor-col-resize z-50 transition-colors"
+      />
+
+      {/* Main Editor & Terminal Area */}
+      <div ref={mainAreaRef} className="flex flex-col flex-1 min-w-0 bg-[#1e1e1e] relative">
+
+        {/* Floating Top Right Tools */}
+        <div className="absolute top-2 right-4 z-50 flex flex-col items-end pointer-events-none">
+          <div className="flex items-center space-x-1 bg-[#1e1e1e]/80 backdrop-blur border border-[#333] rounded-full px-2 py-1 mb-2 pointer-events-auto shadow-lg">
+            <div className="flex flex-col items-center px-2 cursor-pointer hover:bg-white/10 rounded">
+              <div className="w-4 h-4 rounded-full border border-[#00FF00] flex items-center justify-center mb-0.5"><div className="w-1.5 h-1.5 bg-[#00FF00] rounded-full"></div></div>
+              <span className="text-[8px] text-slate-300">Code</span>
+            </div>
+            <div className="flex flex-col items-center px-2 cursor-pointer hover:bg-white/10 rounded">
+              <div className="w-4 h-4 rounded-full border border-blue-400 flex items-center justify-center mb-0.5"><div className="w-1.5 h-1.5 bg-blue-400 rounded-full"></div></div>
+              <span className="text-[8px] text-slate-300">Build</span>
+            </div>
+            <div className="flex flex-col items-center px-2 cursor-pointer hover:bg-white/10 rounded">
+              <div className="w-4 h-4 rounded-full border border-purple-400 flex items-center justify-center mb-0.5"><div className="w-1.5 h-1.5 bg-purple-400 rounded-full"></div></div>
+              <span className="text-[8px] text-slate-300">Test</span>
+            </div>
+            <div className="flex flex-col items-center px-2 cursor-pointer hover:bg-white/10 rounded">
+              <div className="w-4 h-4 rounded-full border border-pink-400 flex items-center justify-center mb-0.5"><div className="w-1.5 h-1.5 bg-pink-400 rounded-full"></div></div>
+              <span className="text-[8px] text-slate-300">Deploy</span>
+            </div>
+            <div className="flex flex-col items-center px-2 cursor-pointer hover:bg-white/10 rounded">
+              <div className="w-4 h-4 rounded-full border border-blue-500 flex items-center justify-center mb-0.5"><div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div></div>
+              <span className="text-[8px] text-slate-300">Live</span>
+            </div>
+          </div>
+          <div className="flex space-x-2 pointer-events-auto">
+            <button className="bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-medium px-3 py-1 rounded shadow-lg">code push</button>
+            <button className="bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-medium px-3 py-1 rounded shadow-lg">Live link</button>
+          </div>
+        </div>
+
+        {/* Editor Panel */}
+        <div
+          style={{ height: terminalOpen ? `${100 - terminalHeight}%` : '100%' }}
+          className="flex flex-col min-h-0 bg-[#1e1e1e] overflow-hidden"
+        >
+          {/* Editor Tabs */}
+          <div className="flex bg-[#2d2d2d] overflow-x-auto overflow-y-hidden h-[35px] border-b border-[#1e1e1e] flex-shrink-0">
+            {openFiles.map((file) => {
+              const isActive = activeFilePath === file.path;
+              return (
+                <div
+                  key={file.path}
+                  onClick={() => setActiveFilePath(file.path)}
+                  className={`flex items-center px-3 h-full cursor-pointer group border-r border-[#1e1e1e] min-w-fit ${isActive ? 'bg-[#1e1e1e] text-white border-t border-t-blue-500' : 'bg-[#2d2d2d] text-[#969696] hover:bg-[#2b2b2b]'}`}
+                >
+                  <span className="text-[13px] mr-2">{file.name}</span>
+                  <div
+                    className={`w-5 h-5 flex items-center justify-center rounded-md hover:bg-[#4d4d4d] ${isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                    onClick={(e) => closeFile(e, file.path)}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Breadcrumbs & Actions */}
+          {activeFile && (
+            <div className="flex items-center justify-between px-4 h-[22px] bg-[#1e1e1e] flex-shrink-0">
+              <span className="text-[#cccccc] text-[12px] opacity-80 truncate">{activeFile.path.split('/').join(' > ')}</span>
+              {!isViewer && (
+                <div className="flex items-center space-x-2">
+                  <span className="text-[10px] text-red-400 hover:text-red-300 cursor-pointer" onClick={handleDeleteItem}>Delete File</span>
                 </div>
               )}
+            </div>
+          )}
 
-              {/* Monaco Editor Wrapper */}
-              <div className="flex-1 relative border-t border-[#2d2d2d] min-h-0">
-                {activeFile ? (
-                  <Editor
-                      height="100%"
-                      language={activeFile.language}
-                      theme="vs-dark"
-                      value={activeFile.content}
-                      onChange={handleEditorChange}
-                      options={{
-                        ...EDITOR_OPTIONS,
-                        readOnly: isViewer
-                      }}
-                  />
-                ) : (
-                  <div className="flex items-center justify-center h-full text-slate-600 text-3xl font-light">
-                    Select a file to edit
+          {/* Monaco Editor */}
+          <div className="flex-1 relative border-t border-[#2d2d2d] min-h-0">
+            {activeFile ? (
+              <Editor
+                height="100%"
+                language={activeFile.language}
+                theme="vs-dark"
+                value={activeFile.content}
+                onChange={handleEditorChange}
+                options={{ ...EDITOR_OPTIONS, readOnly: isViewer }}
+              />
+            ) : (
+              <div className="flex items-center justify-center h-full text-slate-600 text-3xl font-light">
+                Select a file to edit
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Vertical Resize Handle */}
+        {terminalOpen && (
+          <div
+            onMouseDown={startVDrag}
+            className="h-[3px] flex-shrink-0 bg-[#333] hover:bg-[#007fd4] cursor-row-resize z-50 transition-colors"
+          />
+        )}
+
+        {/* Terminal Panel */}
+        {terminalOpen && (
+          <div
+            style={{ height: `${terminalHeight}%` }}
+            className="flex flex-shrink-0 min-h-0 bg-[#1e1e1e] overflow-hidden"
+          >
+            {/* Terminal Content Area */}
+            <div className="flex-1 flex flex-col min-w-0">
+              <div className="flex px-4 h-[35px] border-b border-[#333333] flex-shrink-0">
+                <div className="flex space-x-6 text-[11px] font-medium tracking-wide items-center pt-2">
+                  <button
+                    className={`h-full flex items-start border-b ${activeBottomTab === 'terminal' ? 'text-white border-[#007acc]' : 'text-[#cccccc] hover:text-white border-transparent'}`}
+                    onClick={() => setActiveBottomTab('terminal')}
+                  >TERMINAL</button>
+                  <button
+                    className={`h-full flex items-start border-b ${activeBottomTab === 'output' ? 'text-white border-[#007acc]' : 'text-[#cccccc] hover:text-white border-transparent'}`}
+                    onClick={() => setActiveBottomTab('output')}
+                  >OUTPUT</button>
+                  <button
+                    className={`h-full flex items-start border-b ${activeBottomTab === 'ports' ? 'text-white border-[#007acc]' : 'text-[#cccccc] hover:text-white border-transparent'}`}
+                    onClick={() => setActiveBottomTab('ports')}
+                  >PORTS</button>
+                </div>
+              </div>
+              <div className="flex-1 p-0 bg-[#1e1e1e] min-h-0 overflow-hidden relative">
+                {activeBottomTab === 'terminal' && (
+                  <div className="w-full h-full relative">
+                    {terminals.map(term => (
+                      <div key={term.id} className="w-full h-full absolute inset-0 p-2" style={{ visibility: term.active ? 'visible' : 'hidden', pointerEvents: term.active ? 'auto' : 'none' }}>
+                        <TerminalPane projectId={projectId} isViewer={isViewer} />
+                      </div>
+                    ))}
                   </div>
                 )}
+                {activeBottomTab === 'output' && <OutputPane logs={systemLogs} />}
+                {activeBottomTab === 'ports' && (
+                  <PortsPane
+                    ports={forwardedPorts}
+                    onAddPort={(port, label) => setForwardedPorts(prev => [...prev, { id: `port-${Date.now()}`, port, label }])}
+                    onRemovePort={(id) => setForwardedPorts(prev => prev.filter(p => p.id !== id))}
+                  />
+                )}
               </div>
-            </Panel>
+            </div>
 
-            {terminalOpen && (
-              <>
-                <PanelResizeHandle className="h-[1px] bg-[#333] hover:bg-[#007fd4] hover:h-[4px] transition-all cursor-row-resize z-50" />
-                
-                {/* Bottom Panel (Terminal) */}
-                {/* @ts-ignore */}
-                <Panel ref={(node: any) => { terminalPanelRef.current = node; }} defaultSize={40} minSize={15} maxSize={80} className="bg-[#1e1e1e] flex min-h-0">
-                  {/* Terminal Content Area */}
-                  <div className="flex-1 flex flex-col min-w-0">
-                    <div className="flex px-4 h-[35px] border-b border-[#333333] flex-shrink-0">
-                      <div className="flex space-x-6 text-[11px] font-medium tracking-wide items-center pt-2">
-                        <button 
-                          className={`h-full flex items-start border-b ${activeBottomTab === 'terminal' ? 'text-white border-[#007acc]' : 'text-[#cccccc] hover:text-white border-transparent'}`}
-                          onClick={() => setActiveBottomTab('terminal')}
-                        >TERMINAL</button>
-                        <button 
-                          className={`h-full flex items-start border-b ${activeBottomTab === 'output' ? 'text-white border-[#007acc]' : 'text-[#cccccc] hover:text-white border-transparent'}`}
-                          onClick={() => setActiveBottomTab('output')}
-                        >OUTPUT</button>
-                        <button 
-                          className={`h-full flex items-start border-b ${activeBottomTab === 'ports' ? 'text-white border-[#007acc]' : 'text-[#cccccc] hover:text-white border-transparent'}`}
-                          onClick={() => setActiveBottomTab('ports')}
-                        >PORTS</button>
+            {/* Terminal Sidebar (Right) */}
+            {activeBottomTab === 'terminal' && (
+              <div className="w-[150px] border-l border-[#333333] flex flex-col flex-shrink-0">
+                <div className="flex justify-end p-2 space-x-2 text-[#cccccc]">
+                  <Plus className="w-4 h-4 cursor-pointer hover:text-white" onClick={addTerminal} />
+                  <ChevronUp className="w-4 h-4 cursor-pointer hover:text-white" onClick={toggleTerminalMaximized} />
+                  <X className="w-4 h-4 cursor-pointer hover:text-white" onClick={() => setTerminalOpen(false)} />
+                </div>
+                <div className="flex flex-col px-2 space-y-1">
+                  {terminals.map((term, idx) => (
+                    <div
+                      key={term.id}
+                      onClick={() => switchTerminal(term.id)}
+                      className={`flex items-center justify-between text-[#cccccc] hover:bg-[#2a2d2e] cursor-pointer px-1 py-0.5 rounded ${term.active ? 'bg-[#37373d]' : ''}`}
+                    >
+                      <div className="flex items-center">
+                        <TerminalIcon className="w-3.5 h-3.5 mr-2" />
+                        <span className="text-[12px]">powershell {idx + 1}</span>
                       </div>
-                    </div>
-                    <div className="flex-1 p-0 bg-[#1e1e1e] min-h-0 overflow-hidden relative">
-                      {activeBottomTab === 'terminal' && (
-                        <div className="w-full h-full relative">
-                          {terminals.map(term => (
-                            <div key={term.id} className="w-full h-full absolute inset-0 p-2" style={{ visibility: term.active ? 'visible' : 'hidden', pointerEvents: term.active ? 'auto' : 'none' }}>
-                              <TerminalPane projectId={projectId} isViewer={isViewer} />
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      
-                      {activeBottomTab === 'output' && (
-                        <OutputPane logs={systemLogs} />
-                      )}
-
-                      {activeBottomTab === 'ports' && (
-                        <PortsPane 
-                          ports={forwardedPorts} 
-                          onAddPort={(port, label) => setForwardedPorts(prev => [...prev, { id: `port-${Date.now()}`, port, label }])}
-                          onRemovePort={(id) => setForwardedPorts(prev => prev.filter(p => p.id !== id))}
-                        />
+                      {terminals.length > 1 && (
+                        <X className="w-3 h-3 hover:text-red-400 opacity-50 hover:opacity-100" onClick={(e) => closeTerminal(term.id, e)} />
                       )}
                     </div>
-                  </div>
-                  
-                  {/* Terminal Sidebar (Right) - Only show when terminal is active */}
-                  {activeBottomTab === 'terminal' && (
-                    <div className="w-[150px] border-l border-[#333333] flex flex-col flex-shrink-0">
-                    <div className="flex justify-end p-2 space-x-2 text-[#cccccc]">
-                      <Plus className="w-4 h-4 cursor-pointer hover:text-white" onClick={addTerminal} />
-                      <ChevronUp className="w-4 h-4 cursor-pointer hover:text-white" onClick={toggleTerminalMaximized} />
-                      <X className="w-4 h-4 cursor-pointer hover:text-white" onClick={() => setTerminalOpen(false)} />
-                    </div>
-                    <div className="flex flex-col px-2 space-y-1">
-                      {terminals.map((term, idx) => (
-                        <div 
-                          key={term.id}
-                          onClick={() => switchTerminal(term.id)}
-                          className={`flex items-center justify-between text-[#cccccc] hover:bg-[#2a2d2e] cursor-pointer px-1 py-0.5 rounded ${term.active ? 'bg-[#37373d]' : ''}`}
-                        >
-                          <div className="flex items-center">
-                            <TerminalIcon className="w-3.5 h-3.5 mr-2" />
-                            <span className="text-[12px]">powershell {idx + 1}</span>
-                          </div>
-                          {terminals.length > 1 && (
-                            <X className="w-3 h-3 hover:text-red-400 opacity-50 hover:opacity-100" onClick={(e) => closeTerminal(term.id, e)} />
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  )}
-                </Panel>
-              </>
+                  ))}
+                </div>
+              </div>
             )}
-          </PanelGroup>
-
-        </Panel>
-      </PanelGroup>
+          </div>
+        )}
+      </div>
 
       {/* Themed Alert Modal */}
       {alertMessage && (
@@ -579,7 +704,7 @@ export default function IDEWorkspace() {
               {alertMessage}
             </div>
             <div className="px-4 py-3 bg-[#252526] border-t border-[#333333] flex justify-end space-x-3">
-              <button 
+              <button
                 onClick={() => setAlertMessage(null)}
                 className="bg-[#0e639c] hover:bg-[#1177bb] text-white px-4 py-1.5 rounded text-[13px] font-medium transition-colors"
               >

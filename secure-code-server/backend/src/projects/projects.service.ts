@@ -11,7 +11,7 @@ import { promisify } from 'util';
 const execAsync = promisify(exec);
 
 import { UsersService } from '../users/users.service';
-
+import { TerminalGateway } from '../editor/terminal.gateway';
 @Injectable()
 export class ProjectsService {
   constructor(
@@ -20,13 +20,19 @@ export class ProjectsService {
     private usersService: UsersService,
   ) {}
 
-  async findAll(): Promise<Project[]> {
+  async findAll(): Promise<any[]> {
     const projects = await this.projectsRepository.find({
       relations: { users: true },
       order: { createdAt: 'DESC' },
     });
-    projects.forEach(p => p.status = 'Running');
-    return projects;
+    return projects.map(p => {
+      const pMap = TerminalGateway.projectSessions.get(p.id);
+      return {
+        ...p,
+        status: 'Running',
+        onlineUsers: pMap ? pMap.size : 0
+      };
+    });
   }
 
   async create(name: string): Promise<Project> {
@@ -44,7 +50,7 @@ export class ProjectsService {
       const newSafeName = newName.replace(/[^a-zA-Z0-9-_\.]/g, '_');
 
       if (oldSafeName !== newSafeName) {
-      const workspacesDir = path.resolve(process.cwd(), '..', 'workspaces');
+      const workspacesDir = process.env.WORKSPACES_DIR || path.resolve(process.cwd(), '..', 'workspaces');
       const oldPath = path.join(workspacesDir, oldSafeName);
       const newPath = path.join(workspacesDir, newSafeName);
 
@@ -81,13 +87,15 @@ export class ProjectsService {
     await this.projectsRepository.remove(project);
 
     // Optionally remove from filesystem
-    const workspacePath = path.resolve(process.cwd(), '..', 'workspaces', safeName);
+    const workspacesDir = process.env.WORKSPACES_DIR || path.resolve(process.cwd(), '..', 'workspaces');
+    const workspacePath = path.join(workspacesDir, safeName);
     try {
       if (fs.existsSync(workspacePath)) {
         await fs.promises.rm(workspacePath, { recursive: true, force: true });
       }
       // Also clean up old UUID path if it wasn't migrated
-      const oldWorkspacePath = path.resolve(process.cwd(), '..', 'workspaces', id);
+      const workspacesDir = process.env.WORKSPACES_DIR || path.resolve(process.cwd(), '..', 'workspaces');
+      const oldWorkspacePath = path.join(workspacesDir, id);
       if (fs.existsSync(oldWorkspacePath)) {
         await fs.promises.rm(oldWorkspacePath, { recursive: true, force: true });
       }
@@ -102,7 +110,7 @@ export class ProjectsService {
 
     const safeName = project.name.replace(/[^a-zA-Z0-9-_\.]/g, '_');
 
-    const workspacesDir = path.resolve(process.cwd(), '..', 'workspaces');
+    const workspacesDir = process.env.WORKSPACES_DIR || path.resolve(process.cwd(), '..', 'workspaces');
     if (!fs.existsSync(workspacesDir)) {
       await fs.promises.mkdir(workspacesDir, { recursive: true });
     }
@@ -155,13 +163,13 @@ export class ProjectsService {
     if (!url) throw new BadRequestException('Repository URL is required');
 
     // Strict validation for github/gitlab URLs (https or ssh)
-    const isValidUrl = /^https:\/\/(github\.com|gitlab\.com)\/[^\/]+\/[^\/]+/.test(url) || /^git@(github\.com|gitlab\.com):[^\/]+\/[^\/]+/.test(url);
+    const isValidUrl = /^https:\/\/(www\.)?(github\.com|gitlab\.com)\/[^\/]+\/[^\/]+/.test(url) || /^git@(github\.com|gitlab\.com):[^\/]+\/[^\/]+/.test(url);
     if (!isValidUrl) {
       throw new BadRequestException('Invalid GitHub/GitLab URL format. Must be a valid HTTPS or SSH URL.');
     }
 
     const safeName = project.name.replace(/[^a-zA-Z0-9-_\.]/g, '_');
-    const workspacesDir = path.resolve(process.cwd(), '..', 'workspaces');
+    const workspacesDir = process.env.WORKSPACES_DIR || path.resolve(process.cwd(), '..', 'workspaces');
     const projectDir = path.join(workspacesDir, safeName);
 
     // Wipe existing project files to prevent conflicts
@@ -235,7 +243,7 @@ export class ProjectsService {
     if (!project) throw new NotFoundException('Project not found');
 
     const safeName = project.name.replace(/[^a-zA-Z0-9-_\.]/g, '_');
-    const workspacesDir = path.resolve(process.cwd(), '..', 'workspaces');
+    const workspacesDir = process.env.WORKSPACES_DIR || path.resolve(process.cwd(), '..', 'workspaces');
     let projectDir = path.join(workspacesDir, safeName);
 
     // Fallback to ID directory if name directory doesn't exist (older format)
@@ -267,7 +275,7 @@ export class ProjectsService {
     await archive.finalize();
   }
 
-  async getAssignedProjects(userId: string): Promise<Project[]> {
+  async getAssignedProjects(userId: string): Promise<any[]> {
     const projects = await this.projectsRepository.find({
       relations: { users: true },
       order: { createdAt: 'DESC' },
@@ -275,8 +283,14 @@ export class ProjectsService {
     
     // Filter out only projects where this user is assigned
     const assigned = projects.filter(p => p.users && p.users.some(u => u.id === userId));
-    assigned.forEach(p => p.status = 'Running');
-    return assigned;
+    return assigned.map(p => {
+      const pMap = TerminalGateway.projectSessions.get(p.id);
+      return {
+        ...p,
+        status: 'Running',
+        onlineUsers: pMap ? pMap.size : 0
+      };
+    });
   }
 
   async assignUser(projectId: string, userId: string): Promise<Project> {

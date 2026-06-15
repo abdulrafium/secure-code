@@ -11,7 +11,7 @@ export class UsersService implements OnApplicationBootstrap {
   constructor(
     @InjectRepository(User)
     private usersRepository: Repository<User>,
-  ) {}
+  ) { }
 
   async onApplicationBootstrap() {
     await this.seedUsers();
@@ -44,25 +44,21 @@ export class UsersService implements OnApplicationBootstrap {
   }
 
   async findAll(): Promise<User[]> {
-    return this.usersRepository.find({
-      select: {
-        id: true,
-        username: true,
-        role: true,
-        status: true,
-        allowIp: true,
-        publicKey: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+    const users = await this.usersRepository.find({
+      relations: { projects: true },
       order: { createdAt: 'DESC' }
+    });
+
+    return users.map(user => {
+      const { passwordHash, ...rest } = user;
+      return rest as User;
     });
   }
 
   async create(
-    username: string, 
-    passwordPlain: string, 
-    roleInput: string = Role.Viewer, 
+    username: string,
+    passwordPlain: string,
+    roleInput: string = Role.Viewer,
     statusInput: string = Status.Active,
     allowIp?: string,
     publicKey?: string,
@@ -175,9 +171,9 @@ export class UsersService implements OnApplicationBootstrap {
     qb.select('user.role', 'role');
     qb.addSelect('COUNT(user.id)', 'count');
     qb.groupBy('user.role');
-    
+
     const results = await qb.getRawMany();
-    
+
     // Reduce array into an object: { admin: 1, developer: 1, viewer: 1 }
     const roleCounts = results.reduce((acc, curr) => {
       const normalizedRole = curr.role ? curr.role.toLowerCase() : '';

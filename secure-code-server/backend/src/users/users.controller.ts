@@ -76,6 +76,11 @@ export class UsersController {
     return this.usersService.findAll();
   }
 
+  @Get('test-projects')
+  async testProjects() {
+    return this.usersService.findAll();
+  }
+
   @UseGuards(JwtAuthGuard)
   @Post()
   async createUser(@Body() body: any) {

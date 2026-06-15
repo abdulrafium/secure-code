@@ -62,12 +62,12 @@ export default function PortsPane({ ports, onAddPort, onRemovePort }: PortsPaneP
                     <td className="py-2.5 font-mono">{p.port}</td>
                     <td className="py-2.5">
                       <a 
-                        href={`http://localhost:${p.port}`} 
+                        href={`http://${typeof window !== 'undefined' ? window.location.hostname : 'localhost'}:${p.port}`} 
                         target="_blank" 
                         rel="noreferrer"
                         className="text-[#3794ff] hover:underline flex items-center space-x-1"
                       >
-                        <span>localhost:{p.port}</span>
+                        <span>{typeof window !== 'undefined' ? window.location.hostname : 'localhost'}:{p.port}</span>
                         <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
                       </a>
                     </td>
@@ -97,7 +97,7 @@ export default function PortsPane({ ports, onAddPort, onRemovePort }: PortsPaneP
                         onKeyDown={e => { if (e.key === 'Enter') handleAdd(); if (e.key === 'Escape') setIsAdding(false); }}
                       />
                     </td>
-                    <td className="py-2 text-slate-500 italic">localhost:...</td>
+                    <td className="py-2 text-slate-500 italic">remote-ip:...</td>
                     <td className="py-2">
                       <input 
                         type="text"
