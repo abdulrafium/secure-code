@@ -506,7 +506,7 @@ export default function IDEWorkspace() {
             onFileClick={handleFileClick}
             projectId={projectId || ''}
             isViewer={isViewer}
-            activeNodePath={activeNodePath || undefined}
+            activeNodePath={activeNodePath !== null ? activeNodePath : undefined}
             onNodeSelect={handleNodeSelect}
             refreshToggle={refreshToggle}
             showNewItemInput={showNewItemInput}

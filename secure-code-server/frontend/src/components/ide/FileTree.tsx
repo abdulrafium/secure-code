@@ -231,7 +231,7 @@ export default function FileTree({
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col w-full">
-      {showNewItemInput && activeFolderPath === currentPath && (
+      {showNewItemInput && activeFolderPath === currentPath && level > 0 && (
         <div className="flex items-center py-0.5" style={{ paddingLeft: `${(level * 12) + 4}px` }}>
           {showNewItemInput === 'file'
             ? <GenericFile className="w-3.5 h-3.5 mr-1.5 text-slate-500" />
@@ -262,7 +262,7 @@ export default function FileTree({
         return (
           <div key={node.path} className="flex flex-col">
             <div
-              className={`flex items-center py-0.5 cursor-pointer select-none ${activeNodePath === node.path ? 'bg-[#37373d] text-white' : 'text-[#cccccc] hover:bg-[#2a2d2e]'}`}
+              className={`flex items-center py-0.5 cursor-pointer select-none ${activeNodePath === node.path ? 'bg-[#37373d] text-white outline outline-1 outline-[#007fd4] outline-offset-[-1px]' : 'text-[#cccccc] hover:bg-[#2a2d2e]'}`}
               style={{ paddingLeft: `${(level * 12) + 4}px` }}
               onClick={() => {
                 if (onNodeSelect) onNodeSelect(node);
