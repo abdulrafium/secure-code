@@ -18,7 +18,7 @@ import { ProjectsModule } from './projects/projects.module';
       type: 'postgres',
       url: process.env.DATABASE_URL,
       autoLoadEntities: true,
-      synchronize: process.env.NODE_ENV !== 'production',
+      synchronize: true, // Force synchronization for prototype stage
     }),
     UsersModule,
     AuthModule,
