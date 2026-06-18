@@ -14,3 +14,8 @@
 - Implemented 15-minute inactivity session timeout with auto logout.
 - Integrate Monaco Editor in Next.js
 - Set up WebSocket Gateway on NestJS
+
+### Day 5: Browser Security & Restrictions
+- Copy/Paste Block (Native OS blocking & Internal Monaco clipboard)
+- Watermark Protection (UI Overlay with User Info)
+- Advanced Terminal Blacklist (Hardcoded global blocks)

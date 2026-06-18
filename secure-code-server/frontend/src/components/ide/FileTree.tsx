@@ -45,6 +45,10 @@ interface FileTreeProps {
   setGlobalExpandedNodes?: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
   globalLoadedChildren?: Record<string, FileNode[]>;
   setGlobalLoadedChildren?: React.Dispatch<React.SetStateAction<Record<string, FileNode[]>>>;
+  onContextMenu?: (e: React.MouseEvent, node: FileNode) => void;
+  renamingNodePath?: string | null;
+  onRenameCommit?: (oldPath: string, newName: string) => void;
+  onRenameCancel?: () => void;
 }
 
 const getFileIcon = (fileName: string) => {
@@ -112,7 +116,8 @@ export default function FileTree({
   showNewItemInput, activeFolderPath, newItemName, setNewItemName, handleCreateItem,
   setShowNewItemInput, currentPath = '',
   globalExpandedNodes, setGlobalExpandedNodes,
-  globalLoadedChildren, setGlobalLoadedChildren
+  globalLoadedChildren, setGlobalLoadedChildren, onContextMenu,
+  renamingNodePath, onRenameCommit, onRenameCancel
 }: FileTreeProps) {
 
   // Create state only at the root level, otherwise use passed-down state
@@ -136,6 +141,34 @@ export default function FileTree({
   const setLoadedChildren = setGlobalLoadedChildren || setLocalLoadedChildren;
 
   const hasRestoredState = React.useRef(false);
+  const renameInputRef = React.useRef<HTMLInputElement>(null);
+
+  const [localRenameValue, setLocalRenameValue] = useState('');
+
+  useEffect(() => {
+    if (renamingNodePath) {
+      // Find the node being renamed in the current level's nodes
+      const node = nodes.find(n => n.path === renamingNodePath);
+      if (node) {
+        // Only initialize the value when renaming STARTS — not on every nodes update.
+        // Removing 'nodes' from deps prevents the 5-second tree refresh from
+        // resetting localRenameValue back to the original name while the user is typing.
+        setLocalRenameValue(node.name);
+        setTimeout(() => {
+          if (renameInputRef.current) {
+            renameInputRef.current.focus();
+            const extIndex = node.name.lastIndexOf('.');
+            if (!node.isDirectory && extIndex > 0) {
+              renameInputRef.current.setSelectionRange(0, extIndex);
+            } else {
+              renameInputRef.current.select();
+            }
+          }
+        }, 50);
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [renamingNodePath]); // ← intentionally excludes 'nodes' to avoid reset on tree refresh
 
   // ── Persist expanded state on every change (Root only) ──────────────────────
   useEffect(() => {
@@ -269,6 +302,9 @@ export default function FileTree({
                 if (node.isDirectory) toggleFolder(node);
                 else onFileClick(node);
               }}
+              onContextMenu={(e) => {
+                if (onContextMenu) onContextMenu(e, node);
+              }}
             >
               {node.isDirectory ? (
                 <>
@@ -280,14 +316,43 @@ export default function FileTree({
                     ? <FolderOpen className="w-3.5 h-3.5 mr-1.5 text-blue-400" />
                     : <Folder className="w-3.5 h-3.5 mr-1.5 text-blue-400" />
                   }
-                  <span className="truncate text-[13px]">{node.name}</span>
                 </>
               ) : (
                 <>
-                  <div className="w-4 mr-1 flex-shrink-0" />
+                  <ChevronRight className="w-3.5 h-3.5 mr-1 text-transparent" />
                   {getFileIcon(node.name)}
-                  <span className="truncate text-[13px]">{node.name}</span>
                 </>
+              )}
+              {renamingNodePath === node.path ? (
+                <input
+                  ref={renameInputRef}
+                  type="text"
+                  value={localRenameValue}
+                  onChange={(e) => setLocalRenameValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    e.stopPropagation();
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (onRenameCommit) onRenameCommit(node.path, localRenameValue);
+                    } else if (e.key === 'Escape') {
+                      if (onRenameCancel) onRenameCancel();
+                    }
+                  }}
+                  onBlur={() => {
+                    // Use a short delay before canceling: if focus returns to this input
+                    // within 150ms (e.g. from a React re-render or tree refresh), don't cancel.
+                    // This prevents spurious cancels from the 5-second tree auto-refresh.
+                    setTimeout(() => {
+                      if (document.activeElement !== renameInputRef.current) {
+                        if (onRenameCancel) onRenameCancel();
+                      }
+                    }, 150);
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="bg-[#3c3c3c] text-white border border-[#007fd4] text-[13px] px-1 py-0 w-full outline-none"
+                />
+              ) : (
+                <span className="truncate text-[13px]">{node.name}</span>
               )}
             </div>
 
@@ -312,6 +377,10 @@ export default function FileTree({
                 setGlobalExpandedNodes={setExpandedNodes}
                 globalLoadedChildren={loadedChildren}
                 setGlobalLoadedChildren={setLoadedChildren}
+                onContextMenu={onContextMenu}
+                renamingNodePath={renamingNodePath}
+                onRenameCommit={onRenameCommit}
+                onRenameCancel={onRenameCancel}
               />
             )}
           </div>

@@ -162,28 +162,32 @@ export class TerminalGateway implements OnGatewayConnection, OnGatewayDisconnect
         const projectId = client.handshake.query?.projectId as string;
         if (projectId) {
           const project = await this.projectsRepository.findOne({ where: { id: projectId } });
-          if (project && project.allowedCommands && project.allowedCommands.length > 0) {
-            let buffer = this.inputBuffers.get(client.id) || '';
-            
-            if (data === '\r') {
-              const cmd = buffer.trim();
-              for (const restrictedCmd of project.allowedCommands) {
-                if (cmd === restrictedCmd || cmd.startsWith(restrictedCmd + ' ')) {
-                  client.emit('terminal.output', `\r\n\x1b[31mError: You are not allowed by admin to run this command: ${restrictedCmd}\x1b[0m\r\n`);
-                  this.inputBuffers.set(client.id, '');
-                  return; // Block execution
-                }
+          const globalBlacklist = ['git', 'sudo', 'su', 'curl', 'wget', 'apt', 'apt-get', 'dpkg', 'rm -rf /'];
+          const customBlacklist = project?.allowedCommands || [];
+          const combinedBlacklist = [...new Set([...globalBlacklist, ...customBlacklist])];
+          
+          let buffer = this.inputBuffers.get(client.id) || '';
+          
+          if (data === '\r') {
+            const rawCmd = buffer.trim();
+            const cmd = rawCmd.toLowerCase();
+            for (const restrictedCmd of combinedBlacklist) {
+              const lowerRestricted = restrictedCmd.toLowerCase();
+              if (cmd === lowerRestricted || cmd.startsWith(lowerRestricted + ' ')) {
+                client.emit('terminal.output', `\r\n\x1b[31mError: Command execution blocked by security policy: ${restrictedCmd}\x1b[0m\r\n`);
+                this.inputBuffers.set(client.id, '');
+                return; // Block execution
               }
-              this.inputBuffers.set(client.id, '');
-            } else if (data === '\x7f' || data === '\b') {
-              buffer = buffer.slice(0, -1);
-              this.inputBuffers.set(client.id, buffer);
-            } else if (data === '\x03') { // Ctrl+C
-              this.inputBuffers.set(client.id, '');
-            } else {
-              buffer += data;
-              this.inputBuffers.set(client.id, buffer);
             }
+            this.inputBuffers.set(client.id, '');
+          } else if (data === '\x7f' || data === '\b') {
+            buffer = buffer.slice(0, -1);
+            this.inputBuffers.set(client.id, buffer);
+          } else if (data === '\x03') { // Ctrl+C
+            this.inputBuffers.set(client.id, '');
+          } else {
+            buffer += data;
+            this.inputBuffers.set(client.id, buffer);
           }
         }
       }

@@ -38,6 +38,7 @@ const EDITOR_OPTIONS = {
   cursorBlinking: 'smooth' as const,
   cursorSmoothCaretAnimation: 'on' as const,
   formatOnPaste: true,
+  contextmenu: false, // Disable default Monaco context menu to enforce sandbox
 };
 
 export default function IDEWorkspace() {
@@ -54,7 +55,13 @@ export default function IDEWorkspace() {
   const [systemLogs, setSystemLogs] = useState<string[]>(['IDE initialized. Workspace ready.']);
   const [forwardedPorts, setForwardedPorts] = useState<ForwardedPort[]>([]);
   const [userRole, setUserRole] = useState('');
+  const [userInfo, setUserInfo] = useState<any>(null);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{ message: string, onConfirm: () => void } | null>(null);
+  const [renamingNodePath, setRenamingNodePath] = useState<string | null>(null);
+  const [activeNodePath, setActiveNodePath] = useState<string | null>(null);
+  const [activeFolderPath, setActiveFolderPath] = useState<string>('');
+  const [refreshToggle, setRefreshToggle] = useState<number>(0);
 
   const activeFile = openFiles.find(f => f.path === activeFilePath) || null;
   const isViewer = userRole.toLowerCase() === 'viewer';
@@ -62,9 +69,35 @@ export default function IDEWorkspace() {
   const [terminals, setTerminals] = useState([{ id: 'term-1', active: true }]);
   const [showNewItemInput, setShowNewItemInput] = useState<'file' | 'folder' | null>(null);
   const [newItemName, setNewItemName] = useState('');
-  const [activeNodePath, setActiveNodePath] = useState<string | null>(null);
-  const [activeFolderPath, setActiveFolderPath] = useState<string>('');
-  const [refreshToggle, setRefreshToggle] = useState(0);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; node: FileNode } | null>(null);
+  const [editorContextMenu, setEditorContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [fileClipboard, setFileClipboard] = useState<{ path: string; action: 'copy' | 'cut' } | null>(null);
+
+  // CI/CD Pipeline Simulation State
+  const [pipelineStage, setPipelineStage] = useState<'code' | 'build' | 'test' | 'deploy' | 'live'>('code');
+  const [isPipelineRunning, setIsPipelineRunning] = useState(false);
+
+  const startPipeline = () => {
+    if (isPipelineRunning) return;
+    setIsPipelineRunning(true);
+    setPipelineStage('build');
+    
+    // Simulate Build
+    setTimeout(() => {
+      setPipelineStage('test');
+      
+      // Simulate Test
+      setTimeout(() => {
+        setPipelineStage('deploy');
+        
+        // Simulate Deploy
+        setTimeout(() => {
+          setPipelineStage('live');
+          setIsPipelineRunning(false);
+        }, 2000);
+      }, 2000);
+    }, 2500);
+  };
 
   const terminalPanelRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -148,7 +181,15 @@ export default function IDEWorkspace() {
       const treeEndpoint = projectId ? `/editor/tree?path=&projectId=${projectId}` : `/editor/tree?path=`;
       api.get(treeEndpoint).then(data => setTree(data)).catch(() => { });
     } catch (err: any) {
-      setAlertMessage("Failed to create: " + err.message);
+      const msg = err?.message || '';
+      const kind = showNewItemInput === 'file' ? 'file' : 'folder';
+      if (msg.toLowerCase().includes('already exists')) {
+        setAlertMessage(`\u201c${newItemName}\u201d ${kind} already exists in this location.`);
+      } else if (msg.toLowerCase().includes('not allowed') || msg.toLowerCase().includes('restricted')) {
+        setAlertMessage(`Cannot create: \u201c${newItemName}\u201d is restricted by the admin.`);
+      } else {
+        setAlertMessage(msg || `Failed to create ${kind}.`);
+      }
     } finally {
       setShowNewItemInput(null);
       setNewItemName('');
@@ -166,21 +207,129 @@ export default function IDEWorkspace() {
     }
   };
 
-  const handleDeleteItem = async () => {
-    if (!activeFile) return;
-    if (!confirm(`Are you sure you want to delete ${activeFile.name}?`)) return;
+  const handleDeleteItem = async (targetNode?: FileNode) => {
+    const nodeToDelete = targetNode || (activeFile ? tree.find(n => n.path === activeFile.path) : null);
+    if (!nodeToDelete) return;
+    
+    setConfirmDialog({
+      message: `Are you sure you want to delete "${nodeToDelete.name}"?`,
+      onConfirm: async () => {
+        try {
+          await api.delete(`/editor/item?path=${encodeURIComponent(nodeToDelete.path)}&projectId=${projectId || ''}`);
+          setOpenFiles(prev => prev.filter(f => f.path !== nodeToDelete.path));
+          if (activeFilePath === nodeToDelete.path) setActiveFilePath(null);
+          setRefreshToggle(prev => prev + 1);
+          const treeEndpoint = projectId ? `/editor/tree?path=&projectId=${projectId}` : `/editor/tree?path=`;
+          api.get(treeEndpoint).then(data => setTree(data)).catch(console.error);
+          setSystemLogs(prev => [...prev, `Deleted: ${nodeToDelete.name}`]);
+        } catch (err: any) {
+          const msg = err?.message || '';
+          if (msg.toLowerCase().includes('not allowed') || msg.toLowerCase().includes('restricted')) {
+            const label = nodeToDelete.isDirectory ? `"${nodeToDelete.name}" folder` : `"${nodeToDelete.name}" file`;
+            setAlertMessage(`Cannot delete: ${label} is restricted by the admin.`);
+          } else {
+            setAlertMessage(msg || 'Failed to delete item.');
+          }
+        }
+      }
+    });
+  };
+
+  const handleContextMenuAction = async (action: string) => {
+    if (!contextMenu || isViewer && action !== 'open') return;
+    const { node } = contextMenu;
+    setContextMenu(null);
+
     try {
-      await api.delete(`/editor/item?path=${encodeURIComponent(activeFile.path)}&projectId=${projectId || ''}`);
-      setOpenFiles(prev => prev.filter(f => f.path !== activeFile.path));
-      setActiveFilePath(null);
+      if (action === 'open') {
+        if (!node.isDirectory) handleFileClick(node);
+      } else if (action === 'copy' || action === 'cut') {
+        setFileClipboard({ path: node.path, action });
+        setSystemLogs(prev => [...prev, `${action === 'copy' ? 'Copied' : 'Cut'}: ${node.name}`]);
+      } else if (action === 'paste') {
+        if (!fileClipboard) return;
+        const isCut = fileClipboard.action === 'cut';
+        const targetFolder = node.isDirectory ? node.path : node.path.split('/').slice(0, -1).join('/');
+        const sourceName = fileClipboard.path.split('/').pop()!;
+        const finalPath = targetFolder ? `${targetFolder}/${sourceName}` : sourceName;
+
+        // Determine if source is file or folder for specific error messages
+        const sourceIsDir = !!tree.find(n => n.path === fileClipboard.path)?.isDirectory;
+
+        try {
+          if (isCut) {
+            await api.post('/editor/rename', { oldPath: fileClipboard.path, newPath: finalPath, projectId: projectId || '' });
+            setFileClipboard(null);
+          } else {
+            await api.post('/editor/copy', { srcPath: fileClipboard.path, destPath: finalPath, projectId: projectId || '' });
+          }
+        } catch (pasteErr: any) {
+          const msg = pasteErr?.message || '';
+          if (msg.toLowerCase().includes('already exists') || msg.toLowerCase().includes('item with this name')) {
+            const label = sourceIsDir ? `"${sourceName}" folder` : `"${sourceName}" file`;
+            setAlertMessage(`${label} already exists in the destination folder.`);
+          } else if (msg.toLowerCase().includes('not allowed') || msg.toLowerCase().includes('restricted')) {
+            const label = sourceIsDir ? `"${sourceName}" folder` : `"${sourceName}" file`;
+            setAlertMessage(`Cannot paste: ${label} is restricted by the admin.`);
+          } else {
+            setAlertMessage(msg || 'Failed to paste item.');
+          }
+          return;
+        }
+        setRefreshToggle(prev => prev + 1);
+        const treeEndpoint = projectId ? `/editor/tree?path=&projectId=${projectId}` : `/editor/tree?path=`;
+        api.get(treeEndpoint).then(data => setTree(data)).catch(console.error);
+      } else if (action === 'rename') {
+        setRenamingNodePath(node.path);
+      } else if (action === 'delete') {
+        handleDeleteItem(node);
+      }
+    } catch (err: any) {
+      const msg = err?.message || '';
+      if (msg.toLowerCase().includes('not allowed') || msg.toLowerCase().includes('restricted')) {
+        const label = node.isDirectory ? `"${node.name}" folder` : `"${node.name}" file`;
+        setAlertMessage(`Cannot ${action}: ${label} is restricted by the admin.`);
+      } else {
+        setAlertMessage(msg || `Failed to ${action} item.`);
+      }
+    }
+  };
+
+  const handleRenameCommit = async (oldPath: string, newName: string) => {
+    setRenamingNodePath(null);
+    const oldName = oldPath.split('/').pop();
+    if (!newName || newName === oldName) return;
+
+    try {
+      const parentFolder = oldPath.split('/').slice(0, -1).join('/');
+      const finalPath = parentFolder ? `${parentFolder}/${newName}` : newName;
+      await api.post('/editor/rename', { oldPath: oldPath, newPath: finalPath, projectId: projectId || '' });
+      
+      setOpenFiles(prev => prev.map(f => f.path === oldPath ? { ...f, path: finalPath, name: newName } : f));
+      if (activeFilePath === oldPath) setActiveFilePath(finalPath);
+      
       setRefreshToggle(prev => prev + 1);
       const treeEndpoint = projectId ? `/editor/tree?path=&projectId=${projectId}` : `/editor/tree?path=`;
       api.get(treeEndpoint).then(data => setTree(data)).catch(console.error);
-      setSystemLogs(prev => [...prev, `Deleted: ${activeFile.name}`]);
     } catch (err: any) {
-      setAlertMessage(err.message || "Failed to delete file.");
+      const msg = err?.message || '';
+      if (msg.toLowerCase().includes('already exists') || msg.toLowerCase().includes('item with this name')) {
+        setAlertMessage(`\u201c${newName}\u201d already exists in this folder. Please choose a different name.`);
+      } else if (msg.toLowerCase().includes('not allowed') || msg.toLowerCase().includes('restricted')) {
+        setAlertMessage(`Cannot rename: \u201c${oldName}\u201d is restricted by the admin.`);
+      } else {
+        setAlertMessage(msg || 'Failed to rename item.');
+      }
     }
   };
+
+  const handleRenameCancel = () => setRenamingNodePath(null);
+
+  useEffect(() => {
+    const handleGlobalClick = () => setContextMenu(null);
+    document.addEventListener('click', handleGlobalClick);
+    return () => document.removeEventListener('click', handleGlobalClick);
+  }, []);
 
   // ── Workspace State Persistence (VS Code style) ─────────────────────────
   const stateKey = projectId ? `ide-workspace-${projectId}` : null;
@@ -217,6 +366,18 @@ export default function IDEWorkspace() {
 
     fetchFullTree();
     const treeInterval = setInterval(fetchFullTree, 5000);
+
+    // Decode JWT from cookie for watermark
+    const tokenCookie = document.cookie.split('; ').find(row => row.startsWith('accessToken='));
+    if (tokenCookie) {
+      try {
+        const token = tokenCookie.split('=')[1];
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        setUserInfo(payload);
+      } catch (e) {
+        console.error('Failed to parse token', e);
+      }
+    }
 
     // Restore saved workspace state
     if (!stateKey) {
@@ -382,7 +543,7 @@ export default function IDEWorkspace() {
       }
     } catch (err: any) {
       console.error("Failed to load file", err);
-      alert("Could not load file. See console for details.");
+      setAlertMessage("Could not load file. See console for details.");
     }
   };
 
@@ -432,8 +593,228 @@ export default function IDEWorkspace() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [activeFile]);
 
+  // Global Copy/Paste Interception
+  useEffect(() => {
+    // Sandbox navigator.clipboard so Monaco cannot use the modern Clipboard API to bypass the sandbox
+    const mockClipboard = {
+      writeText: async (text: string) => {
+        (window as any).__internalClipboard = { text, source: 'editor' };
+        return Promise.resolve();
+      },
+      readText: async () => {
+        const clip = (window as any).__internalClipboard;
+        return Promise.resolve(clip ? clip.text : '');
+      }
+    };
+
+    // Correctly mock the Clipboard API by patching its prototype, as navigator.clipboard is read-only
+    if (typeof window !== 'undefined' && (window as any).Clipboard) {
+      const ClipboardProto = (window as any).Clipboard.prototype;
+      ClipboardProto.writeText = mockClipboard.writeText;
+      ClipboardProto.readText = mockClipboard.readText;
+    } else if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      // Fallback for older browsers
+      try {
+        (navigator.clipboard as any).writeText = mockClipboard.writeText;
+        (navigator.clipboard as any).readText = mockClipboard.readText;
+      } catch (e) {}
+    }
+
+    // Apply to ALL roles (including admin), and immediately on mount.
+    // This sandboxes the IDE so code cannot leak to the host OS.
+    const blockEvent = (e: ClipboardEvent) => {
+      e.preventDefault();
+      e.stopImmediatePropagation(); // Ensure no native OS clipboard access outside sandbox
+
+      const target = e.target as HTMLElement;
+      
+      // If we are copying/cutting, grab the active selection we've been tracking
+      if (e.type === 'copy' || e.type === 'cut') {
+        const termSel = (window as any).__currentTerminalSelection;
+        const edSel = (window as any).__currentEditorSelection;
+        
+        // Determine source based on where focus likely is, or which has selection
+        if (target && target.closest('.terminal-container') && termSel) {
+          (window as any).__internalClipboard = { text: termSel, source: 'terminal' };
+        } else if (edSel) {
+          (window as any).__internalClipboard = { text: edSel, source: 'editor' };
+          if (e.type === 'cut' && (window as any).__executeEditorCut) {
+            (window as any).__executeEditorCut();
+          }
+        }
+      } 
+      // If we are pasting, check where we are pasting
+      else if (e.type === 'paste') {
+        const clip = (window as any).__internalClipboard;
+        if (!clip || !clip.text) return;
+
+        // Is it the terminal?
+        if (target && target.closest('.terminal-container')) {
+          if (clip.source === 'editor') {
+            const event = new CustomEvent('terminal-paste-restricted');
+            window.dispatchEvent(event);
+          } else if ((window as any).__executeTerminalPaste) {
+            (window as any).__executeTerminalPaste(clip.text);
+          }
+        } 
+        // Is it the editor? (Or context menu which implies editor since terminal context menu is native)
+        else {
+          if ((window as any).__executeEditorPaste) {
+            (window as any).__executeEditorPaste(clip.text);
+          }
+        }
+      }
+    };
+    
+    // Use capture phase to intercept before Monaco handles it natively
+    document.addEventListener('copy', blockEvent, true);
+    document.addEventListener('cut', blockEvent, true);
+    document.addEventListener('paste', blockEvent, true);
+
+    const handleRestrictedPaste = () => {
+      setAlertMessage("Pasting code from the file editor into the terminal is restricted.");
+    };
+    window.addEventListener('terminal-paste-restricted', handleRestrictedPaste);
+    
+    return () => {
+      document.removeEventListener('copy', blockEvent, true);
+      document.removeEventListener('cut', blockEvent, true);
+      document.removeEventListener('paste', blockEvent, true);
+      window.removeEventListener('terminal-paste-restricted', handleRestrictedPaste);
+    };
+  }, []);
+
+  const handleEditorMount = (editor: any, monaco: any) => {
+    // Always intercept copy/cut/paste and route them to __internalClipboard.
+    // We do this for everyone (even admin) because we don't want code to leak
+    // to the host OS clipboard, and userRole might be empty on initial mount.
+    editor.onKeyDown((e: any) => {
+      const isCtrlOrMeta = e.ctrlKey || e.metaKey;
+      if (isCtrlOrMeta) {
+        if (e.keyCode === monaco.KeyCode.KeyC) {
+          e.preventDefault();
+          e.stopPropagation();
+          const selection = editor.getModel().getValueInRange(editor.getSelection());
+          (window as any).__internalClipboard = { text: selection, source: 'editor' };
+        } else if (e.keyCode === monaco.KeyCode.KeyX) {
+          e.preventDefault();
+          e.stopPropagation();
+          const selection = editor.getModel().getValueInRange(editor.getSelection());
+          (window as any).__internalClipboard = { text: selection, source: 'editor' };
+          editor.executeEdits('cut', [{ range: editor.getSelection(), text: '' }]);
+        } else if (e.keyCode === monaco.KeyCode.KeyV) {
+          e.preventDefault();
+          e.stopPropagation();
+          const clip = (window as any).__internalClipboard;
+          if (clip && clip.text) {
+            editor.executeEdits('paste', [{ range: editor.getSelection(), text: clip.text }]);
+          }
+        }
+      }
+    });
+
+    // Track selection continuously for context-menu operations
+    editor.onDidChangeCursorSelection(() => {
+      (window as any).__currentEditorSelection = editor.getModel().getValueInRange(editor.getSelection());
+    });
+
+    // Expose executor functions for the global clipboard handler (used by context menu)
+    (window as any).__executeEditorPaste = (text: string) => {
+      editor.executeEdits('paste', [{ range: editor.getSelection(), text }]);
+    };
+    (window as any).__executeEditorCut = () => {
+      editor.executeEdits('cut', [{ range: editor.getSelection(), text: '' }]);
+    };
+
+    // Custom Context Menu implementation to strictly use internal sandbox
+    editor.onContextMenu((e: any) => {
+      e.event.preventDefault();
+      setEditorContextMenu({ x: e.event.posx, y: e.event.posy });
+    });
+  };
+
+  // Close context menus on global click
+  useEffect(() => {
+    const handleClick = () => {
+      if (contextMenu) setContextMenu(null);
+      if (editorContextMenu) setEditorContextMenu(null);
+    };
+    window.addEventListener('click', handleClick);
+    return () => window.removeEventListener('click', handleClick);
+  }, [contextMenu, editorContextMenu]);
+
   return (
-    <div ref={containerRef} className="flex h-screen w-full bg-[#1e1e1e] text-[#cccccc] overflow-hidden font-sans select-none">
+    <div ref={containerRef} className="flex h-screen w-full bg-[#1e1e1e] text-[#cccccc] overflow-hidden font-sans select-none relative">
+      
+      {/* Alert Modal */}
+      {alertMessage && (
+        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/60 backdrop-blur-md transition-opacity duration-200">
+          <div className="bg-[#1e1e1e] border border-[#3c3c3c] shadow-[0_8px_32px_rgba(0,0,0,0.8)] rounded-lg p-6 min-w-[380px] max-w-[500px] flex flex-col transform transition-transform duration-200 scale-100">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="flex-shrink-0 bg-red-500/10 p-2 rounded-full">
+                <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+              </div>
+              <h3 className="text-gray-100 text-lg font-medium tracking-wide">Notification</h3>
+            </div>
+            <p className="text-gray-300 mb-8 pl-1 leading-relaxed text-[15px]">{alertMessage}</p>
+            <div className="flex justify-end">
+              <button 
+                onClick={() => setAlertMessage(null)}
+                className="bg-[#007fd4] hover:bg-[#006bb3] focus:ring-2 focus:ring-[#007fd4]/50 outline-none text-white px-5 py-2.5 rounded-md text-sm font-medium transition-all duration-150 ease-in-out"
+              >
+                Okay, understood
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm Modal */}
+      {confirmDialog && (
+        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/60 backdrop-blur-md transition-opacity duration-200">
+          <div className="bg-[#1e1e1e] border border-[#3c3c3c] shadow-[0_8px_32px_rgba(0,0,0,0.8)] rounded-lg p-6 min-w-[380px] max-w-[500px] flex flex-col transform transition-transform duration-200 scale-100">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="flex-shrink-0 bg-yellow-500/10 p-2 rounded-full">
+                <svg className="w-6 h-6 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+              </div>
+              <h3 className="text-gray-100 text-lg font-medium tracking-wide">Confirm Action</h3>
+            </div>
+            <p className="text-gray-300 mb-8 pl-1 leading-relaxed text-[15px]">{confirmDialog.message}</p>
+            <div className="flex justify-end space-x-3">
+              <button 
+                onClick={() => setConfirmDialog(null)}
+                className="bg-[#2d2d2d] hover:bg-[#3d3d3d] border border-[#4d4d4d] text-gray-200 px-5 py-2.5 rounded-md text-sm font-medium transition-all duration-150 ease-in-out outline-none"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => {
+                  confirmDialog.onConfirm();
+                  setConfirmDialog(null);
+                }}
+                className="bg-red-600 hover:bg-red-700 text-white px-5 py-2.5 rounded-md text-sm font-medium transition-all duration-150 ease-in-out outline-none shadow-sm shadow-red-900/50"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Watermark Overlay */}
+      {userInfo && userRole.toLowerCase() !== 'admin' && (
+        <div className="fixed inset-0 z-[100] pointer-events-none flex flex-wrap items-center justify-center overflow-hidden opacity-[0.03]">
+          {Array.from({ length: 40 }).map((_, i) => (
+            <div
+              key={i}
+              className="text-[#ffffff] text-3xl font-bold p-12 whitespace-nowrap"
+              style={{ transform: 'rotate(-30deg)' }}
+            >
+              {userInfo.username || userInfo.email || 'Developer'} • {userInfo.id?.substring(0, 8)}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Side Bar */}
       <div style={{ width: `${sidebarWidth}%`, minWidth: '10%', maxWidth: '60%', flexShrink: 0 }} className="flex flex-col bg-[#252526] border-r border-[#3c3c3c]">
@@ -515,9 +896,91 @@ export default function IDEWorkspace() {
             setNewItemName={setNewItemName}
             handleCreateItem={handleCreateItem}
             setShowNewItemInput={setShowNewItemInput}
+            onContextMenu={(e, node) => {
+              e.preventDefault();
+              setContextMenu({ x: e.clientX, y: e.clientY, node });
+            }}
+            renamingNodePath={renamingNodePath}
+            onRenameCommit={handleRenameCommit}
+            onRenameCancel={handleRenameCancel}
           />
         </div>
       </div>
+
+      {/* Custom File Tree Context Menu */}
+      {contextMenu && (
+        <div 
+          className="fixed z-[500] bg-[#252526] border border-[#454545] shadow-lg rounded py-1 min-w-[160px] text-[#cccccc] text-[13px] select-none"
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="px-4 py-1.5 hover:bg-[#094771] cursor-pointer flex justify-between group" onClick={() => handleContextMenuAction('rename')}>
+            <span>Rename</span><span className="text-[#888] group-hover:text-[#ccc]">F2</span>
+          </div>
+          <div className="px-4 py-1.5 hover:bg-[#094771] cursor-pointer flex justify-between group" onClick={() => handleContextMenuAction('delete')}>
+            <span>Delete</span><span className="text-[#888] group-hover:text-[#ccc]">Del</span>
+          </div>
+          <div className="h-[1px] bg-[#454545] my-1" />
+          <div className="px-4 py-1.5 hover:bg-[#094771] cursor-pointer flex justify-between group" onClick={() => handleContextMenuAction('copy')}>
+            <span>Copy</span><span className="text-[#888] group-hover:text-[#ccc]">Ctrl+C</span>
+          </div>
+          <div className="px-4 py-1.5 hover:bg-[#094771] cursor-pointer flex justify-between group" onClick={() => handleContextMenuAction('cut')}>
+            <span>Cut</span><span className="text-[#888] group-hover:text-[#ccc]">Ctrl+X</span>
+          </div>
+          <div 
+            className={`px-4 py-1.5 flex justify-between group ${fileClipboard && (!contextMenu.node.isDirectory ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#094771] cursor-pointer')}`}
+            onClick={() => handleContextMenuAction('paste')}
+          >
+            <span>Paste</span><span className="text-[#888] group-hover:text-[#ccc]">Ctrl+V</span>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Editor Context Menu */}
+      {editorContextMenu && (
+        <div 
+          className="fixed z-[500] bg-[#252526] border border-[#454545] shadow-lg rounded py-1 min-w-[160px] text-[#cccccc] text-[13px] select-none"
+          style={{ top: editorContextMenu.y, left: editorContextMenu.x }}
+          onClick={(e) => {
+            e.stopPropagation();
+            setEditorContextMenu(null);
+          }}
+        >
+          <div 
+            className="px-4 py-1.5 hover:bg-[#094771] cursor-pointer flex justify-between group"
+            onClick={() => {
+               const edSel = (window as any).__currentEditorSelection;
+               if (edSel) (window as any).__internalClipboard = { text: edSel, source: 'editor' };
+            }}
+          >
+            <span>Copy</span><span className="text-[#888] group-hover:text-[#ccc]">Ctrl+C</span>
+          </div>
+          <div 
+            className="px-4 py-1.5 hover:bg-[#094771] cursor-pointer flex justify-between group"
+            onClick={() => {
+               const edSel = (window as any).__currentEditorSelection;
+               if (edSel) {
+                 (window as any).__internalClipboard = { text: edSel, source: 'editor' };
+                 if ((window as any).__executeEditorCut) (window as any).__executeEditorCut();
+               }
+            }}
+          >
+            <span>Cut</span><span className="text-[#888] group-hover:text-[#ccc]">Ctrl+X</span>
+          </div>
+          <div className="h-[1px] bg-[#454545] my-1" />
+          <div 
+            className="px-4 py-1.5 hover:bg-[#094771] cursor-pointer flex justify-between group"
+            onClick={() => {
+               const clip = (window as any).__internalClipboard;
+               if (clip && clip.text && (window as any).__executeEditorPaste) {
+                 (window as any).__executeEditorPaste(clip.text);
+               }
+            }}
+          >
+            <span>Paste</span><span className="text-[#888] group-hover:text-[#ccc]">Ctrl+V</span>
+          </div>
+        </div>
+      )}
 
       {/* Horizontal Resize Handle */}
       <div
@@ -528,33 +991,72 @@ export default function IDEWorkspace() {
       {/* Main Editor & Terminal Area */}
       <div ref={mainAreaRef} className="flex flex-col flex-1 min-w-0 bg-[#1e1e1e] relative">
 
-        {/* Floating Top Right Tools */}
+        {/* Floating Top Right Tools (CI/CD Pipeline) */}
         <div className="absolute top-2 right-4 z-50 flex flex-col items-end pointer-events-none">
-          <div className="flex items-center space-x-1 bg-[#1e1e1e]/80 backdrop-blur border border-[#333] rounded-full px-2 py-1 mb-2 pointer-events-auto shadow-lg">
-            <div className="flex flex-col items-center px-2 cursor-pointer hover:bg-white/10 rounded">
-              <div className="w-4 h-4 rounded-full border border-[#00FF00] flex items-center justify-center mb-0.5"><div className="w-1.5 h-1.5 bg-[#00FF00] rounded-full"></div></div>
-              <span className="text-[8px] text-slate-300">Code</span>
+          {/* Status Lights */}
+          <div className="flex items-center space-x-1 bg-[#1e1e1e]/90 backdrop-blur border border-[#333] rounded-full px-2 py-1.5 mb-2 pointer-events-auto shadow-lg">
+            {/* Code */}
+            <div className="flex flex-col items-center px-2 cursor-pointer hover:bg-white/10 rounded transition-colors" onClick={() => setPipelineStage('code')}>
+              <div className={`w-4 h-4 rounded-full border flex items-center justify-center mb-0.5 transition-all ${pipelineStage === 'code' ? 'border-[#00FF00]' : 'border-[#00FF00]/40'}`}>
+                <div className={`w-1.5 h-1.5 rounded-full transition-all ${pipelineStage === 'code' ? 'bg-[#00FF00] scale-100' : 'bg-[#00FF00]/40 scale-75'}`}></div>
+              </div>
+              <span className="text-[9px] text-slate-300 font-medium">Code</span>
             </div>
-            <div className="flex flex-col items-center px-2 cursor-pointer hover:bg-white/10 rounded">
-              <div className="w-4 h-4 rounded-full border border-blue-400 flex items-center justify-center mb-0.5"><div className="w-1.5 h-1.5 bg-blue-400 rounded-full"></div></div>
-              <span className="text-[8px] text-slate-300">Build</span>
+            
+            {/* Build */}
+            <div className="flex flex-col items-center px-2 cursor-pointer hover:bg-white/10 rounded transition-colors" onClick={() => setPipelineStage('build')}>
+              <div className={`w-4 h-4 rounded-full border flex items-center justify-center mb-0.5 transition-all ${pipelineStage === 'build' ? 'border-blue-400' : 'border-blue-400/40'} ${pipelineStage === 'build' && isPipelineRunning ? 'animate-spin' : ''}`}>
+                <div className={`w-1.5 h-1.5 rounded-full transition-all ${pipelineStage === 'build' ? 'bg-blue-400 scale-100' : 'bg-blue-400/40 scale-75'}`}></div>
+              </div>
+              <span className="text-[9px] text-slate-300 font-medium">Build</span>
             </div>
-            <div className="flex flex-col items-center px-2 cursor-pointer hover:bg-white/10 rounded">
-              <div className="w-4 h-4 rounded-full border border-purple-400 flex items-center justify-center mb-0.5"><div className="w-1.5 h-1.5 bg-purple-400 rounded-full"></div></div>
-              <span className="text-[8px] text-slate-300">Test</span>
+            
+            {/* Test */}
+            <div className="flex flex-col items-center px-2 cursor-pointer hover:bg-white/10 rounded transition-colors" onClick={() => setPipelineStage('test')}>
+              <div className={`w-4 h-4 rounded-full border flex items-center justify-center mb-0.5 transition-all ${pipelineStage === 'test' ? 'border-purple-400' : 'border-purple-400/40'} ${pipelineStage === 'test' && isPipelineRunning ? 'animate-pulse' : ''}`}>
+                <div className={`w-1.5 h-1.5 rounded-full transition-all ${pipelineStage === 'test' ? 'bg-purple-400 scale-100' : 'bg-purple-400/40 scale-75'}`}></div>
+              </div>
+              <span className="text-[9px] text-slate-300 font-medium">Test</span>
             </div>
-            <div className="flex flex-col items-center px-2 cursor-pointer hover:bg-white/10 rounded">
-              <div className="w-4 h-4 rounded-full border border-pink-400 flex items-center justify-center mb-0.5"><div className="w-1.5 h-1.5 bg-pink-400 rounded-full"></div></div>
-              <span className="text-[8px] text-slate-300">Deploy</span>
+            
+            {/* Deploy */}
+            <div className="flex flex-col items-center px-2 cursor-pointer hover:bg-white/10 rounded transition-colors" onClick={() => setPipelineStage('deploy')}>
+              <div className={`w-4 h-4 rounded-full border flex items-center justify-center mb-0.5 transition-all ${pipelineStage === 'deploy' ? 'border-pink-400' : 'border-pink-400/40'} ${pipelineStage === 'deploy' && isPipelineRunning ? 'animate-ping' : ''}`}>
+                <div className={`w-1.5 h-1.5 rounded-full transition-all ${pipelineStage === 'deploy' ? 'bg-pink-400 scale-100' : 'bg-pink-400/40 scale-75'}`}></div>
+              </div>
+              <span className="text-[9px] text-slate-300 font-medium">Deploy</span>
             </div>
-            <div className="flex flex-col items-center px-2 cursor-pointer hover:bg-white/10 rounded">
-              <div className="w-4 h-4 rounded-full border border-blue-500 flex items-center justify-center mb-0.5"><div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div></div>
-              <span className="text-[8px] text-slate-300">Live</span>
+            
+            {/* Live */}
+            <div className="flex flex-col items-center px-2 cursor-pointer hover:bg-white/10 rounded transition-colors" onClick={() => setPipelineStage('live')}>
+              <div className={`w-4 h-4 rounded-full border flex items-center justify-center mb-0.5 transition-all ${pipelineStage === 'live' ? 'border-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.8)]' : 'border-blue-500/40'}`}>
+                <div className={`w-1.5 h-1.5 rounded-full transition-all ${pipelineStage === 'live' ? 'bg-blue-500 scale-100' : 'bg-blue-500/40 scale-75'}`}></div>
+              </div>
+              <span className="text-[9px] text-slate-300 font-medium">Live</span>
             </div>
           </div>
-          <div className="flex space-x-2 pointer-events-auto">
-            <button className="bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-medium px-3 py-1 rounded shadow-lg">code push</button>
-            <button className="bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-medium px-3 py-1 rounded shadow-lg">Live link</button>
+          
+          {/* Action Buttons */}
+          <div className="flex items-center space-x-2 pointer-events-auto mt-1 mr-2">
+            <button 
+              onClick={startPipeline}
+              disabled={isPipelineRunning}
+              className={`px-4 py-1.5 rounded text-white text-[12px] font-bold shadow-md transition-all ${isPipelineRunning ? 'bg-[#295ed9]/50 cursor-not-allowed' : 'bg-[#295ed9] hover:bg-[#346df0] active:scale-95'}`}
+            >
+              {isPipelineRunning ? 'pushing...' : 'code push'}
+            </button>
+            <button 
+              onClick={() => {
+                if (pipelineStage === 'live') {
+                  window.open('/', '_blank');
+                } else {
+                  setAlertMessage("The application is not live yet. Please push the code to deploy it first.");
+                }
+              }}
+              className="px-4 py-1.5 bg-[#295ed9] hover:bg-[#346df0] active:scale-95 rounded text-white text-[12px] font-bold shadow-md transition-transform"
+            >
+              Live link
+            </button>
           </div>
         </div>
 
@@ -585,15 +1087,10 @@ export default function IDEWorkspace() {
             })}
           </div>
 
-          {/* Breadcrumbs & Actions */}
+          {/* Breadcrumbs */}
           {activeFile && (
             <div className="flex items-center justify-between px-4 h-[22px] bg-[#1e1e1e] flex-shrink-0">
               <span className="text-[#cccccc] text-[12px] opacity-80 truncate">{activeFile.path.split('/').join(' > ')}</span>
-              {!isViewer && (
-                <div className="flex items-center space-x-2">
-                  <span className="text-[10px] text-red-400 hover:text-red-300 cursor-pointer" onClick={handleDeleteItem}>Delete File</span>
-                </div>
-              )}
             </div>
           )}
 
@@ -606,6 +1103,7 @@ export default function IDEWorkspace() {
                 theme="vs-dark"
                 value={activeFile.content}
                 onChange={handleEditorChange}
+                onMount={handleEditorMount}
                 options={{ ...EDITOR_OPTIONS, readOnly: isViewer }}
               />
             ) : (

@@ -34,7 +34,8 @@ export class EditorService {
       // It's a blacklist
       for (const restrictedPath of project.allowedFiles) {
         if (targetPath === restrictedPath || targetPath.startsWith(restrictedPath + '/')) {
-          throw new BadRequestException('Not Allowed: This file or folder is restricted by the admin.');
+          const itemName = targetPath.split('/').pop() || targetPath;
+          throw new BadRequestException(`Not Allowed: "${itemName}" is restricted by the admin.`);
         }
       }
     }
@@ -62,6 +63,13 @@ export class EditorService {
       return newPath;
     }
     return process.env.WORKSPACES_DIR || path.resolve(process.cwd(), '..', 'workspaces');
+  }
+
+  async itemExists(itemPath: string, projectId?: string): Promise<boolean> {
+    const rootPath = await this.getRootPath(projectId);
+    const targetPath = path.join(rootPath, itemPath);
+    if (!targetPath.startsWith(rootPath)) return false;
+    return fs.existsSync(targetPath);
   }
 
   async getTree(dirPath: string = '', projectId?: string, recursive: boolean = false): Promise<any[]> {
@@ -172,6 +180,10 @@ export class EditorService {
       throw new BadRequestException('Invalid path');
     }
 
+    if (fs.existsSync(targetPath)) {
+      throw new BadRequestException('Folder already exists');
+    }
+
     try {
       await fs.promises.mkdir(targetPath, { recursive: true });
     } catch (err) {
@@ -215,6 +227,56 @@ export class EditorService {
       if (err.code !== 'ENOENT') {
         throw new BadRequestException(`Failed to delete item: ${err.message}`);
       }
+    }
+  }
+
+  async renameItem(oldPath: string, newPath: string, projectId?: string): Promise<void> {
+    const rootPath = await this.getRootPath(projectId);
+    const targetOldPath = path.join(rootPath, oldPath);
+    const targetNewPath = path.join(rootPath, newPath);
+    
+    if (!targetOldPath.startsWith(rootPath) || !targetNewPath.startsWith(rootPath)) {
+      throw new BadRequestException('Invalid path');
+    }
+
+    if (!fs.existsSync(targetOldPath)) {
+      throw new BadRequestException('Source item does not exist.');
+    }
+    
+    if (fs.existsSync(targetNewPath)) {
+      throw new BadRequestException('An item with this name already exists at the destination.');
+    }
+
+    try {
+      await fs.promises.mkdir(path.dirname(targetNewPath), { recursive: true });
+      await fs.promises.rename(targetOldPath, targetNewPath);
+    } catch (err) {
+      throw new BadRequestException(`Failed to rename item: ${err.message}`);
+    }
+  }
+
+  async copyItem(srcPath: string, destPath: string, projectId?: string): Promise<void> {
+    const rootPath = await this.getRootPath(projectId);
+    const targetSrcPath = path.join(rootPath, srcPath);
+    const targetDestPath = path.join(rootPath, destPath);
+    
+    if (!targetSrcPath.startsWith(rootPath) || !targetDestPath.startsWith(rootPath)) {
+      throw new BadRequestException('Invalid path');
+    }
+
+    if (!fs.existsSync(targetSrcPath)) {
+      throw new BadRequestException('Source item does not exist.');
+    }
+    
+    if (fs.existsSync(targetDestPath)) {
+      throw new BadRequestException('An item with this name already exists at the destination.');
+    }
+
+    try {
+      await fs.promises.mkdir(path.dirname(targetDestPath), { recursive: true });
+      await fs.promises.cp(targetSrcPath, targetDestPath, { recursive: true });
+    } catch (err) {
+      throw new BadRequestException(`Failed to copy item: ${err.message}`);
     }
   }
 }

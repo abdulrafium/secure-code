@@ -102,6 +102,86 @@ export default function TerminalPane({ projectId, isViewer }: { projectId?: stri
         socket.emit('terminal.input', data);
       });
 
+      // Intercept key events for Internal Clipboard (Ctrl+C / Ctrl+V / Right-Click)
+      // Track whether we're in the middle of a Ctrl+V to prevent the paste event from also firing
+      let isPastingFromKeyboard = false;
+
+      term.attachCustomKeyEventHandler((arg: KeyboardEvent) => {
+        if (isViewer) return false;
+        
+        // Ctrl+C or Cmd+C — copy selection into internal clipboard
+        if ((arg.ctrlKey || arg.metaKey) && (arg.code === 'KeyC' || arg.key === 'c' || arg.key === 'C') && arg.type === 'keydown') {
+          const selection = term.getSelection();
+          if (selection) {
+            (window as any).__internalClipboard = { text: selection, source: 'terminal' };
+            term.clearSelection();
+            return false; // Stop default OS copy
+          }
+        }
+        
+        // Ctrl+V or Cmd+V — mark that we're handling paste via keyboard
+        // The actual paste is done by our 'paste' event interceptor below
+        if ((arg.ctrlKey || arg.metaKey) && (arg.code === 'KeyV' || arg.key === 'v' || arg.key === 'V') && arg.type === 'keydown') {
+          isPastingFromKeyboard = true;
+          const clip = (window as any).__internalClipboard;
+          if (clip) {
+            if (clip.source === 'editor') {
+              // Optionally dispatch a custom event here to show an alert, or rely on visual lack of paste
+              const event = new CustomEvent('terminal-paste-restricted');
+              window.dispatchEvent(event);
+            } else {
+              socket.emit('terminal.input', clip.text);
+            }
+            // Reset flag after a tick so paste event can be suppressed
+            setTimeout(() => { isPastingFromKeyboard = false; }, 50);
+            return false;
+          }
+          // Fallback: silently ignore native paste to enforce sandbox
+          setTimeout(() => { isPastingFromKeyboard = false; }, 50);
+          return false;
+        }
+        
+        return true;
+      });
+
+      // Track selection continuously for the global clipboard handler
+      term.onSelectionChange(() => {
+        (window as any).__currentTerminalSelection = term.getSelection();
+      });
+
+      // Expose execute function for global paste
+      (window as any).__executeTerminalPaste = (text: string) => {
+        socket.emit('terminal.input', text);
+      };
+
+      // Handle Right-click Context Menu (Triggered via mouse click, fallback for when context menu native paste fails)
+      const handleContextMenu = (e: MouseEvent) => {
+        if (isViewer) {
+          e.preventDefault();
+          return;
+        }
+        e.preventDefault();
+        const clip = (window as any).__internalClipboard;
+        if (clip) {
+          if (clip.source === 'editor') {
+            const event = new CustomEvent('terminal-paste-restricted');
+            window.dispatchEvent(event);
+          } else {
+            socket.emit('terminal.input', clip.text);
+          }
+          return;
+        }
+      };
+      
+      if (terminalRef.current) {
+        terminalRef.current.addEventListener('contextmenu', handleContextMenu);
+        (term as any)._customContextMenuCleanup = () => {
+          if (terminalRef.current) {
+            terminalRef.current.removeEventListener('contextmenu', handleContextMenu);
+          }
+        };
+      }
+
       // Cleanup function specifically for the inner async
       (term as any)._customCleanup = () => {
         resizeObserver.disconnect();
@@ -112,6 +192,7 @@ export default function TerminalPane({ projectId, isViewer }: { projectId?: stri
       isDisposed = true;
       if (socketRef.current) socketRef.current.disconnect();
       if ((term as any)._customCleanup) (term as any)._customCleanup();
+      if ((term as any)._customContextMenuCleanup) (term as any)._customContextMenuCleanup();
       try { term.dispose(); } catch (e) {}
     };
   }, [projectId]);
