@@ -862,11 +862,83 @@ export default function IDEWorkspace() {
     providerRef.current = provider;
 
     // Set awareness (Cursor presence)
-    const color = cursorColors[Math.floor(Math.random() * cursorColors.length)];
+    const getHashColor = (str: string) => {
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        hash = str.charCodeAt(i) + ((hash << 5) - hash);
+      }
+      return cursorColors[Math.abs(hash) % cursorColors.length];
+    };
+    const username = userInfo?.username || 'Guest';
+    const color = getHashColor(username);
+    
     provider.awareness.setLocalStateField('user', {
-      name: userInfo?.username || 'Guest',
+      name: username,
       color: color
     });
+
+    let styleEl = document.getElementById('yjs-awareness-styles') as HTMLStyleElement;
+    if (!styleEl) {
+      styleEl = document.createElement('style');
+      styleEl.id = 'yjs-awareness-styles';
+      document.head.appendChild(styleEl);
+    }
+
+    const updateAwarenessStyles = () => {
+      const states = provider.awareness.getStates();
+      let css = '';
+      states.forEach((state: any, clientID: number) => {
+        if (state.user) {
+          const ucolor = state.user.color || '#ff8c33';
+          const uname = state.user.name || 'Anonymous';
+          // Fix: CSS classes must safely escape clientID if needed, but it's just a number.
+          css += `
+            .yRemoteSelection-${clientID} {
+              background-color: ${ucolor}40; /* 25% opacity */
+            }
+            .yRemoteSelectionHead-${clientID} {
+              position: absolute;
+              border-left: ${ucolor} solid 2px;
+              border-top: ${ucolor} solid 2px;
+              border-bottom: ${ucolor} solid 2px;
+              height: 100%;
+              box-sizing: border-box;
+            }
+            .yRemoteSelectionHead-${clientID}::after {
+              position: absolute;
+              content: ' ';
+              border: 3px solid ${ucolor};
+              border-radius: 4px;
+              left: -4px;
+              top: -5px;
+            }
+            .yRemoteSelectionHead-${clientID}::before {
+              content: '${uname}';
+              position: absolute;
+              top: -16px;
+              left: -2px;
+              font-size: 11px;
+              background-color: ${ucolor};
+              color: #fff;
+              padding: 1px 4px;
+              border-radius: 3px;
+              white-space: nowrap;
+              opacity: 0;
+              transition: opacity 0.2s ease-in-out;
+              pointer-events: none;
+              z-index: 10;
+            }
+            .yRemoteSelectionHead-${clientID}:hover::before {
+              opacity: 1;
+            }
+          `;
+        }
+      });
+      if (styleEl) styleEl.innerHTML = css;
+    };
+
+    provider.awareness.on('change', updateAwarenessStyles);
+    updateAwarenessStyles();
 
     const model = editorRef.current.getModel();
     if (model) {
@@ -881,6 +953,7 @@ export default function IDEWorkspace() {
     }
 
     return () => {
+      provider.awareness.off('change', updateAwarenessStyles);
       destroyYjs();
     };
   }, [activeFilePath, projectId, userInfo, isEditorMounted]);
