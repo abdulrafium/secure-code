@@ -50,7 +50,7 @@ export class User {
   @Column({ default: false })
   isOnline: boolean;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   sessionId: string | null;
 
   @CreateDateColumn({ type: 'timestamptz' })
