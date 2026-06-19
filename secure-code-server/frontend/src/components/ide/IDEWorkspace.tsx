@@ -406,7 +406,7 @@ export default function IDEWorkspace() {
     
     const fetchFullTree = () => {
       api.get(endpoint).then(data => {
-        setTree(data);
+        setTree(data || []);
         setRefreshToggle(prev => prev + 1); // Triggers FileTree to also refresh expanded sub-folders
       }).catch(err => console.error('Failed to fetch tree', err));
     };
@@ -855,14 +855,17 @@ export default function IDEWorkspace() {
       color: color
     });
 
-    // Bind Monaco to Yjs
-    const binding = new MonacoBinding(
-      yText,
-      editorRef.current.getModel(),
-      new Set([editorRef.current]),
-      provider.awareness
-    );
-    bindingRef.current = binding;
+    const model = editorRef.current.getModel();
+    if (model) {
+      // Bind Monaco to Yjs
+      const binding = new MonacoBinding(
+        yText,
+        model,
+        new Set([editorRef.current]),
+        provider.awareness
+      );
+      bindingRef.current = binding;
+    }
 
     return () => {
       destroyYjs();

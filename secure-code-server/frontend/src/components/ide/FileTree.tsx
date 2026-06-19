@@ -285,7 +285,7 @@ export default function FileTree({
         </div>
       )}
 
-      {nodes.map(node => {
+      {(nodes || []).map(node => {
         const isExpanded = !!expandedNodes[node.path];
         // Root node uses pre-loaded children from backend; sub-folders use lazy-loaded children
         const children = node.path === ''

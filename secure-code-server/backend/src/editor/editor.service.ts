@@ -46,31 +46,31 @@ export class EditorService {
   }
 
   async getRootPath(projectId?: string): Promise<string> {
-    if (projectId) {
-      const project = await this.projectsRepository.findOne({ where: { id: projectId } });
-      if (!project) {
-        throw new BadRequestException('Project not found');
-      }
-      const safeName = this.sanitizeProjectName(project.name);
-      const workspacesDir = process.env.WORKSPACES_DIR || path.resolve(process.cwd(), '..', 'workspaces');
-      const newPath = path.join(workspacesDir, safeName);
-      const oldPath = path.join(workspacesDir, projectId);
-
-      if (fs.existsSync(oldPath) && !fs.existsSync(newPath)) {
-        try {
-          await fs.promises.rename(oldPath, newPath);
-        } catch (e) {
-          console.error(`Failed to migrate workspace from ${oldPath} to ${newPath}`, e);
-        }
-      }
-
-      if (!fs.existsSync(newPath)) {
-        await fs.promises.mkdir(newPath, { recursive: true });
-      }
-
-      return newPath;
+    if (!projectId) {
+      throw new BadRequestException('Project ID is required to access workspace.');
     }
-    return process.env.WORKSPACES_DIR || path.resolve(process.cwd(), '..', 'workspaces');
+    const project = await this.projectsRepository.findOne({ where: { id: projectId } });
+    if (!project) {
+      throw new BadRequestException('Project not found');
+    }
+    const safeName = this.sanitizeProjectName(project.name);
+    const workspacesDir = process.env.WORKSPACES_DIR || path.resolve(process.cwd(), '..', 'workspaces');
+    const newPath = path.join(workspacesDir, safeName);
+    const oldPath = path.join(workspacesDir, projectId);
+
+    if (fs.existsSync(oldPath) && !fs.existsSync(newPath)) {
+      try {
+        await fs.promises.rename(oldPath, newPath);
+      } catch (e) {
+        console.error(`Failed to migrate workspace from ${oldPath} to ${newPath}`, e);
+      }
+    }
+
+    if (!fs.existsSync(newPath)) {
+      await fs.promises.mkdir(newPath, { recursive: true });
+    }
+
+    return newPath;
   }
 
   async itemExists(itemPath: string, projectId?: string): Promise<boolean> {
