@@ -56,6 +56,7 @@ export default function IDEWorkspace() {
   const [forwardedPorts, setForwardedPorts] = useState<ForwardedPort[]>([]);
   const [userRole, setUserRole] = useState('');
   const [userInfo, setUserInfo] = useState<any>(null);
+  const [accessToken, setAccessToken] = useState<string>('');
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{ message: string, onConfirm: () => void } | null>(null);
   const [renamingNodePath, setRenamingNodePath] = useState<string | null>(null);
@@ -387,20 +388,24 @@ export default function IDEWorkspace() {
       if (cookies['viewer_userRole']) setUserRole(cookies['viewer_userRole']);
       const token = cookies['viewer_accessToken'];
       if (token) {
-        try { setUserInfo(JSON.parse(atob(token.split('.')[1]))); } catch (e) {}
+        setAccessToken(token);
+        try { 
+          const parsed = JSON.parse(atob(token.split('.')[1]));
+          setUserInfo(parsed);
+          if (parsed.role) setUserRole(parsed.role);
+        } catch (e) {}
       }
     } else {
       // Developer route - prioritize Admin ONLY if asAdmin=true is in URL, otherwise use Developer
       const isAsAdmin = window.location.search.includes('asAdmin=true');
-      if (isAsAdmin && cookies['admin_userRole']) {
-        setUserRole(cookies['admin_userRole']);
-      } else if (cookies['developer_userRole']) {
-        setUserRole(cookies['developer_userRole']);
-      }
-      
       const token = (isAsAdmin && cookies['admin_accessToken']) ? cookies['admin_accessToken'] : cookies['developer_accessToken'];
       if (token) {
-        try { setUserInfo(JSON.parse(atob(token.split('.')[1]))); } catch (e) {}
+        setAccessToken(token);
+        try { 
+          const parsed = JSON.parse(atob(token.split('.')[1]));
+          setUserInfo(parsed);
+          if (parsed.role) setUserRole(parsed.role);
+        } catch (e) {}
       }
     }
 
@@ -1225,7 +1230,7 @@ export default function IDEWorkspace() {
                   <div className="w-full h-full relative">
                     {terminals.map(term => (
                       <div key={term.id} className="w-full h-full absolute inset-0 p-2" style={{ visibility: term.active ? 'visible' : 'hidden', pointerEvents: term.active ? 'auto' : 'none' }}>
-                        <TerminalPane projectId={projectId} isViewer={isViewer} />
+                        {accessToken && <TerminalPane projectId={projectId} isViewer={isViewer} accessToken={accessToken} />}
                       </div>
                     ))}
                   </div>

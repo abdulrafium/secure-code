@@ -4,7 +4,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { io, Socket } from 'socket.io-client';
 import '@xterm/xterm/css/xterm.css';
 
-export default function TerminalPane({ projectId, isViewer }: { projectId?: string | null, isViewer?: boolean }) {
+export default function TerminalPane({ projectId, isViewer, accessToken }: { projectId?: string | null, isViewer?: boolean, accessToken?: string }) {
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -71,17 +71,9 @@ export default function TerminalPane({ projectId, isViewer }: { projectId?: stri
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || defaultApiUrl;
       // Socket.io should connect to the root of the API
       const backendUrl = apiUrl.replace('/api', '');
-      
-      const getCookie = (name: string) => {
-        const value = `; ${document.cookie}`;
-        const parts = value.split(`; ${name}=`);
-        if (parts.length === 2) return parts.pop()?.split(';').shift() || '';
-        return '';
-      };
-      const token = getCookie('accessToken');
 
       const socket = io(backendUrl, {
-        query: { projectId: projectId || '', token }
+        query: { projectId: projectId || '', token: accessToken || '' }
       });
       socketRef.current = socket;
 
