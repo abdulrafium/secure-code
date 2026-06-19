@@ -100,6 +100,20 @@ export class UsersController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Get('ssh-key/public')
+  async getSshKey(@Request() req: any) {
+    const key = await this.usersService.getSshKey(req.user.id);
+    return { publicKey: key };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('ssh-key/generate')
+  async generateSshKey(@Request() req: any) {
+    const newKey = await this.usersService.generateSshKey(req.user.id);
+    return { success: true, publicKey: newKey };
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Patch(':id')
   async adminUpdateUser(@Param('id') id: string, @Body() body: any) {
     const { username, role, status, allowIp, publicKey } = body;

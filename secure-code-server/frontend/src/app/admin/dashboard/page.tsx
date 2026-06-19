@@ -61,6 +61,8 @@ export default function AdminDashboard() {
     const [deployments, setDeployments] = useState<any[]>([]);
     const [isDeploymentsModalOpen, setIsDeploymentsModalOpen] = useState(false);
     const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+    const [publicKey, setPublicKey] = useState<string | null>(null);
+    const [isGeneratingSsh, setIsGeneratingSsh] = useState(false);
 
     const [stats, setStats] = useState({ 
         roles: { admin: 0, developer: 0, viewer: 0 }, 
@@ -76,8 +78,9 @@ export default function AdminDashboard() {
             api.get('/users/stats').catch(() => null),
             api.get('/users').catch(() => []),
             api.get('/projects').catch(() => []),
-            api.get('/projects/deployments/all').catch(() => [])
-        ]).then(([statsData, users, projects, deps]) => {
+            api.get('/projects/deployments/all').catch(() => []),
+            api.get('/users/ssh-key/public').catch(() => ({ publicKey: null }))
+        ]).then(([statsData, users, projects, deps, sshData]) => {
             const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
             
             const usersThisWeek = (users || []).filter((u: any) => new Date(u.createdAt) > oneWeekAgo).length;
@@ -92,8 +95,29 @@ export default function AdminDashboard() {
                 projectsThisWeek
             });
             setDeployments(deps || []);
+            if (sshData?.publicKey) setPublicKey(sshData.publicKey);
         }).catch(console.error);
     }, []);
+
+    const handleGenerateSshKey = async () => {
+        setIsGeneratingSsh(true);
+        try {
+            const res = await api.post('/users/ssh-key/generate', {});
+            if (res.publicKey) {
+                setPublicKey(res.publicKey);
+            }
+        } catch (error) {
+            console.error('Failed to generate SSH key', error);
+        } finally {
+            setIsGeneratingSsh(false);
+        }
+    };
+
+    const handleCopySshKey = () => {
+        if (publicKey) {
+            navigator.clipboard.writeText(publicKey);
+        }
+    };
 
     const formatRelativeTime = (dateStr: string) => {
         const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
@@ -310,24 +334,33 @@ export default function AdminDashboard() {
                         <div>
                             <div className="flex justify-between items-center mb-1">
                                 <h3 className="text-slate-200 font-medium">Your Public SSH Key</h3>
-                                <button className="flex items-center space-x-1 px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-medium rounded-md transition-colors border border-emerald-500/20">
-                                    <RotateCcw className="w-3 h-3" />
-                                    <span>Generate Code</span>
+                                <button 
+                                    onClick={handleGenerateSshKey}
+                                    disabled={isGeneratingSsh}
+                                    className="flex items-center space-x-1 px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-medium rounded-md transition-colors border border-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed">
+                                    <RotateCcw className={`w-3 h-3 ${isGeneratingSsh ? 'animate-spin' : ''}`} />
+                                    <span>{isGeneratingSsh ? 'Generating...' : 'Generate Key'}</span>
                                 </button>
                             </div>
                             <p className="text-slate-500 text-xs mb-4">Copy this key and add it to your GitLab or GitHub</p>
                         </div>
 
-                        <div className="bg-[#050810] border border-slate-800 rounded-lg p-4 relative group">
-                            <pre className="text-slate-400 text-xs font-mono break-all whitespace-pre-wrap leading-relaxed">
-                                ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQD...A0cO0J0
-                                a1b2c3d4e5f6g7h8i9j0kL1234567890
-                                your_email@example.com
-                            </pre>
-                            <button className="absolute bottom-3 right-3 flex items-center space-x-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium rounded-md transition-colors shadow-lg">
-                                <Copy className="w-3 h-3" />
-                                <span>Copy</span>
-                            </button>
+                        <div className="bg-[#050810] border border-slate-800 rounded-lg p-4 relative group min-h-[100px] flex items-center justify-center">
+                            {publicKey ? (
+                                <pre className="text-slate-400 text-xs font-mono break-all whitespace-pre-wrap leading-relaxed w-full">
+                                    {publicKey}
+                                </pre>
+                            ) : (
+                                <p className="text-slate-600 text-xs text-center">No SSH key generated yet.</p>
+                            )}
+                            {publicKey && (
+                                <button 
+                                    onClick={handleCopySshKey}
+                                    className="absolute bottom-3 right-3 flex items-center space-x-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium rounded-md transition-colors shadow-lg">
+                                    <Copy className="w-3 h-3" />
+                                    <span>Copy</span>
+                                </button>
+                            )}
                         </div>
                     </div>
 

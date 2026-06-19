@@ -4,10 +4,7 @@ import type { NextRequest } from 'next/server';
 export function middleware(request: NextRequest) {
     const path = request.nextUrl.pathname;
 
-    // Redirect root to admin login
-    if (path === '/') {
-        return NextResponse.redirect(new URL('/admin/login', request.url));
-    }
+    // Do not redirect root if it is meant to be a landing page.
 
     // Check Admin routes
     if (path.startsWith('/admin') && !path.startsWith('/admin/login') && !path.startsWith('/admin/recovery')) {

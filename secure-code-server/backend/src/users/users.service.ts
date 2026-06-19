@@ -5,6 +5,13 @@ import { User } from './entities/user.entity';
 import * as bcrypt from 'bcrypt';
 import { Role } from './enums/role.enum';
 import { Status } from './enums/status.enum';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
+
+const execAsync = promisify(exec);
 
 @Injectable()
 export class UsersService {
@@ -98,7 +105,8 @@ export class UsersService {
 
   async delete(id: string): Promise<void> {
     const user = await this.findById(id);
-    if (user?.username === 'admin') {
+    if (!user) throw new Error('User not found');
+    if (user.username === 'admin') {
       throw new ConflictException('The master admin user cannot be deleted.');
     }
     try {
@@ -112,6 +120,51 @@ export class UsersService {
       }
       throw err;
     }
+  }
+
+  async getSshKey(id: string): Promise<string | null> {
+    const user = await this.findById(id);
+    if (!user) throw new Error('User not found');
+    return user.publicKey || null;
+  }
+
+  async generateSshKey(id: string): Promise<string> {
+    const user = await this.findById(id);
+    if (!user) throw new Error('User not found');
+
+    const sshDir = path.join(os.homedir(), '.ssh');
+    const privateKeyPath = path.join(sshDir, 'id_rsa');
+    const publicKeyPath = path.join(sshDir, 'id_rsa.pub');
+    const knownHostsPath = path.join(sshDir, 'known_hosts');
+
+    // Ensure .ssh directory exists
+    if (!fs.existsSync(sshDir)) {
+      await fs.promises.mkdir(sshDir, { recursive: true, mode: 0o700 });
+    }
+
+    // Remove existing keys to generate new ones safely
+    if (fs.existsSync(privateKeyPath)) await fs.promises.unlink(privateKeyPath);
+    if (fs.existsSync(publicKeyPath)) await fs.promises.unlink(publicKeyPath);
+
+    // Generate SSH key without a passphrase
+    await execAsync(`ssh-keygen -t rsa -b 4096 -f "${privateKeyPath}" -N "" -q -C "${user.username}@securecode.local"`);
+
+    // Fetch popular host keys to prevent strict host key checking from blocking git pulls/pushes
+    // Fetch popular host keys to prevent strict host key checking from blocking git pulls/pushes
+    try {
+      await execAsync(`ssh-keyscan -t rsa github.com gitlab.com bitbucket.org >> "${knownHostsPath}"`);
+    } catch (e) {
+      console.error('Failed to update known_hosts', e);
+    }
+
+    // Read the generated public key
+    const publicKeyContent = await fs.promises.readFile(publicKeyPath, 'utf8');
+
+    // Save to database
+    user.publicKey = publicKeyContent.trim();
+    await this.usersRepository.save(user);
+
+    return user.publicKey;
   }
 
   async updateProfile(userId: string, updates: { newUsername?: string; newPassword?: string }): Promise<User> {
