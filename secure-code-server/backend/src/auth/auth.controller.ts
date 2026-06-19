@@ -1,6 +1,7 @@
-import { Controller, Post, Body, UnauthorizedException } from '@nestjs/common';
+import { Controller, Post, Body, UnauthorizedException, UseGuards, Request } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { Role } from '../users/enums/role.enum';
+import { JwtAuthGuard } from './jwt-auth.guard';
 
 @Controller('auth')
 export class AuthController {
@@ -28,6 +29,15 @@ export class AuthController {
       throw new UnauthorizedException('Sorry, you are permanently blocked by the Admin.');
     }
     return this.authService.login(user);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('logout')
+  async logout(@Request() req: any) {
+    if (req.user && req.user.id) {
+      await this.authService.logout(req.user.id);
+    }
+    return { message: 'Logged out successfully' };
   }
 
   @Post('verify-backup-code')

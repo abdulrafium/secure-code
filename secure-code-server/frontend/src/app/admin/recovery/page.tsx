@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { User, Key, ArrowRight, Shield, Lock, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
+import { User, Key, ArrowRight, Shield, Lock, Eye, EyeOff, CheckCircle2, Check } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -24,6 +24,17 @@ export default function AdminRecovery() {
     const [showSuccessModal, setShowSuccessModal] = useState(false);
 
     const router = useRouter();
+
+    const passwordCriteria = {
+        length: newPassword.length >= 8,
+        lower: /[a-z]/.test(newPassword),
+        upper: /[A-Z]/.test(newPassword),
+        number: /[0-9]/.test(newPassword),
+        special: /[^a-zA-Z0-9]/.test(newPassword)
+    };
+
+    const isPasswordValid = passwordCriteria.length && passwordCriteria.lower && passwordCriteria.upper && passwordCriteria.number && passwordCriteria.special;
+
 
     // Auto-clear error message after 5 seconds
     useEffect(() => {
@@ -224,6 +235,40 @@ export default function AdminRecovery() {
                                     {showNew ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                                 </div>
                             </div>
+                            {newPassword.length > 0 && (
+                                <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 px-1">
+                                    <div className="flex items-center space-x-1.5">
+                                        <div className={`w-3 h-3 rounded-full flex items-center justify-center ${passwordCriteria.length ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-transparent'}`}>
+                                            <Check className="w-2 h-2" />
+                                        </div>
+                                        <span className={`text-[11px] ${passwordCriteria.length ? 'text-emerald-400' : 'text-slate-500'}`}>Min 8 chars</span>
+                                    </div>
+                                    <div className="flex items-center space-x-1.5">
+                                        <div className={`w-3 h-3 rounded-full flex items-center justify-center ${passwordCriteria.lower ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-transparent'}`}>
+                                            <Check className="w-2 h-2" />
+                                        </div>
+                                        <span className={`text-[11px] ${passwordCriteria.lower ? 'text-emerald-400' : 'text-slate-500'}`}>1 small letter</span>
+                                    </div>
+                                    <div className="flex items-center space-x-1.5">
+                                        <div className={`w-3 h-3 rounded-full flex items-center justify-center ${passwordCriteria.upper ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-transparent'}`}>
+                                            <Check className="w-2 h-2" />
+                                        </div>
+                                        <span className={`text-[11px] ${passwordCriteria.upper ? 'text-emerald-400' : 'text-slate-500'}`}>1 capital</span>
+                                    </div>
+                                    <div className="flex items-center space-x-1.5">
+                                        <div className={`w-3 h-3 rounded-full flex items-center justify-center ${passwordCriteria.number ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-transparent'}`}>
+                                            <Check className="w-2 h-2" />
+                                        </div>
+                                        <span className={`text-[11px] ${passwordCriteria.number ? 'text-emerald-400' : 'text-slate-500'}`}>1 number</span>
+                                    </div>
+                                    <div className="flex items-center space-x-1.5">
+                                        <div className={`w-3 h-3 rounded-full flex items-center justify-center ${passwordCriteria.special ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-transparent'}`}>
+                                            <Check className="w-2 h-2" />
+                                        </div>
+                                        <span className={`text-[11px] ${passwordCriteria.special ? 'text-emerald-400' : 'text-slate-500'}`}>1 special char</span>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Confirm Password */}
                             <div className="relative group">
@@ -255,8 +300,8 @@ export default function AdminRecovery() {
                                 </button>
                                 <button
                                     type="submit"
-                                    disabled={isLoading}
-                                    className={`flex-1 py-4 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-400 hover:to-blue-500 text-white rounded-xl font-medium shadow-[0_4px_14px_0_rgba(37,99,235,0.39)] hover:shadow-[0_6px_20px_rgba(37,99,235,0.23)] transition-all flex items-center justify-center active:scale-[0.98] ${isLoading ? 'opacity-80 cursor-wait' : ''}`}
+                                    disabled={isLoading || !isPasswordValid || newPassword !== confirmPassword}
+                                    className={`flex-1 py-4 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-400 hover:to-blue-500 text-white rounded-xl font-medium shadow-[0_4px_14px_0_rgba(37,99,235,0.39)] hover:shadow-[0_6px_20px_rgba(37,99,235,0.23)] transition-all flex items-center justify-center active:scale-[0.98] ${isLoading || !isPasswordValid || newPassword !== confirmPassword ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 >
                                     <span>{isLoading ? 'Saving...' : 'Save'}</span>
                                 </button>

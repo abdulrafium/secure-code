@@ -45,6 +45,22 @@ const FileTreeNode = ({ node, allowedFiles, onToggle }: { node: any, allowedFile
     );
 };
 
+const formatRelativeTime = (dateString: string) => {
+    if (!dateString) return 'Never';
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+    if (diffInSeconds < 60) return 'Just now';
+    const diffInMinutes = Math.floor(diffInSeconds / 60);
+    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) return `${diffInHours}h ago`;
+    const diffInDays = Math.floor(diffInHours / 24);
+    if (diffInDays < 30) return `${diffInDays}d ago`;
+    return date.toLocaleDateString();
+};
+
 export default function ProjectsPage() {
     const router = useRouter();
     const [showCreateModal, setShowCreateModal] = useState(false);
@@ -57,6 +73,7 @@ export default function ProjectsPage() {
     const [isGitLoading, setIsGitLoading] = useState(false);
     const [gitProgress, setGitProgress] = useState<number | null>(null);
     const [gitError, setGitError] = useState('');
+    const [alertMessage, setAlertMessage] = useState<string | null>(null);
     const [showAccessModal, setShowAccessModal] = useState(false);
     const [activeProject, setActiveProject] = useState<any | null>(null);
     const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
@@ -168,8 +185,7 @@ export default function ProjectsPage() {
                             if (data.type === 'progress') {
                                 setGitProgress(data.percentage);
                             } else if (data.type === 'error') {
-                                setGitError(data.message || 'Git clone failed. Please check the repository URL and branch.');
-                                setTimeout(() => setGitError(''), 5000);
+                                setAlertMessage(data.message || 'Git clone failed. Please check the repository URL and branch.');
                                 setIsGitLoading(false);
                                 setGitProgress(null);
                                 return;
@@ -187,8 +203,7 @@ export default function ProjectsPage() {
                 }
             }
         } catch (err: any) {
-            setGitError(err.message || 'Failed to pull git repository');
-            setTimeout(() => setGitError(''), 5000);
+            setAlertMessage(err.message || 'Failed to pull git repository');
         } finally {
             setIsGitLoading(false);
             setGitProgress(null);
@@ -495,7 +510,9 @@ export default function ProjectsPage() {
                                         </td>
 
                                         {/* Last Deploy */}
-                                        <td className="px-8 py-6 text-[14px] text-slate-400">Never</td>
+                                        <td className="px-8 py-6 text-[14px] text-slate-400">
+                                            {project.lastDeploy ? formatRelativeTime(project.lastDeploy) : 'Never'}
+                                        </td>
 
                                         {/* Status */}
                                         <td className="px-8 py-6">
@@ -783,7 +800,7 @@ export default function ProjectsPage() {
                                 onClick={handleCreateProject}
                                 className="w-full py-4 bg-gradient-to-b from-[#1442a8] to-[#041133] hover:from-[#1b50c4] hover:to-[#081e55] border border-blue-500/20 text-white font-medium text-[15px] rounded-xl transition-all shadow-[0_4px_15px_rgba(0,0,0,0.5)] active:scale-[0.98]"
                             >
-                                Submit
+                                {modalMode === 'edit' ? 'Update' : 'Create'}
                             </button>
                         </div>
 
@@ -907,7 +924,7 @@ export default function ProjectsPage() {
                                 disabled={isGitLoading}
                                 className="w-full py-4 bg-gradient-to-b from-[#1442a8] to-[#041133] hover:from-[#1b50c4] hover:to-[#081e55] disabled:opacity-50 disabled:cursor-not-allowed border border-blue-500/20 text-white font-medium text-[15px] rounded-xl transition-all shadow-[0_4px_15px_rgba(0,0,0,0.5)] active:scale-[0.98]"
                             >
-                                {isGitLoading ? `Pulling... ${gitProgress !== null ? gitProgress + '%' : ''}` : 'save'}
+                                {isGitLoading ? `Cloning... ${gitProgress !== null ? gitProgress + '%' : ''}` : 'Clone'}
                             </button>
                         </div>
 
@@ -1054,6 +1071,31 @@ export default function ProjectsPage() {
                                 </div>
                             </div>
 
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Themed Alert Modal */}
+            {alertMessage && (
+                <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/60 backdrop-blur-md">
+                    <div className="bg-[#1e1e1e] border border-[#333333] shadow-[0_8px_32px_rgba(0,0,0,0.8)] rounded-md w-[400px] overflow-hidden flex flex-col">
+                        <div className="bg-[#2d2d2d] px-4 py-2 flex items-center justify-between border-b border-[#333333]">
+                            <div className="flex items-center space-x-2 text-red-400">
+                                <AlertTriangle className="w-4 h-4" />
+                                <span className="text-[13px] font-medium text-[#cccccc]">Operation Blocked</span>
+                            </div>
+                            <X className="w-4 h-4 text-[#858585] cursor-pointer hover:text-[#cccccc]" onClick={() => setAlertMessage(null)} />
+                        </div>
+                        <div className="p-5 text-[13px] text-[#cccccc] leading-relaxed break-words whitespace-pre-wrap max-h-[60vh] overflow-y-auto">
+                            {alertMessage}
+                        </div>
+                        <div className="px-4 py-3 bg-[#252526] border-t border-[#333333] flex justify-end">
+                            <button
+                                onClick={() => setAlertMessage(null)}
+                                className="bg-[#0e639c] hover:bg-[#1177bb] text-white px-4 py-1.5 rounded text-[13px] font-medium transition-colors outline-none"
+                            >
+                                OK
+                            </button>
                         </div>
                     </div>
                 </div>

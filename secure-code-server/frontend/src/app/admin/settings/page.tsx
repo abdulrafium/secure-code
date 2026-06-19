@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Lock, Eye, EyeOff, Loader2, X, User } from 'lucide-react';
+import { Lock, Eye, EyeOff, Loader2, X, User, Check } from 'lucide-react';
 import AdminHeader from '@/components/AdminHeader';
 import { api } from '../../../lib/api';
 
@@ -19,6 +19,17 @@ export default function AccountSettings() {
     const [errorMsg, setErrorMsg] = useState('');
     const [modalErrorMsg, setModalErrorMsg] = useState('');
     const [showSuccessModal, setShowSuccessModal] = useState(false);
+
+    const passwordCriteria = {
+        length: newPassword.length >= 8,
+        lower: /[a-z]/.test(newPassword),
+        upper: /[A-Z]/.test(newPassword),
+        number: /[0-9]/.test(newPassword),
+        special: /[^a-zA-Z0-9]/.test(newPassword)
+    };
+
+    const isPasswordValid = passwordCriteria.length && passwordCriteria.lower && passwordCriteria.upper && passwordCriteria.number && passwordCriteria.special;
+
 
     const handleVerify = async () => {
         if (!oldPassword) return;
@@ -225,6 +236,40 @@ export default function AccountSettings() {
                                         {showNewPassword ? <EyeOff className="w-6 h-6" /> : <Eye className="w-6 h-6" />}
                                     </button>
                                 </div>
+                                {newPassword.length > 0 && (
+                                    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 px-2">
+                                        <div className="flex items-center space-x-1.5">
+                                            <div className={`w-3 h-3 rounded-full flex items-center justify-center ${passwordCriteria.length ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-transparent'}`}>
+                                                <Check className="w-2 h-2" />
+                                            </div>
+                                            <span className={`text-[11px] ${passwordCriteria.length ? 'text-emerald-400' : 'text-slate-500'}`}>Min 8 chars</span>
+                                        </div>
+                                        <div className="flex items-center space-x-1.5">
+                                            <div className={`w-3 h-3 rounded-full flex items-center justify-center ${passwordCriteria.lower ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-transparent'}`}>
+                                                <Check className="w-2 h-2" />
+                                            </div>
+                                            <span className={`text-[11px] ${passwordCriteria.lower ? 'text-emerald-400' : 'text-slate-500'}`}>1 small letter</span>
+                                        </div>
+                                        <div className="flex items-center space-x-1.5">
+                                            <div className={`w-3 h-3 rounded-full flex items-center justify-center ${passwordCriteria.upper ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-transparent'}`}>
+                                                <Check className="w-2 h-2" />
+                                            </div>
+                                            <span className={`text-[11px] ${passwordCriteria.upper ? 'text-emerald-400' : 'text-slate-500'}`}>1 capital</span>
+                                        </div>
+                                        <div className="flex items-center space-x-1.5">
+                                            <div className={`w-3 h-3 rounded-full flex items-center justify-center ${passwordCriteria.number ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-transparent'}`}>
+                                                <Check className="w-2 h-2" />
+                                            </div>
+                                            <span className={`text-[11px] ${passwordCriteria.number ? 'text-emerald-400' : 'text-slate-500'}`}>1 number</span>
+                                        </div>
+                                        <div className="flex items-center space-x-1.5">
+                                            <div className={`w-3 h-3 rounded-full flex items-center justify-center ${passwordCriteria.special ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-transparent'}`}>
+                                                <Check className="w-2 h-2" />
+                                            </div>
+                                            <span className={`text-[11px] ${passwordCriteria.special ? 'text-emerald-400' : 'text-slate-500'}`}>1 special char</span>
+                                        </div>
+                                    </div>
+                                )}
 
                                 {/* Confirm Password */}
                                 <div className="bg-[#050810] border border-slate-800/60 rounded-xl flex items-center p-1.5 shadow-inner relative">
@@ -263,8 +308,8 @@ export default function AccountSettings() {
                             <div className="w-full mt-10 px-8">
                                 <button
                                     onClick={handleSave}
-                                    disabled={isSaving}
-                                    className="w-full py-4 flex items-center justify-center space-x-2 bg-gradient-to-b from-[#1442a8] to-[#041133] hover:from-[#1b50c4] hover:to-[#081e55] border border-blue-500/20 text-white font-medium text-lg rounded-xl transition-all shadow-[0_4px_15px_rgba(0,0,0,0.5)] active:scale-[0.98] disabled:opacity-80"
+                                    disabled={isSaving || !isPasswordValid || newPassword !== confirmPassword || newPassword === oldPassword}
+                                    className="w-full py-4 flex items-center justify-center space-x-2 bg-gradient-to-b from-[#1442a8] to-[#041133] hover:from-[#1b50c4] hover:to-[#081e55] border border-blue-500/20 text-white font-medium text-lg rounded-xl transition-all shadow-[0_4px_15px_rgba(0,0,0,0.5)] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     {isSaving ? <Loader2 className="w-6 h-6 animate-spin text-white" /> : <span>Save</span>}
                                 </button>

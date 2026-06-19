@@ -13,6 +13,11 @@ export class ProjectsController {
     return this.projectsService.findAll();
   }
 
+  @Get('deployments/all')
+  async getAllDeployments() {
+    return this.projectsService.getAllDeployments();
+  }
+
   @UseGuards(JwtAuthGuard)
   @Get('assigned')
   async findAssigned(@Request() req: any) {

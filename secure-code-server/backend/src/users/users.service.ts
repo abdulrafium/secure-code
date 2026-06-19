@@ -173,6 +173,15 @@ export class UsersService implements OnApplicationBootstrap {
     return this.usersRepository.save(user);
   }
 
+  async setOnlineStatus(userId: string, isOnline: boolean): Promise<void> {
+    const user = await this.usersRepository.findOne({ where: { id: userId } });
+    if (user) {
+      user.isOnline = isOnline;
+      user.lastActive = new Date();
+      await this.usersRepository.save(user);
+    }
+  }
+
   async getStats() {
     const qb = this.usersRepository.createQueryBuilder('user');
     qb.select('user.role', 'role');
@@ -188,7 +197,7 @@ export class UsersService implements OnApplicationBootstrap {
       return acc;
     }, { admin: 0, developer: 0, viewer: 0 });
 
-    const onlineCount = await this.usersRepository.count({ where: { status: Status.Active } });
+    const onlineCount = await this.usersRepository.count({ where: { isOnline: true } });
 
     return {
       roles: roleCounts,

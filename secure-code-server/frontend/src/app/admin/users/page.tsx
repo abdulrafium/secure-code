@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import AdminHeader from '@/components/AdminHeader';
-import { Users, Plus, Edit2, Trash2, ChevronLeft, ChevronRight, AlertTriangle, X, Eye, EyeOff } from 'lucide-react';
+import { Users, Plus, Edit2, Trash2, ChevronLeft, ChevronRight, AlertTriangle, X, Eye, EyeOff, Check } from 'lucide-react';
 import { api } from '../../../lib/api';
 
 export default function UsersPage() {
@@ -181,6 +181,17 @@ export default function UsersPage() {
     const totalPages = Math.max(1, Math.ceil(users.length / itemsPerPage));
     const currentUsers = users.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
+    const passwordCriteria = {
+        length: createPassword.length >= 8,
+        lower: /[a-z]/.test(createPassword),
+        upper: /[A-Z]/.test(createPassword),
+        number: /[0-9]/.test(createPassword),
+        special: /[^a-zA-Z0-9]/.test(createPassword)
+    };
+
+    const isPasswordValid = modalMode === 'edit' || (passwordCriteria.length && passwordCriteria.lower && passwordCriteria.upper && passwordCriteria.number && passwordCriteria.special);
+    const isFormValid = createUsername && createRole && createStatus && (modalMode === 'edit' || (createPassword && isPasswordValid));
+
     return (
         <div className="min-h-screen bg-[#050810] text-slate-200 font-sans">
             <AdminHeader />
@@ -255,11 +266,19 @@ export default function UsersPage() {
                                         </td>
                                         <td className="px-8 py-6">
                                             <div className="flex items-center space-x-2">
-                                                <div className={`w-2.5 h-2.5 rounded-full ${getStatusStyle(user.status).dot}`}></div>
                                                 <span className={`text-[14px] font-medium capitalize ${getStatusStyle(user.status).text}`}>{user.status}</span>
                                             </div>
                                         </td>
-                                        <td className="px-8 py-6 text-[14px] text-slate-400">{formatRelativeTime(user.updatedAt)}</td>
+                                        <td className="px-8 py-6 text-[14px]">
+                                            {user.isOnline ? (
+                                                <div className="flex items-center space-x-2">
+                                                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.6)]"></div>
+                                                    <span className="text-emerald-400 font-medium tracking-wide">Online</span>
+                                                </div>
+                                            ) : (
+                                                <span className="text-slate-400">{formatRelativeTime(user.lastActive || user.updatedAt)}</span>
+                                            )}
+                                        </td>
                                         <td className="px-8 py-6">
                                             <div className="flex justify-center items-center space-x-3">
                                                 <button
@@ -397,29 +416,70 @@ export default function UsersPage() {
                                 <input
                                     type="text"
                                     value={createUsername}
-                                    onChange={(e) => setCreateUsername(e.target.value)}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        if (val === '' || /^[a-z][a-z0-9]*$/.test(val)) {
+                                            setCreateUsername(val);
+                                        }
+                                    }}
                                     placeholder="Username"
                                     className="w-full bg-[#050810] border border-slate-800/60 rounded-xl px-4 py-3.5 text-[14px] text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 focus:bg-[#070b14] transition-all shadow-inner"
                                 />
                             </div>
 
                             {/* Password */}
-                            <div className="flex flex-col relative">
-                                <input
-                                    type={createPasswordVisible ? "text" : "password"}
-                                    value={modalMode === 'edit' ? '********' : createPassword}
-                                    onChange={(e) => setCreatePassword(e.target.value)}
-                                    disabled={modalMode === 'edit'}
-                                    placeholder="Password"
-                                    className={`w-full bg-[#050810] border border-slate-800/60 rounded-xl px-4 py-3.5 pr-12 text-[14px] text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 focus:bg-[#070b14] transition-all shadow-inner ${modalMode === 'edit' ? 'opacity-50 cursor-not-allowed text-slate-500' : ''}`}
-                                />
-                                <button
-                                    onClick={() => setCreatePasswordVisible(!createPasswordVisible)}
-                                    disabled={modalMode === 'edit'}
-                                    className="absolute right-4 top-[14px] text-slate-500 hover:text-slate-400 focus:outline-none disabled:opacity-50"
-                                >
-                                    {createPasswordVisible ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                                </button>
+                            <div className="flex flex-col space-y-2">
+                                <div className="relative">
+                                    <input
+                                        type={createPasswordVisible ? "text" : "password"}
+                                        value={modalMode === 'edit' ? '********' : createPassword}
+                                        onChange={(e) => setCreatePassword(e.target.value)}
+                                        disabled={modalMode === 'edit'}
+                                        placeholder="Password"
+                                        className={`w-full bg-[#050810] border border-slate-800/60 rounded-xl px-4 py-3.5 pr-12 text-[14px] text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 focus:bg-[#070b14] transition-all shadow-inner ${modalMode === 'edit' ? 'opacity-50 cursor-not-allowed text-slate-500' : ''}`}
+                                    />
+                                    <button
+                                        onClick={() => setCreatePasswordVisible(!createPasswordVisible)}
+                                        disabled={modalMode === 'edit'}
+                                        className="absolute right-4 top-[14px] text-slate-500 hover:text-slate-400 focus:outline-none disabled:opacity-50"
+                                    >
+                                        {createPasswordVisible ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                                    </button>
+                                </div>
+                                {modalMode === 'create' && createPassword.length > 0 && (
+                                    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 px-1">
+                                        <div className="flex items-center space-x-1.5">
+                                            <div className={`w-3 h-3 rounded-full flex items-center justify-center ${passwordCriteria.length ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-transparent'}`}>
+                                                <Check className="w-2 h-2" />
+                                            </div>
+                                            <span className={`text-[11px] ${passwordCriteria.length ? 'text-emerald-400' : 'text-slate-500'}`}>Min 8 chars</span>
+                                        </div>
+                                        <div className="flex items-center space-x-1.5">
+                                            <div className={`w-3 h-3 rounded-full flex items-center justify-center ${passwordCriteria.lower ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-transparent'}`}>
+                                                <Check className="w-2 h-2" />
+                                            </div>
+                                            <span className={`text-[11px] ${passwordCriteria.lower ? 'text-emerald-400' : 'text-slate-500'}`}>1 small letter</span>
+                                        </div>
+                                        <div className="flex items-center space-x-1.5">
+                                            <div className={`w-3 h-3 rounded-full flex items-center justify-center ${passwordCriteria.upper ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-transparent'}`}>
+                                                <Check className="w-2 h-2" />
+                                            </div>
+                                            <span className={`text-[11px] ${passwordCriteria.upper ? 'text-emerald-400' : 'text-slate-500'}`}>1 capital</span>
+                                        </div>
+                                        <div className="flex items-center space-x-1.5">
+                                            <div className={`w-3 h-3 rounded-full flex items-center justify-center ${passwordCriteria.number ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-transparent'}`}>
+                                                <Check className="w-2 h-2" />
+                                            </div>
+                                            <span className={`text-[11px] ${passwordCriteria.number ? 'text-emerald-400' : 'text-slate-500'}`}>1 number</span>
+                                        </div>
+                                        <div className="flex items-center space-x-1.5">
+                                            <div className={`w-3 h-3 rounded-full flex items-center justify-center ${passwordCriteria.special ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-transparent'}`}>
+                                                <Check className="w-2 h-2" />
+                                            </div>
+                                            <span className={`text-[11px] ${passwordCriteria.special ? 'text-emerald-400' : 'text-slate-500'}`}>1 special char</span>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Role Dropdown */}
@@ -484,10 +544,10 @@ export default function UsersPage() {
                         <div className="w-full mt-8">
                             <button
                                 onClick={handleSubmit}
-                                disabled={isSubmitting}
-                                className="w-full flex items-center justify-center py-4 bg-gradient-to-b from-[#1442a8] to-[#041133] hover:from-[#1b50c4] hover:to-[#081e55] border border-blue-500/20 text-white font-medium text-[15px] rounded-xl transition-all shadow-[0_4px_15px_rgba(0,0,0,0.5)] active:scale-[0.98] disabled:opacity-80"
+                                disabled={isSubmitting || !isFormValid}
+                                className="w-full flex items-center justify-center py-4 bg-gradient-to-b from-[#1442a8] to-[#041133] hover:from-[#1b50c4] hover:to-[#081e55] border border-blue-500/20 text-white font-medium text-[15px] rounded-xl transition-all shadow-[0_4px_15px_rgba(0,0,0,0.5)] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                {isSubmitting ? <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div> : 'Submit'}
+                                {isSubmitting ? <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div> : (modalMode === 'edit' ? 'Update' : 'Create')}
                             </button>
                         </div>
 

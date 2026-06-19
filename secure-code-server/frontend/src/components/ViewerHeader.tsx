@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Code2, User, LogOut, ChevronDown, Menu, X } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
+import { api } from '../lib/api';
 
 export default function ViewerHeader() {
     const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -46,10 +47,16 @@ export default function ViewerHeader() {
         }
     }, []);
 
-    const handleLogoutConfirm = () => {
+    const handleLogoutConfirm = async () => {
         setIsLoggingOut(true);
         setShowLogoutConfirm(false);
+        try {
+            await api.post('/auth/logout', {});
+        } catch (e) {
+            console.error(e);
+        }
         document.cookie = 'userRole=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+        document.cookie = 'accessToken=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
         setTimeout(() => {
             router.push('/viewer/login');
         }, 2500); // 2.5s for bracket animation

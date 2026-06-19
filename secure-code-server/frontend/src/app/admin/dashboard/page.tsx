@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     Users, Folder, Box, Activity, Heart, AlertCircle,
-    Terminal, RotateCcw, Copy, DownloadCloud, UploadCloud,
+    Terminal, RotateCcw, Copy, DownloadCloud, UploadCloud, X
 } from 'lucide-react';
 import Link from 'next/link';
 import AdminHeader from '../../../components/AdminHeader';
@@ -58,6 +58,10 @@ const GraphCard = ({
 );
 
 export default function AdminDashboard() {
+    const [deployments, setDeployments] = useState<any[]>([]);
+    const [isDeploymentsModalOpen, setIsDeploymentsModalOpen] = useState(false);
+    const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+
     const [stats, setStats] = useState({ 
         roles: { admin: 0, developer: 0, viewer: 0 }, 
         online: 0, 
@@ -71,8 +75,9 @@ export default function AdminDashboard() {
         Promise.all([
             api.get('/users/stats').catch(() => null),
             api.get('/users').catch(() => []),
-            api.get('/projects').catch(() => [])
-        ]).then(([statsData, users, projects]) => {
+            api.get('/projects').catch(() => []),
+            api.get('/projects/deployments/all').catch(() => [])
+        ]).then(([statsData, users, projects, deps]) => {
             const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
             
             const usersThisWeek = (users || []).filter((u: any) => new Date(u.createdAt) > oneWeekAgo).length;
@@ -86,8 +91,17 @@ export default function AdminDashboard() {
                 totalProjects: projects?.length || 0,
                 projectsThisWeek
             });
+            setDeployments(deps || []);
         }).catch(console.error);
     }, []);
+
+    const formatRelativeTime = (dateStr: string) => {
+        const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+        if (diff < 60) return 'just now';
+        if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+        if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+        return `${Math.floor(diff / 86400)}d ago`;
+    };
 
     return (
         <div className="min-h-screen bg-[#040814] text-slate-200 font-sans selection:bg-blue-500/30">
@@ -259,27 +273,30 @@ export default function AdminDashboard() {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
                     {/* Recent Deployments */}
-                    <div className="bg-[#0b1121] border border-slate-800 rounded-xl p-5">
-                        <h3 className="text-slate-200 font-medium mb-4">Recent Deployments</h3>
-                        <div className="space-y-3">
-                            {[
-                                { name: 'E-Commerce API', env: 'Production', time: '2m ago', status: 'Success' },
-                                { name: 'Marketing Website', env: 'Production', time: '5m ago', status: 'Success' },
-                                { name: 'User Dashboard', env: 'Staging', time: '15m ago', status: 'Success' },
-                            ].map((dep, i) => (
+                    <div className="bg-[#0b1121] border border-slate-800 rounded-xl p-5 flex flex-col max-h-[350px]">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-slate-200 font-medium">Recent Deployments</h3>
+                            <button onClick={() => setIsDeploymentsModalOpen(true)} className="text-indigo-400 text-xs hover:text-indigo-300 transition-colors">
+                                View all
+                            </button>
+                        </div>
+                        <div className="space-y-3 overflow-y-auto pr-2 custom-scrollbar flex-1">
+                            {deployments.length === 0 ? (
+                                <p className="text-slate-500 text-sm italic">No recent deployments</p>
+                            ) : deployments.map((dep, i) => (
                                 <div key={i} className="flex items-center justify-between py-2 border-b border-slate-800/50 last:border-0">
-                                    <div className="flex items-center space-x-3">
-                                        <div className="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
+                                    <div className="flex items-center space-x-3 truncate">
+                                        <div className="w-8 h-8 shrink-0 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
                                             <Terminal className="w-4 h-4 text-indigo-400" />
                                         </div>
-                                        <div>
-                                            <p className="text-slate-200 text-sm font-medium">{dep.name}</p>
-                                            <p className="text-slate-500 text-xs">{dep.env}</p>
+                                        <div className="min-w-0">
+                                            <p className="text-slate-200 text-sm font-medium truncate">{dep.project?.name || 'Unknown Project'}</p>
+                                            <p className="text-slate-500 text-xs truncate" title={dep.commitMessage}>{dep.commitMessage}</p>
                                         </div>
                                     </div>
-                                    <div className="flex items-center space-x-4">
-                                        <span className="text-slate-500 text-xs">{dep.time}</span>
-                                        <span className="px-2 py-1 bg-emerald-500/10 text-emerald-400 text-xs font-medium rounded-md border border-emerald-500/20">
+                                    <div className="flex items-center space-x-4 shrink-0 ml-4">
+                                        <span className="text-slate-500 text-xs whitespace-nowrap">{formatRelativeTime(dep.createdAt)}</span>
+                                        <span className={`px-2 py-1 ${dep.status === 'Success' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'} text-xs font-medium rounded-md border`}>
                                             {dep.status} {">"}
                                         </span>
                                     </div>
@@ -367,6 +384,113 @@ export default function AdminDashboard() {
 
             </div>
 
+            {/* --- DEPLOYMENTS MODAL --- */}
+            {isDeploymentsModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+                    <div 
+                        className="absolute inset-0 bg-[#040814]/80 backdrop-blur-sm"
+                        onClick={() => setIsDeploymentsModalOpen(false)}
+                    />
+                    <div className="relative w-full max-w-6xl h-[80vh] bg-[#0b1121] border border-slate-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+                        
+                        {/* Header */}
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+                            <h2 className="text-lg font-medium text-slate-200">All Deployments</h2>
+                            <button 
+                                onClick={() => setIsDeploymentsModalOpen(false)}
+                                className="p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 rounded-lg transition-colors"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Body (2 Panes) */}
+                        <div className="flex flex-1 overflow-hidden">
+                            
+                            {/* Left Pane: Projects */}
+                            <div className="w-1/3 border-r border-slate-800 flex flex-col bg-[#080d1a]">
+                                <div className="p-4 border-b border-slate-800/50">
+                                    <h3 className="text-sm font-medium text-slate-400 uppercase tracking-wider">Projects</h3>
+                                </div>
+                                <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
+                                    {Array.from(new Set(deployments.map(d => d.projectId))).map(projectId => {
+                                        const projectDeps = deployments.filter(d => d.projectId === projectId);
+                                        const project = projectDeps[0]?.project;
+                                        const isSelected = selectedProjectId === projectId;
+
+                                        return (
+                                            <button
+                                                key={projectId}
+                                                onClick={() => setSelectedProjectId(projectId)}
+                                                className={`w-full text-left p-3 rounded-xl transition-all border ${
+                                                    isSelected 
+                                                        ? 'bg-indigo-500/10 border-indigo-500/30 shadow-[inset_0_0_20px_rgba(99,102,241,0.05)]' 
+                                                        : 'bg-transparent border-transparent hover:bg-slate-800/50'
+                                                }`}
+                                            >
+                                                <div className="flex items-center space-x-3">
+                                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isSelected ? 'bg-indigo-500/20 text-indigo-400' : 'bg-slate-800 text-slate-400'}`}>
+                                                        <Folder className="w-4 h-4" />
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <p className={`text-sm font-medium truncate ${isSelected ? 'text-indigo-300' : 'text-slate-300'}`}>
+                                                            {project?.name || 'Unknown Project'}
+                                                        </p>
+                                                        <p className="text-xs text-slate-500">{projectDeps.length} deployments</p>
+                                                    </div>
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                    {deployments.length === 0 && (
+                                        <p className="text-slate-500 text-sm italic text-center py-8">No projects with deployments</p>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Right Pane: Deployments */}
+                            <div className="w-2/3 flex flex-col bg-[#0b1121]">
+                                <div className="p-4 border-b border-slate-800/50 flex justify-between items-center">
+                                    <h3 className="text-sm font-medium text-slate-400 uppercase tracking-wider">
+                                        Deployment History {selectedProjectId ? '' : '(Select a project)'}
+                                    </h3>
+                                </div>
+                                <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
+                                    {!selectedProjectId ? (
+                                        <div className="h-full flex items-center justify-center text-slate-500 text-sm italic">
+                                            Select a project from the left pane to view its deployments.
+                                        </div>
+                                    ) : (
+                                        deployments.filter(d => d.projectId === selectedProjectId).map((dep, i) => (
+                                            <div key={i} className="flex items-center justify-between p-4 bg-[#080d1a] border border-slate-800/60 rounded-xl hover:border-slate-700 transition-colors">
+                                                <div className="flex items-center space-x-4 min-w-0">
+                                                    <div className="w-10 h-10 shrink-0 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
+                                                        <Terminal className="w-5 h-5 text-indigo-400" />
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <p className="text-slate-200 text-sm font-medium truncate mb-1">{dep.commitMessage}</p>
+                                                        <div className="flex items-center space-x-3 text-xs text-slate-500">
+                                                            <span className="flex items-center"><Users className="w-3 h-3 mr-1"/> {dep.user?.username || 'System'}</span>
+                                                            <span className="w-1 h-1 rounded-full bg-slate-700"></span>
+                                                            <span>{dep.environment}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="flex flex-col items-end shrink-0 ml-4 space-y-2">
+                                                    <span className="text-slate-400 text-xs">{formatRelativeTime(dep.createdAt)}</span>
+                                                    <span className={`px-2.5 py-1 ${dep.status === 'Success' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'} text-[10px] font-medium rounded-md border uppercase tracking-wider`}>
+                                                        {dep.status}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

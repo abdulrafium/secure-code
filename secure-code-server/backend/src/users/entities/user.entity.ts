@@ -44,6 +44,12 @@ export class User {
   @Column({ nullable: true })
   backupCode: string;
 
+  @Column({ type: 'timestamptz', nullable: true })
+  lastActive: Date;
+
+  @Column({ default: false })
+  isOnline: boolean;
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 

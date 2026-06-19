@@ -295,6 +295,7 @@ export default function FileTree({
         return (
           <div key={node.path} className="flex flex-col">
             <div
+              id={`tree-node-${node.path}`}
               className={`flex items-center py-0.5 cursor-pointer select-none ${activeNodePath === node.path ? 'bg-[#37373d] text-white outline outline-1 outline-[#007fd4] outline-offset-[-1px]' : 'text-[#cccccc] hover:bg-[#2a2d2e]'}`}
               style={{ paddingLeft: `${(level * 12) + 4}px` }}
               onClick={() => {

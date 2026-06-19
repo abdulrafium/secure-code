@@ -20,7 +20,12 @@ export class AuthService {
     return null;
   }
 
+  async logout(userId: string) {
+    await this.usersService.setOnlineStatus(userId, false);
+  }
+
   async login(user: any) {
+    await this.usersService.setOnlineStatus(user.id, true);
     const payload = { username: user.username, sub: user.id, role: user.role, status: user.status };
     return {
       access_token: this.jwtService.sign(payload),

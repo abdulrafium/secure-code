@@ -4,6 +4,10 @@ import { Repository } from 'typeorm';
 import { Project } from '../projects/entities/project.entity';
 import * as fs from 'fs';
 import * as path from 'path';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
 
 export interface FileNode {
   name: string;
@@ -17,7 +21,7 @@ export class EditorService {
   constructor(
     @InjectRepository(Project)
     private projectsRepository: Repository<Project>,
-  ) {}
+  ) { }
 
   private sanitizeProjectName(name: string): string {
     return name.replace(/[^a-zA-Z0-9-_\.]/g, '_');
@@ -60,6 +64,10 @@ export class EditorService {
         }
       }
 
+      if (!fs.existsSync(newPath)) {
+        await fs.promises.mkdir(newPath, { recursive: true });
+      }
+
       return newPath;
     }
     return process.env.WORKSPACES_DIR || path.resolve(process.cwd(), '..', 'workspaces');
@@ -75,24 +83,37 @@ export class EditorService {
   async getTree(dirPath: string = '', projectId?: string, recursive: boolean = false): Promise<any[]> {
     const rootPath = await this.getRootPath(projectId);
     const targetPath = path.join(rootPath, dirPath);
-    
+
     if (!targetPath.startsWith(rootPath)) {
       throw new BadRequestException('Invalid path');
     }
 
     try {
-      if (!fs.existsSync(targetPath)) return [];
+      if (!fs.existsSync(targetPath)) {
+        if (projectId && !dirPath) {
+          const project = await this.projectsRepository.findOne({ where: { id: projectId } });
+          const projectName = project ? project.name : path.basename(rootPath);
+          return [{
+            name: projectName,
+            path: '',
+            isDirectory: true,
+            children: [],
+            isRootNode: true,
+          }];
+        }
+        return [];
+      }
 
       const readDirRecursive = async (currentPath: string, relativeDir: string) => {
         const items = await fs.promises.readdir(currentPath, { withFileTypes: true });
         const nodes: any[] = [];
-        
+
         for (const item of items) {
           if (item.name === '.git' || item.name === 'node_modules') continue;
 
           const nodePath = path.join(relativeDir, item.name);
           const fullItemPath = path.join(currentPath, item.name);
-          
+
           const node: any = {
             name: item.name,
             path: nodePath.replace(/\\/g, '/'),
@@ -141,7 +162,7 @@ export class EditorService {
   async readFile(filePath: string, projectId?: string): Promise<string> {
     const rootPath = await this.getRootPath(projectId);
     const targetPath = path.join(rootPath, filePath);
-    
+
     if (!targetPath.startsWith(rootPath)) {
       throw new BadRequestException('Invalid path');
     }
@@ -159,7 +180,7 @@ export class EditorService {
   async writeFile(filePath: string, content: string, projectId?: string): Promise<void> {
     const rootPath = await this.getRootPath(projectId);
     const targetPath = path.join(rootPath, filePath);
-    
+
     if (!targetPath.startsWith(rootPath)) {
       throw new BadRequestException('Invalid path');
     }
@@ -175,7 +196,7 @@ export class EditorService {
   async createFolder(folderPath: string, projectId?: string): Promise<void> {
     const rootPath = await this.getRootPath(projectId);
     const targetPath = path.join(rootPath, folderPath);
-    
+
     if (!targetPath.startsWith(rootPath)) {
       throw new BadRequestException('Invalid path');
     }
@@ -194,7 +215,7 @@ export class EditorService {
   async createEmptyFile(filePath: string, projectId?: string): Promise<void> {
     const rootPath = await this.getRootPath(projectId);
     const targetPath = path.join(rootPath, filePath);
-    
+
     if (!targetPath.startsWith(rootPath)) {
       throw new BadRequestException('Invalid path');
     }
@@ -213,7 +234,7 @@ export class EditorService {
   async deleteItem(itemPath: string, projectId?: string): Promise<void> {
     const rootPath = await this.getRootPath(projectId);
     const targetPath = path.join(rootPath, itemPath);
-    
+
     if (!targetPath.startsWith(rootPath)) {
       throw new BadRequestException('Invalid path');
     }
@@ -234,7 +255,7 @@ export class EditorService {
     const rootPath = await this.getRootPath(projectId);
     const targetOldPath = path.join(rootPath, oldPath);
     const targetNewPath = path.join(rootPath, newPath);
-    
+
     if (!targetOldPath.startsWith(rootPath) || !targetNewPath.startsWith(rootPath)) {
       throw new BadRequestException('Invalid path');
     }
@@ -242,7 +263,7 @@ export class EditorService {
     if (!fs.existsSync(targetOldPath)) {
       throw new BadRequestException('Source item does not exist.');
     }
-    
+
     if (fs.existsSync(targetNewPath)) {
       throw new BadRequestException('An item with this name already exists at the destination.');
     }
@@ -257,26 +278,71 @@ export class EditorService {
 
   async copyItem(srcPath: string, destPath: string, projectId?: string): Promise<void> {
     const rootPath = await this.getRootPath(projectId);
-    const targetSrcPath = path.join(rootPath, srcPath);
-    const targetDestPath = path.join(rootPath, destPath);
-    
-    if (!targetSrcPath.startsWith(rootPath) || !targetDestPath.startsWith(rootPath)) {
+    const sourcePath = path.join(rootPath, srcPath);
+    const targetPath = path.join(rootPath, destPath);
+
+    if (!sourcePath.startsWith(rootPath) || !targetPath.startsWith(rootPath)) {
       throw new BadRequestException('Invalid path');
     }
 
-    if (!fs.existsSync(targetSrcPath)) {
-      throw new BadRequestException('Source item does not exist.');
+    if (!fs.existsSync(sourcePath)) {
+      throw new BadRequestException('Source file or folder not found');
     }
-    
-    if (fs.existsSync(targetDestPath)) {
+
+    // Existence check already handled by controller, but just to be safe:
+    if (fs.existsSync(targetPath)) {
       throw new BadRequestException('An item with this name already exists at the destination.');
     }
 
     try {
-      await fs.promises.mkdir(path.dirname(targetDestPath), { recursive: true });
-      await fs.promises.cp(targetSrcPath, targetDestPath, { recursive: true });
+      await fs.promises.cp(sourcePath, targetPath, { recursive: true });
     } catch (err) {
       throw new BadRequestException(`Failed to copy item: ${err.message}`);
+    }
+  }
+
+  async gitPush(projectId: string, commitMessage: string): Promise<void> {
+    const rootPath = await this.getRootPath(projectId);
+
+    try {
+      // Must explicitly check for .git in rootPath to prevent Git from walking up the directory tree
+      // and interacting with the backend's own parent repository.
+      const gitFolderPath = path.join(rootPath, '.git');
+      if (!fs.existsSync(gitFolderPath)) {
+        throw new BadRequestException('Project is Imported Locally, Github/Gitlab not linked');
+      }
+
+      // Check if project is a git repo by trying to get remote URL
+      let remotes = '';
+      try {
+        const result = await execAsync('git remote -v', { cwd: rootPath });
+        remotes = result.stdout;
+      } catch (err) {
+        // If git remote -v fails, no remote is configured
+      }
+
+      if (!remotes.trim()) {
+        throw new BadRequestException('Project is Imported Locally Github/Gitlab not linked');
+      }
+
+      // Execute git add, commit, and push sequentially
+      await execAsync('git add .', { cwd: rootPath });
+
+      // Escape commit message to prevent shell injection (rudimentary)
+      const safeCommitMessage = commitMessage.replace(/"/g, '\\"');
+      await execAsync(`git commit -m "${safeCommitMessage}"`, { cwd: rootPath });
+
+      // Attempt to push
+      await execAsync('git push', { cwd: rootPath });
+    } catch (err: any) {
+      // If there are no changes to commit, it throws an error but that's not really a failure we want to bubble up as a crash
+      if (err.stdout && err.stdout.includes('nothing to commit')) {
+        await execAsync('git push', { cwd: rootPath }).catch(e => {
+          throw new BadRequestException(`Git push failed: ${e.message}`);
+        });
+        return;
+      }
+      throw new BadRequestException(`Git operation failed: ${err.message}`);
     }
   }
 }

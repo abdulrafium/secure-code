@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import DeveloperHeader from '@/components/DeveloperHeader';
-import { Lock, Eye, EyeOff } from 'lucide-react';
+import { Lock, Eye, EyeOff, Check } from 'lucide-react';
 import { api } from '@/lib/api';
 
 export default function DeveloperPasswordPage() {
@@ -17,6 +17,16 @@ export default function DeveloperPasswordPage() {
     const [isLoading, setIsLoading] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
     const [showSuccessModal, setShowSuccessModal] = useState(false);
+
+    const passwordCriteria = {
+        length: newPassword.length >= 8,
+        lower: /[a-z]/.test(newPassword),
+        upper: /[A-Z]/.test(newPassword),
+        number: /[0-9]/.test(newPassword),
+        special: /[^a-zA-Z0-9]/.test(newPassword)
+    };
+
+    const isPasswordValid = passwordCriteria.length && passwordCriteria.lower && passwordCriteria.upper && passwordCriteria.number && passwordCriteria.special;
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -141,6 +151,40 @@ export default function DeveloperPasswordPage() {
                                 {showNew ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                             </button>
                         </div>
+                        {newPassword.length > 0 && (
+                            <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 px-1">
+                                <div className="flex items-center space-x-1.5">
+                                    <div className={`w-3 h-3 rounded-full flex items-center justify-center ${passwordCriteria.length ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-transparent'}`}>
+                                        <Check className="w-2 h-2" />
+                                    </div>
+                                    <span className={`text-[11px] ${passwordCriteria.length ? 'text-emerald-400' : 'text-slate-500'}`}>Min 8 chars</span>
+                                </div>
+                                <div className="flex items-center space-x-1.5">
+                                    <div className={`w-3 h-3 rounded-full flex items-center justify-center ${passwordCriteria.lower ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-transparent'}`}>
+                                        <Check className="w-2 h-2" />
+                                    </div>
+                                    <span className={`text-[11px] ${passwordCriteria.lower ? 'text-emerald-400' : 'text-slate-500'}`}>1 small letter</span>
+                                </div>
+                                <div className="flex items-center space-x-1.5">
+                                    <div className={`w-3 h-3 rounded-full flex items-center justify-center ${passwordCriteria.upper ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-transparent'}`}>
+                                        <Check className="w-2 h-2" />
+                                    </div>
+                                    <span className={`text-[11px] ${passwordCriteria.upper ? 'text-emerald-400' : 'text-slate-500'}`}>1 capital</span>
+                                </div>
+                                <div className="flex items-center space-x-1.5">
+                                    <div className={`w-3 h-3 rounded-full flex items-center justify-center ${passwordCriteria.number ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-transparent'}`}>
+                                        <Check className="w-2 h-2" />
+                                    </div>
+                                    <span className={`text-[11px] ${passwordCriteria.number ? 'text-emerald-400' : 'text-slate-500'}`}>1 number</span>
+                                </div>
+                                <div className="flex items-center space-x-1.5">
+                                    <div className={`w-3 h-3 rounded-full flex items-center justify-center ${passwordCriteria.special ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-transparent'}`}>
+                                        <Check className="w-2 h-2" />
+                                    </div>
+                                    <span className={`text-[11px] ${passwordCriteria.special ? 'text-emerald-400' : 'text-slate-500'}`}>1 special char</span>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Confirm Password */}
                         <div className="relative group bg-[#0b1220] border border-slate-800 rounded-xl overflow-hidden focus-within:border-blue-500/50 focus-within:ring-1 focus-within:ring-blue-500/50 transition-all">
@@ -173,8 +217,8 @@ export default function DeveloperPasswordPage() {
                         {/* Save Button */}
                         <button
                             type="submit"
-                            disabled={isLoading}
-                            className={`w-full py-4 mt-6 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white rounded-xl text-[15px] font-semibold shadow-[0_4px_20px_0_rgba(37,99,235,0.4)] hover:shadow-[0_6px_25px_rgba(37,99,235,0.3)] transition-all flex items-center justify-center active:scale-[0.98] ${isLoading ? 'opacity-80 cursor-wait' : ''}`}
+                            disabled={isLoading || !isPasswordValid || newPassword !== confirmPassword || newPassword === oldPassword}
+                            className={`w-full py-4 mt-6 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white rounded-xl text-[15px] font-semibold shadow-[0_4px_20px_0_rgba(37,99,235,0.4)] hover:shadow-[0_6px_25px_rgba(37,99,235,0.3)] transition-all flex items-center justify-center active:scale-[0.98] ${isLoading || !isPasswordValid || newPassword !== confirmPassword || newPassword === oldPassword ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                             {isLoading ? 'Saving...' : 'Save'}
                         </button>

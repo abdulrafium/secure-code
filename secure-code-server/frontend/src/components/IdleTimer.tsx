@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
+import { api } from '../lib/api';
 
 export default function IdleTimer({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -13,7 +14,12 @@ export default function IdleTimer({ children }: { children: React.ReactNode }) {
   // Do not track idle time on the login page or landing page
   const isLoginPage = pathname === '/' || pathname === '/admin/login' || pathname === '/developer/login' || pathname === '/viewer/login';
 
-  const logoutUser = () => {
+  const logoutUser = async () => {
+    try {
+      await api.post('/auth/logout', {});
+    } catch (e) {
+      console.error(e);
+    }
     // Clear cookies
     document.cookie = 'accessToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
     document.cookie = 'userRole=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';

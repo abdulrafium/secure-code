@@ -33,7 +33,7 @@ export class TerminalGateway implements OnGatewayConnection, OnGatewayDisconnect
     private readonly jwtService: JwtService,
     @InjectRepository(Project)
     private readonly projectsRepository: Repository<Project>
-  ) {}
+  ) { }
 
   // Map socket IDs to their PTY instances
   private ptys = new Map<string, any>();
@@ -49,14 +49,14 @@ export class TerminalGateway implements OnGatewayConnection, OnGatewayDisconnect
 
   async handleConnection(client: Socket) {
     console.log(`Terminal client connected: ${client.id}`);
-    
+
     // Determine the shell based on the OS
     const shell = os.platform() === 'win32' ? 'powershell.exe' : 'bash';
     const projectId = client.handshake.query?.projectId as string;
-    
+
     // Set cwd to the workspace directory
     let cwd = process.env.WORKSPACES_DIR || path.resolve(process.cwd(), '..', 'workspaces');
-    
+
     const token = client.handshake.query?.token as string;
     let user: any = null;
     if (token) {
@@ -102,12 +102,16 @@ export class TerminalGateway implements OnGatewayConnection, OnGatewayDisconnect
     }
 
     try {
+      const workspacesDir = process.env.WORKSPACES_DIR || path.resolve(process.cwd(), '..', 'workspaces');
       const ptyProcess = pty.spawn(shell, [], {
         name: 'xterm-color',
         cols: 80,
         rows: 24,
         cwd,
-        env: process.env as any,
+        env: {
+          ...process.env,
+          GIT_CEILING_DIRECTORIES: workspacesDir
+        } as any,
       });
 
       // Stream terminal output back to the specific client
@@ -165,28 +169,43 @@ export class TerminalGateway implements OnGatewayConnection, OnGatewayDisconnect
           const globalBlacklist = ['git', 'sudo', 'su', 'curl', 'wget', 'apt', 'apt-get', 'dpkg', 'rm -rf /'];
           const customBlacklist = project?.allowedCommands || [];
           const combinedBlacklist = [...new Set([...globalBlacklist, ...customBlacklist])];
-          
+
           let buffer = this.inputBuffers.get(client.id) || '';
-          
-          if (data === '\r') {
-            const rawCmd = buffer.trim();
-            const cmd = rawCmd.toLowerCase();
-            for (const restrictedCmd of combinedBlacklist) {
-              const lowerRestricted = restrictedCmd.toLowerCase();
-              if (cmd === lowerRestricted || cmd.startsWith(lowerRestricted + ' ')) {
-                client.emit('terminal.output', `\r\n\x1b[31mError: Command execution blocked by security policy: ${restrictedCmd}\x1b[0m\r\n`);
-                this.inputBuffers.set(client.id, '');
-                return; // Block execution
-              }
-            }
-            this.inputBuffers.set(client.id, '');
-          } else if (data === '\x7f' || data === '\b') {
+
+          if (data === '\x7f' || data === '\b') {
             buffer = buffer.slice(0, -1);
             this.inputBuffers.set(client.id, buffer);
+            ptyProcess.write(data);
+            return;
           } else if (data === '\x03') { // Ctrl+C
             this.inputBuffers.set(client.id, '');
+            ptyProcess.write(data);
+            return;
+          }
+
+          buffer += data;
+
+          if (buffer.includes('\r') || buffer.includes('\n')) {
+            const lines = buffer.split(/[\r\n]+/);
+            const remainingBuffer = lines.pop() || '';
+
+            for (const line of lines) {
+              const rawCmd = line.trim();
+              if (!rawCmd) continue;
+              const cmd = rawCmd.toLowerCase();
+
+              for (const restrictedCmd of combinedBlacklist) {
+                const lowerRestricted = restrictedCmd.toLowerCase();
+                if (cmd === lowerRestricted || cmd.startsWith(lowerRestricted + ' ')) {
+                  client.emit('terminal.output', `\r\n\x1b[31mError: Command execution blocked by security policy: ${restrictedCmd}\x1b[0m\r\n`);
+                  this.inputBuffers.set(client.id, '');
+                  return; // Block execution and don't write to pty
+                }
+              }
+            }
+
+            this.inputBuffers.set(client.id, remainingBuffer);
           } else {
-            buffer += data;
             this.inputBuffers.set(client.id, buffer);
           }
         }

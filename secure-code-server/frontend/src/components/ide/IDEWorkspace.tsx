@@ -62,6 +62,9 @@ export default function IDEWorkspace() {
   const [activeNodePath, setActiveNodePath] = useState<string | null>(null);
   const [activeFolderPath, setActiveFolderPath] = useState<string>('');
   const [refreshToggle, setRefreshToggle] = useState<number>(0);
+  
+  const [showCommitModal, setShowCommitModal] = useState(false);
+  const [commitMessage, setCommitMessage] = useState('');
 
   const activeFile = openFiles.find(f => f.path === activeFilePath) || null;
   const isViewer = userRole.toLowerCase() === 'viewer';
@@ -77,26 +80,39 @@ export default function IDEWorkspace() {
   const [pipelineStage, setPipelineStage] = useState<'code' | 'build' | 'test' | 'deploy' | 'live'>('code');
   const [isPipelineRunning, setIsPipelineRunning] = useState(false);
 
-  const startPipeline = () => {
+  const executeGitPush = async () => {
+    if (!commitMessage.trim()) return;
+    
+    setShowCommitModal(false);
     if (isPipelineRunning) return;
     setIsPipelineRunning(true);
     setPipelineStage('build');
     
-    // Simulate Build
-    setTimeout(() => {
-      setPipelineStage('test');
+    try {
+      await api.post('/editor/git/push', {
+        projectId,
+        commitMessage
+      });
+      setPipelineStage('deploy');
+      setSystemLogs(prev => [...prev, `[Git] Successfully pushed with message: "${commitMessage}"`]);
+      setCommitMessage('');
       
-      // Simulate Test
+      // Simulate live deploy completion after a short delay
       setTimeout(() => {
-        setPipelineStage('deploy');
-        
-        // Simulate Deploy
-        setTimeout(() => {
-          setPipelineStage('live');
-          setIsPipelineRunning(false);
-        }, 2000);
+        setPipelineStage('live');
+        setIsPipelineRunning(false);
       }, 2000);
-    }, 2500);
+      
+    } catch (err: any) {
+      setIsPipelineRunning(false);
+      setPipelineStage('code');
+      setCommitMessage('');
+      setAlertMessage(err?.message || 'Git push failed. Ensure backend has Git and access to the repository.');
+    }
+  };
+
+  const startPipeline = () => {
+    setShowCommitModal(true);
   };
 
   const terminalPanelRef = useRef<any>(null);
@@ -236,13 +252,19 @@ export default function IDEWorkspace() {
   };
 
   const handleContextMenuAction = async (action: string) => {
-    if (!contextMenu || isViewer && action !== 'open') return;
+    if (!contextMenu || (isViewer && action !== 'open')) return;
     const { node } = contextMenu;
     setContextMenu(null);
 
     try {
       if (action === 'open') {
-        if (!node.isDirectory) handleFileClick(node);
+        if (!node.isDirectory) {
+          handleFileClick(node);
+        } else {
+          // For directories, we can simulate a click on the file tree element
+          const el = document.getElementById(`tree-node-${node.path}`);
+          if (el) el.click();
+        }
       } else if (action === 'copy' || action === 'cut') {
         setFileClipboard({ path: node.path, action });
         setSystemLogs(prev => [...prev, `${action === 'copy' ? 'Copied' : 'Cut'}: ${node.name}`]);
@@ -378,6 +400,14 @@ export default function IDEWorkspace() {
         console.error('Failed to parse token', e);
       }
     }
+
+    // Listen to custom terminal pipeline events
+    const handlePipelineEvent = (e: any) => {
+      if (isViewer) return;
+      const newStage = e.detail;
+      setPipelineStage(newStage);
+    };
+    window.addEventListener('pipeline-state-change', handlePipelineEvent);
 
     // Restore saved workspace state
     if (!stateKey) {
@@ -559,6 +589,10 @@ export default function IDEWorkspace() {
   const handleEditorChange = (value: string | undefined) => {
     if (!activeFile || value === undefined) return;
 
+    if (!isViewer && pipelineStage !== 'code' && value !== activeFile.content) {
+      setPipelineStage('code');
+    }
+
     setOpenFiles(prev => prev.map(f => {
       if (f.path === activeFilePath) {
         return { ...f, content: value };
@@ -694,17 +728,20 @@ export default function IDEWorkspace() {
         if (e.keyCode === monaco.KeyCode.KeyC) {
           e.preventDefault();
           e.stopPropagation();
+          if (isViewer) return; // Block Ctrl+C for viewer
           const selection = editor.getModel().getValueInRange(editor.getSelection());
           (window as any).__internalClipboard = { text: selection, source: 'editor' };
         } else if (e.keyCode === monaco.KeyCode.KeyX) {
           e.preventDefault();
           e.stopPropagation();
+          if (isViewer) return; // Block Ctrl+X for viewer
           const selection = editor.getModel().getValueInRange(editor.getSelection());
           (window as any).__internalClipboard = { text: selection, source: 'editor' };
           editor.executeEdits('cut', [{ range: editor.getSelection(), text: '' }]);
         } else if (e.keyCode === monaco.KeyCode.KeyV) {
           e.preventDefault();
           e.stopPropagation();
+          if (isViewer) return; // Block Ctrl+V for viewer
           const clip = (window as any).__internalClipboard;
           if (clip && clip.text) {
             editor.executeEdits('paste', [{ range: editor.getSelection(), text: clip.text }]);
@@ -739,8 +776,16 @@ export default function IDEWorkspace() {
       if (contextMenu) setContextMenu(null);
       if (editorContextMenu) setEditorContextMenu(null);
     };
+    const handlePipelineEvent = (e: any) => {
+      setPipelineStage(e.detail);
+    };
+
     window.addEventListener('click', handleClick);
-    return () => window.removeEventListener('click', handleClick);
+    window.addEventListener('pipeline-state-change', handlePipelineEvent);
+    return () => {
+      window.removeEventListener('click', handleClick);
+      window.removeEventListener('pipeline-state-change', handlePipelineEvent);
+    };
   }, [contextMenu, editorContextMenu]);
 
   return (
@@ -914,30 +959,37 @@ export default function IDEWorkspace() {
           style={{ top: contextMenu.y, left: contextMenu.x }}
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="px-4 py-1.5 hover:bg-[#094771] cursor-pointer flex justify-between group" onClick={() => handleContextMenuAction('rename')}>
-            <span>Rename</span><span className="text-[#888] group-hover:text-[#ccc]">F2</span>
+          <div className="px-4 py-1.5 hover:bg-[#094771] cursor-pointer flex justify-between group" onClick={() => handleContextMenuAction('open')}>
+            <span>Open</span>
           </div>
-          <div className="px-4 py-1.5 hover:bg-[#094771] cursor-pointer flex justify-between group" onClick={() => handleContextMenuAction('delete')}>
-            <span>Delete</span><span className="text-[#888] group-hover:text-[#ccc]">Del</span>
-          </div>
-          <div className="h-[1px] bg-[#454545] my-1" />
-          <div className="px-4 py-1.5 hover:bg-[#094771] cursor-pointer flex justify-between group" onClick={() => handleContextMenuAction('copy')}>
-            <span>Copy</span><span className="text-[#888] group-hover:text-[#ccc]">Ctrl+C</span>
-          </div>
-          <div className="px-4 py-1.5 hover:bg-[#094771] cursor-pointer flex justify-between group" onClick={() => handleContextMenuAction('cut')}>
-            <span>Cut</span><span className="text-[#888] group-hover:text-[#ccc]">Ctrl+X</span>
-          </div>
-          <div 
-            className={`px-4 py-1.5 flex justify-between group ${fileClipboard && (!contextMenu.node.isDirectory ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#094771] cursor-pointer')}`}
-            onClick={() => handleContextMenuAction('paste')}
-          >
-            <span>Paste</span><span className="text-[#888] group-hover:text-[#ccc]">Ctrl+V</span>
-          </div>
+          {!isViewer && (
+            <>
+              <div className="px-4 py-1.5 hover:bg-[#094771] cursor-pointer flex justify-between group" onClick={() => handleContextMenuAction('rename')}>
+                <span>Rename</span><span className="text-[#888] group-hover:text-[#ccc]">F2</span>
+              </div>
+              <div className="px-4 py-1.5 hover:bg-[#094771] cursor-pointer flex justify-between group" onClick={() => handleContextMenuAction('delete')}>
+                <span>Delete</span><span className="text-[#888] group-hover:text-[#ccc]">Del</span>
+              </div>
+              <div className="h-[1px] bg-[#454545] my-1" />
+              <div className="px-4 py-1.5 hover:bg-[#094771] cursor-pointer flex justify-between group" onClick={() => handleContextMenuAction('copy')}>
+                <span>Copy</span><span className="text-[#888] group-hover:text-[#ccc]">Ctrl+C</span>
+              </div>
+              <div className="px-4 py-1.5 hover:bg-[#094771] cursor-pointer flex justify-between group" onClick={() => handleContextMenuAction('cut')}>
+                <span>Cut</span><span className="text-[#888] group-hover:text-[#ccc]">Ctrl+X</span>
+              </div>
+              <div 
+                className={`px-4 py-1.5 flex justify-between group ${fileClipboard && (!contextMenu.node.isDirectory ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#094771] cursor-pointer')}`}
+                onClick={() => handleContextMenuAction('paste')}
+              >
+                <span>Paste</span><span className="text-[#888] group-hover:text-[#ccc]">Ctrl+V</span>
+              </div>
+            </>
+          )}
         </div>
       )}
 
       {/* Custom Editor Context Menu */}
-      {editorContextMenu && (
+      {!isViewer && editorContextMenu && (
         <div 
           className="fixed z-[500] bg-[#252526] border border-[#454545] shadow-lg rounded py-1 min-w-[160px] text-[#cccccc] text-[13px] select-none"
           style={{ top: editorContextMenu.y, left: editorContextMenu.x }}
@@ -996,41 +1048,41 @@ export default function IDEWorkspace() {
           {/* Status Lights */}
           <div className="flex items-center space-x-1 bg-[#1e1e1e]/90 backdrop-blur border border-[#333] rounded-full px-2 py-1.5 mb-2 pointer-events-auto shadow-lg">
             {/* Code */}
-            <div className="flex flex-col items-center px-2 cursor-pointer hover:bg-white/10 rounded transition-colors" onClick={() => setPipelineStage('code')}>
-              <div className={`w-4 h-4 rounded-full border flex items-center justify-center mb-0.5 transition-all ${pipelineStage === 'code' ? 'border-[#00FF00]' : 'border-[#00FF00]/40'}`}>
-                <div className={`w-1.5 h-1.5 rounded-full transition-all ${pipelineStage === 'code' ? 'bg-[#00FF00] scale-100' : 'bg-[#00FF00]/40 scale-75'}`}></div>
+            <div className="flex flex-col items-center px-2 hover:bg-white/10 rounded transition-colors">
+              <div className={`w-4 h-4 rounded-full border flex items-center justify-center mb-0.5 transition-all ${pipelineStage === 'code' ? 'border-[#00FF00] shadow-[0_0_10px_rgba(0,255,0,0.7)]' : 'border-[#00FF00]/40'}`}>
+                <div className={`w-1.5 h-1.5 rounded-full transition-all ${pipelineStage === 'code' ? 'bg-[#00FF00] shadow-[0_0_6px_rgba(0,255,0,1)] scale-100' : 'bg-[#00FF00]/40 scale-75'}`}></div>
               </div>
               <span className="text-[9px] text-slate-300 font-medium">Code</span>
             </div>
             
             {/* Build */}
-            <div className="flex flex-col items-center px-2 cursor-pointer hover:bg-white/10 rounded transition-colors" onClick={() => setPipelineStage('build')}>
-              <div className={`w-4 h-4 rounded-full border flex items-center justify-center mb-0.5 transition-all ${pipelineStage === 'build' ? 'border-blue-400' : 'border-blue-400/40'} ${pipelineStage === 'build' && isPipelineRunning ? 'animate-spin' : ''}`}>
-                <div className={`w-1.5 h-1.5 rounded-full transition-all ${pipelineStage === 'build' ? 'bg-blue-400 scale-100' : 'bg-blue-400/40 scale-75'}`}></div>
+            <div className="flex flex-col items-center px-2 hover:bg-white/10 rounded transition-colors">
+              <div className={`w-4 h-4 rounded-full border flex items-center justify-center mb-0.5 transition-all ${pipelineStage === 'build' ? 'border-blue-400 shadow-[0_0_10px_rgba(96,165,250,0.7)]' : 'border-blue-400/40'} ${pipelineStage === 'build' && isPipelineRunning ? 'animate-spin' : ''}`}>
+                <div className={`w-1.5 h-1.5 rounded-full transition-all ${pipelineStage === 'build' ? 'bg-blue-400 shadow-[0_0_6px_rgba(96,165,250,1)] scale-100' : 'bg-blue-400/40 scale-75'}`}></div>
               </div>
               <span className="text-[9px] text-slate-300 font-medium">Build</span>
             </div>
             
             {/* Test */}
-            <div className="flex flex-col items-center px-2 cursor-pointer hover:bg-white/10 rounded transition-colors" onClick={() => setPipelineStage('test')}>
-              <div className={`w-4 h-4 rounded-full border flex items-center justify-center mb-0.5 transition-all ${pipelineStage === 'test' ? 'border-purple-400' : 'border-purple-400/40'} ${pipelineStage === 'test' && isPipelineRunning ? 'animate-pulse' : ''}`}>
-                <div className={`w-1.5 h-1.5 rounded-full transition-all ${pipelineStage === 'test' ? 'bg-purple-400 scale-100' : 'bg-purple-400/40 scale-75'}`}></div>
+            <div className="flex flex-col items-center px-2 hover:bg-white/10 rounded transition-colors">
+              <div className={`w-4 h-4 rounded-full border flex items-center justify-center mb-0.5 transition-all ${pipelineStage === 'test' ? 'border-purple-400 shadow-[0_0_10px_rgba(192,132,252,0.7)]' : 'border-purple-400/40'} ${pipelineStage === 'test' && isPipelineRunning ? 'animate-pulse' : ''}`}>
+                <div className={`w-1.5 h-1.5 rounded-full transition-all ${pipelineStage === 'test' ? 'bg-purple-400 shadow-[0_0_6px_rgba(192,132,252,1)] scale-100' : 'bg-purple-400/40 scale-75'}`}></div>
               </div>
               <span className="text-[9px] text-slate-300 font-medium">Test</span>
             </div>
             
             {/* Deploy */}
-            <div className="flex flex-col items-center px-2 cursor-pointer hover:bg-white/10 rounded transition-colors" onClick={() => setPipelineStage('deploy')}>
-              <div className={`w-4 h-4 rounded-full border flex items-center justify-center mb-0.5 transition-all ${pipelineStage === 'deploy' ? 'border-pink-400' : 'border-pink-400/40'} ${pipelineStage === 'deploy' && isPipelineRunning ? 'animate-ping' : ''}`}>
-                <div className={`w-1.5 h-1.5 rounded-full transition-all ${pipelineStage === 'deploy' ? 'bg-pink-400 scale-100' : 'bg-pink-400/40 scale-75'}`}></div>
+            <div className="flex flex-col items-center px-2 hover:bg-white/10 rounded transition-colors">
+              <div className={`w-4 h-4 rounded-full border flex items-center justify-center mb-0.5 transition-all ${pipelineStage === 'deploy' ? 'border-pink-400 shadow-[0_0_10px_rgba(244,114,182,0.7)]' : 'border-pink-400/40'} ${pipelineStage === 'deploy' && isPipelineRunning ? 'animate-ping' : ''}`}>
+                <div className={`w-1.5 h-1.5 rounded-full transition-all ${pipelineStage === 'deploy' ? 'bg-pink-400 shadow-[0_0_6px_rgba(244,114,182,1)] scale-100' : 'bg-pink-400/40 scale-75'}`}></div>
               </div>
               <span className="text-[9px] text-slate-300 font-medium">Deploy</span>
             </div>
             
             {/* Live */}
-            <div className="flex flex-col items-center px-2 cursor-pointer hover:bg-white/10 rounded transition-colors" onClick={() => setPipelineStage('live')}>
-              <div className={`w-4 h-4 rounded-full border flex items-center justify-center mb-0.5 transition-all ${pipelineStage === 'live' ? 'border-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.8)]' : 'border-blue-500/40'}`}>
-                <div className={`w-1.5 h-1.5 rounded-full transition-all ${pipelineStage === 'live' ? 'bg-blue-500 scale-100' : 'bg-blue-500/40 scale-75'}`}></div>
+            <div className="flex flex-col items-center px-2 hover:bg-white/10 rounded transition-colors">
+              <div className={`w-4 h-4 rounded-full border flex items-center justify-center mb-0.5 transition-all ${pipelineStage === 'live' ? 'border-blue-500 shadow-[0_0_12px_rgba(59,130,246,0.9)]' : 'border-blue-500/40'}`}>
+                <div className={`w-1.5 h-1.5 rounded-full transition-all ${pipelineStage === 'live' ? 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,1)] scale-100' : 'bg-blue-500/40 scale-75'}`}></div>
               </div>
               <span className="text-[9px] text-slate-300 font-medium">Live</span>
             </div>
@@ -1040,20 +1092,20 @@ export default function IDEWorkspace() {
           <div className="flex items-center space-x-2 pointer-events-auto mt-1 mr-2">
             <button 
               onClick={startPipeline}
-              disabled={isPipelineRunning}
-              className={`px-4 py-1.5 rounded text-white text-[12px] font-bold shadow-md transition-all ${isPipelineRunning ? 'bg-[#295ed9]/50 cursor-not-allowed' : 'bg-[#295ed9] hover:bg-[#346df0] active:scale-95'}`}
+              disabled={isPipelineRunning || isViewer}
+              className={`px-4 py-1.5 rounded text-white text-[12px] font-bold shadow-md transition-all ${isPipelineRunning ? 'bg-[#295ed9]/50 cursor-not-allowed' : 'bg-[#295ed9] hover:bg-[#346df0] active:scale-95'} ${isViewer ? 'cursor-not-allowed' : ''}`}
             >
               {isPipelineRunning ? 'pushing...' : 'code push'}
             </button>
             <button 
               onClick={() => {
-                if (pipelineStage === 'live') {
-                  window.open('/', '_blank');
-                } else {
-                  setAlertMessage("The application is not live yet. Please push the code to deploy it first.");
+                if (!isViewer) {
+                  setPipelineStage('live');
+                  window.open('http://localhost:3000', '_blank');
                 }
               }}
-              className="px-4 py-1.5 bg-[#295ed9] hover:bg-[#346df0] active:scale-95 rounded text-white text-[12px] font-bold shadow-md transition-transform"
+              disabled={isViewer}
+              className={`px-4 py-1.5 rounded text-white text-[12px] font-bold shadow-md transition-transform bg-[#295ed9] hover:bg-[#346df0] active:scale-95 ${isViewer ? 'cursor-not-allowed' : ''}`}
             >
               Live link
             </button>
@@ -1200,8 +1252,8 @@ export default function IDEWorkspace() {
 
       {/* Themed Alert Modal */}
       {alertMessage && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-[#1e1e1e] border border-[#333333] shadow-2xl rounded-md w-[400px] overflow-hidden flex flex-col">
+        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/60 backdrop-blur-md">
+          <div className="bg-[#1e1e1e] border border-[#333333] shadow-[0_8px_32px_rgba(0,0,0,0.8)] rounded-md w-[400px] overflow-hidden flex flex-col">
             <div className="bg-[#2d2d2d] px-4 py-2 flex items-center justify-between border-b border-[#333333]">
               <div className="flex items-center space-x-2 text-red-400">
                 <AlertTriangle className="w-4 h-4" />
@@ -1209,15 +1261,64 @@ export default function IDEWorkspace() {
               </div>
               <X className="w-4 h-4 text-[#858585] cursor-pointer hover:text-[#cccccc]" onClick={() => setAlertMessage(null)} />
             </div>
-            <div className="p-5 text-[13px] text-[#cccccc] leading-relaxed">
+            <div className="p-5 text-[13px] text-[#cccccc] leading-relaxed break-words whitespace-pre-wrap max-h-[60vh] overflow-y-auto">
               {alertMessage}
             </div>
-            <div className="px-4 py-3 bg-[#252526] border-t border-[#333333] flex justify-end space-x-3">
+            <div className="px-4 py-3 bg-[#252526] border-t border-[#333333] flex justify-end">
               <button
                 onClick={() => setAlertMessage(null)}
-                className="bg-[#0e639c] hover:bg-[#1177bb] text-white px-4 py-1.5 rounded text-[13px] font-medium transition-colors"
+                className="bg-[#0e639c] hover:bg-[#1177bb] text-white px-4 py-1.5 rounded text-[13px] font-medium transition-colors outline-none"
               >
                 OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Commit Message Modal */}
+      {showCommitModal && (
+        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/60 backdrop-blur-md transition-opacity duration-200">
+          <div className="bg-[#1e1e1e] border border-[#3c3c3c] shadow-[0_8px_32px_rgba(0,0,0,0.8)] rounded-lg w-[420px] flex flex-col overflow-hidden">
+            <div className="px-5 py-4 border-b border-[#3c3c3c] flex items-center space-x-3">
+              <div className="bg-[#007fd4]/10 p-2 rounded-full">
+                <Code className="w-5 h-5 text-[#007fd4]" />
+              </div>
+              <h3 className="text-gray-100 text-base font-semibold tracking-wide">Git Commit & Push</h3>
+            </div>
+            <div className="p-5 flex flex-col space-y-3">
+              <div className="flex justify-between items-center">
+                <label className="text-gray-400 text-xs font-medium">COMMIT MESSAGE</label>
+                <span className={`text-xs font-medium ${30 - commitMessage.length === 0 ? 'text-red-400' : 'text-gray-500'}`}>
+                  {30 - commitMessage.length}
+                </span>
+              </div>
+              <textarea
+                value={commitMessage}
+                onChange={(e) => {
+                  if (e.target.value.length <= 30) {
+                    setCommitMessage(e.target.value);
+                  }
+                }}
+                maxLength={30}
+                placeholder="Enter your commit message..."
+                className="w-full bg-[#181818] border border-[#3c3c3c] rounded text-gray-200 text-sm px-3 py-2 outline-none focus:border-[#007fd4] resize-none h-24"
+                autoFocus
+              />
+            </div>
+            <div className="px-5 py-4 bg-[#252526] border-t border-[#3c3c3c] flex justify-end space-x-3">
+              <button
+                onClick={() => { setShowCommitModal(false); setCommitMessage(''); }}
+                className="px-4 py-1.5 rounded text-sm font-medium text-gray-300 hover:text-white hover:bg-[#333333] transition-colors outline-none"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={executeGitPush}
+                disabled={!commitMessage.trim()}
+                className={`px-4 py-1.5 rounded text-sm font-medium text-white transition-all outline-none shadow-sm ${!commitMessage.trim() ? 'bg-[#0e639c]/50 cursor-not-allowed text-white/50' : 'bg-[#007fd4] hover:bg-[#006bb3]'}`}
+              >
+                Commit & Push
               </button>
             </div>
           </div>

@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Project } from './entities/project.entity';
+import { Deployment } from './entities/deployment.entity';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as unzipper from 'unzipper';
@@ -17,6 +18,8 @@ export class ProjectsService {
   constructor(
     @InjectRepository(Project)
     private projectsRepository: Repository<Project>,
+    @InjectRepository(Deployment)
+    private deploymentsRepository: Repository<Deployment>,
     private usersService: UsersService,
   ) {}
 
@@ -25,13 +28,39 @@ export class ProjectsService {
       relations: { users: true },
       order: { createdAt: 'DESC' },
     });
-    return projects.map(p => {
+    
+    return Promise.all(projects.map(async p => {
       const pMap = TerminalGateway.projectSessions.get(p.id);
+      
+      const latestDeployment = await this.deploymentsRepository.findOne({
+        where: { projectId: p.id },
+        order: { createdAt: 'DESC' }
+      });
+
       return {
         ...p,
         status: 'Running',
-        onlineUsers: pMap ? pMap.size : 0
+        onlineUsers: pMap ? pMap.size : 0,
+        lastDeploy: latestDeployment ? latestDeployment.createdAt : null,
       };
+    }));
+  }
+
+  async createDeployment(projectId: string, userId: string, commitMessage: string, env: string = 'Production', status: string = 'Success') {
+    const deployment = this.deploymentsRepository.create({
+      projectId,
+      userId,
+      commitMessage,
+      environment: env,
+      status
+    });
+    return await this.deploymentsRepository.save(deployment);
+  }
+
+  async getAllDeployments(): Promise<Deployment[]> {
+    return await this.deploymentsRepository.find({
+      relations: { project: true, user: true },
+      order: { createdAt: 'DESC' }
     });
   }
 
@@ -171,10 +200,11 @@ export class ProjectsService {
     const safeName = project.name.replace(/[^a-zA-Z0-9-_\.]/g, '_');
     const workspacesDir = process.env.WORKSPACES_DIR || path.resolve(process.cwd(), '..', 'workspaces');
     const projectDir = path.join(workspacesDir, safeName);
+    const tempDir = path.join(workspacesDir, safeName + '_git_tmp_' + Date.now());
 
-    // Wipe existing project files to prevent conflicts
-    if (fs.existsSync(projectDir)) {
-      await fs.promises.rm(projectDir, { recursive: true, force: true });
+    // Ensure target directory exists
+    if (!fs.existsSync(projectDir)) {
+      await fs.promises.mkdir(projectDir, { recursive: true });
     }
 
     return new Promise((resolve, reject) => {
@@ -182,12 +212,14 @@ export class ProjectsService {
       if (branch) {
         args.push('-b', branch);
       }
-      args.push(url, projectDir);
+      args.push(url, tempDir);
 
       const child = spawn('git', args);
+      let errorLog = '';
 
       child.stderr.on('data', (data) => {
         const output = data.toString();
+        errorLog += output; // collect for error reporting
         // git clone outputs progress on stderr. Look for percentages.
         const match = output.match(/(\d+)%/);
         if (match && onProgress) {
@@ -198,18 +230,24 @@ export class ProjectsService {
       child.on('close', async (code) => {
         if (code === 0) {
           try {
+            // Merge cloned files into the existing project directory
+            await fs.promises.cp(tempDir, projectDir, { recursive: true });
+            await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+
             const sizeBytes = await this.calculateDirectorySize(projectDir);
             project.storageBytes = sizeBytes;
             await this.projectsRepository.save(project);
             resolve(project);
           } catch (err) {
-            reject(new BadRequestException('Failed to finalize git clone'));
+            await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+            reject(new BadRequestException('Failed to merge git repository into project'));
           }
         } else {
-          if (fs.existsSync(projectDir)) {
-            await fs.promises.rm(projectDir, { recursive: true, force: true }).catch(() => {});
-          }
-          reject(new BadRequestException(`Git clone failed with exit code ${code}`));
+          await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+          // Use the captured stderr, extract the 'fatal:' part if possible
+          const fatalMatch = errorLog.match(/fatal:.*(\n.*)?/);
+          const errorMsg = fatalMatch ? fatalMatch[0].trim() : `Git clone failed with exit code ${code}`;
+          reject(new BadRequestException(errorMsg));
         }
       });
 

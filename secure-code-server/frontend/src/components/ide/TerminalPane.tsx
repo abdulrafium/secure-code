@@ -53,9 +53,13 @@ export default function TerminalPane({ projectId, isViewer }: { projectId?: stri
         }
       };
 
-      // Use ResizeObserver for accurate panel resizing
+      // Use ResizeObserver for accurate panel resizing with a debounce to prevent loops
+      let resizeTimeout: any;
       const resizeObserver = new ResizeObserver(() => {
-        requestAnimationFrame(safeFit);
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(() => {
+          requestAnimationFrame(safeFit);
+        }, 50);
       });
       resizeObserver.observe(terminalRef.current);
 
@@ -97,8 +101,28 @@ export default function TerminalPane({ projectId, isViewer }: { projectId?: stri
         term.writeln('\x1b[1;31m[Terminal Disconnected]\x1b[0m');
       });
 
+      let localBuffer = '';
+
       term.onData((data) => {
         if (isDisposed || isViewer) return;
+        
+        if (data === '\r' || data === '\n') {
+           const cmd = localBuffer.trim();
+           if (cmd.startsWith('npm run dev') || cmd.startsWith('npm start') || cmd.startsWith('yarn dev') || cmd.startsWith('yarn start')) {
+              window.dispatchEvent(new CustomEvent('pipeline-state-change', { detail: 'build' }));
+              setTimeout(() => {
+                 window.dispatchEvent(new CustomEvent('pipeline-state-change', { detail: 'test' }));
+              }, 2500); // simulate test after build
+           }
+           localBuffer = '';
+        } else if (data === '\x7f' || data === '\b') {
+           localBuffer = localBuffer.slice(0, -1);
+        } else if (data === '\x03') { // Ctrl+C
+           localBuffer = '';
+        } else {
+           localBuffer += data;
+        }
+
         socket.emit('terminal.input', data);
       });
 
@@ -109,6 +133,12 @@ export default function TerminalPane({ projectId, isViewer }: { projectId?: stri
       term.attachCustomKeyEventHandler((arg: KeyboardEvent) => {
         if (isViewer) return false;
         
+        // Prevent Ctrl+S from sending XOFF to the terminal (freezing it)
+        if ((arg.ctrlKey || arg.metaKey) && (arg.code === 'KeyS' || arg.key === 's' || arg.key === 'S')) {
+          if (arg.type === 'keydown') arg.preventDefault();
+          return false;
+        }
+
         // Ctrl+C or Cmd+C — copy selection into internal clipboard
         if ((arg.ctrlKey || arg.metaKey) && (arg.code === 'KeyC' || arg.key === 'c' || arg.key === 'C') && arg.type === 'keydown') {
           const selection = term.getSelection();
