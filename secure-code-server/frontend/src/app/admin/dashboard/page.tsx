@@ -327,10 +327,10 @@ export default function AdminDashboard() {
                                 View all
                             </button>
                         </div>
-                        <div className="space-y-3 overflow-y-auto pr-2 custom-scrollbar flex-1">
+                        <div className="space-y-3 overflow-hidden flex-1">
                             {deployments.length === 0 ? (
                                 <p className="text-slate-500 text-sm italic">No recent deployments</p>
-                            ) : deployments.map((dep, i) => (
+                            ) : deployments.slice(0, 3).map((dep, i) => (
                                 <div key={i} className="flex items-center justify-between py-2 border-b border-slate-800/50 last:border-0">
                                     <div className="flex items-center space-x-3 truncate">
                                         <div className="w-8 h-8 shrink-0 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">

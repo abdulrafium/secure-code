@@ -5,9 +5,13 @@ const getAuthToken = () => {
         const path = window.location.pathname;
         let tokenName = 'accessToken'; // fallback
 
-        if (path.startsWith('/admin')) tokenName = 'admin_accessToken';
-        else if (path.startsWith('/developer')) tokenName = 'developer_accessToken';
-        else if (path.startsWith('/viewer')) tokenName = 'viewer_accessToken';
+        if (path.startsWith('/admin')) {
+            tokenName = 'admin_accessToken';
+        } else if (path.startsWith('/developer')) {
+            tokenName = document.cookie.includes('admin_accessToken=') ? 'admin_accessToken' : 'developer_accessToken';
+        } else if (path.startsWith('/viewer')) {
+            tokenName = 'viewer_accessToken';
+        }
 
         const match = document.cookie.match(new RegExp('(^| )' + tokenName + '=([^;]+)'));
         if (match) return match[2];
