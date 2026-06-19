@@ -1,7 +1,9 @@
 "use client";
 
 import React, { Suspense } from 'react';
-import IDEWorkspace from '@/components/ide/IDEWorkspace';
+import dynamic from 'next/dynamic';
+
+const IDEWorkspace = dynamic(() => import('@/components/ide/IDEWorkspace'), { ssr: false });
 
 export default function ViewerIDE() {
   return (
