@@ -214,7 +214,13 @@ export class ProjectsService {
       }
       args.push(url, tempDir);
 
-      const child = spawn('git', args);
+      const env = { ...process.env };
+      const sshKeyPath = path.join(workspacesDir, '.ssh', 'id_ed25519');
+      if (fs.existsSync(sshKeyPath)) {
+        env.GIT_SSH_COMMAND = `ssh -i ${sshKeyPath} -o StrictHostKeyChecking=no`;
+      }
+
+      const child = spawn('git', args, { env });
       let errorLog = '';
 
       child.stderr.on('data', (data) => {

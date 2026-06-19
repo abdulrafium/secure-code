@@ -314,8 +314,16 @@ export class EditorService {
 
       // Check if project is a git repo by trying to get remote URL
       let remotes = '';
+      
+      const workspacesDir = process.env.WORKSPACES_DIR || path.resolve(process.cwd(), '..', 'workspaces');
+      const sshKeyPath = path.join(workspacesDir, '.ssh', 'id_ed25519');
+      const env = { ...process.env };
+      if (fs.existsSync(sshKeyPath)) {
+        env.GIT_SSH_COMMAND = `ssh -i ${sshKeyPath} -o StrictHostKeyChecking=no`;
+      }
+
       try {
-        const result = await execAsync('git remote -v', { cwd: rootPath });
+        const result = await execAsync('git remote -v', { cwd: rootPath, env });
         remotes = result.stdout;
       } catch (err) {
         // If git remote -v fails, no remote is configured
@@ -326,7 +334,7 @@ export class EditorService {
       }
 
       // Execute git add, commit, and push sequentially
-      await execAsync('git add .', { cwd: rootPath });
+      await execAsync('git add .', { cwd: rootPath, env });
 
       // Escape commit message to prevent shell injection (rudimentary)
       const safeCommitMessage = commitMessage.replace(/"/g, '\\"');
@@ -334,17 +342,17 @@ export class EditorService {
       // If we have a user object, dynamically set the author for this commit
       if (user && user.username) {
         const safeUsername = user.username.replace(/"/g, '\\"');
-        await execAsync(`git -c user.name="${safeUsername}" -c user.email="${safeUsername}@securecode.local" commit -m "${safeCommitMessage}"`, { cwd: rootPath });
+        await execAsync(`git -c user.name="${safeUsername}" -c user.email="${safeUsername}@securecode.local" commit -m "${safeCommitMessage}"`, { cwd: rootPath, env });
       } else {
-        await execAsync(`git commit -m "${safeCommitMessage}"`, { cwd: rootPath });
+        await execAsync(`git commit -m "${safeCommitMessage}"`, { cwd: rootPath, env });
       }
 
       // Attempt to push
-      await execAsync('git push', { cwd: rootPath });
+      await execAsync('git push', { cwd: rootPath, env });
     } catch (err: any) {
       // If there are no changes to commit, it throws an error but that's not really a failure we want to bubble up as a crash
       if (err.stdout && err.stdout.includes('nothing to commit')) {
-        await execAsync('git push', { cwd: rootPath }).catch(e => {
+        await execAsync('git push', { cwd: rootPath, env }).catch(e => {
           throw new BadRequestException(`Git push failed: ${e.message}`);
         });
         return;

@@ -103,15 +103,21 @@ export class TerminalGateway implements OnGatewayConnection, OnGatewayDisconnect
 
     try {
       const workspacesDir = process.env.WORKSPACES_DIR || path.resolve(process.cwd(), '..', 'workspaces');
+      const sshKeyPath = path.join(workspacesDir, '.ssh', 'id_ed25519');
+      const env: any = {
+        ...process.env,
+        GIT_CEILING_DIRECTORIES: workspacesDir
+      };
+      if (fs.existsSync(sshKeyPath)) {
+        env.GIT_SSH_COMMAND = `ssh -i ${sshKeyPath} -o StrictHostKeyChecking=no`;
+      }
+
       const ptyProcess = pty.spawn(shell, [], {
         name: 'xterm-color',
         cols: 80,
         rows: 24,
         cwd,
-        env: {
-          ...process.env,
-          GIT_CEILING_DIRECTORIES: workspacesDir
-        } as any,
+        env,
       });
 
       // Stream terminal output back to the specific client

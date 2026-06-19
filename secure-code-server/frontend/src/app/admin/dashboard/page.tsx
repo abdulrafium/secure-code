@@ -120,11 +120,25 @@ export default function AdminDashboard() {
         }
     };
 
-    const handleCopySshKey = () => {
+    const handleCopySshKey = async () => {
         if (publicKey) {
-            navigator.clipboard.writeText(publicKey);
-            setIsCopied(true);
-            setTimeout(() => setIsCopied(false), 2000);
+            try {
+                if (navigator.clipboard && window.isSecureContext) {
+                    await navigator.clipboard.writeText(publicKey);
+                } else {
+                    const textArea = document.createElement("textarea");
+                    textArea.value = publicKey;
+                    document.body.appendChild(textArea);
+                    textArea.focus();
+                    textArea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textArea);
+                }
+                setIsCopied(true);
+                setTimeout(() => setIsCopied(false), 2000);
+            } catch (err) {
+                console.error('Failed to copy', err);
+            }
         }
     };
 
