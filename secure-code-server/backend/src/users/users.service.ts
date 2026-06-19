@@ -1,4 +1,4 @@
-import { Injectable, ConflictException, OnApplicationBootstrap } from '@nestjs/common';
+import { Injectable, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
@@ -7,7 +7,7 @@ import { Role } from './enums/role.enum';
 import { Status } from './enums/status.enum';
 
 @Injectable()
-export class UsersService implements OnApplicationBootstrap {
+export class UsersService {
   constructor(
     @InjectRepository(User)
     private usersRepository: Repository<User>,
