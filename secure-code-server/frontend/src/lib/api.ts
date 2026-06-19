@@ -8,7 +8,8 @@ const getAuthToken = () => {
         if (path.startsWith('/admin')) {
             tokenName = 'admin_accessToken';
         } else if (path.startsWith('/developer/ide')) {
-            tokenName = document.cookie.includes('admin_accessToken=') ? 'admin_accessToken' : 'developer_accessToken';
+            const isAsAdmin = window.location.search.includes('asAdmin=true');
+            tokenName = (isAsAdmin && document.cookie.includes('admin_accessToken=')) ? 'admin_accessToken' : 'developer_accessToken';
         } else if (path.startsWith('/developer')) {
             tokenName = 'developer_accessToken';
         } else if (path.startsWith('/viewer')) {

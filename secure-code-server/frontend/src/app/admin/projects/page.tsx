@@ -631,7 +631,7 @@ export default function ProjectsPage() {
                                                 <button
                                                     onClick={() => {
                                                         setLoadingProjectId(project.id);
-                                                        router.push(`/developer/ide?projectId=${project.id}&projectName=${encodeURIComponent(project.name)}`);
+                                                        router.push(`/developer/ide?projectId=${project.id}&projectName=${encodeURIComponent(project.name)}&asAdmin=true`);
                                                     }}
                                                     disabled={loadingProjectId === project.id}
                                                     className="flex items-center space-x-2 px-4 py-1.5 border border-slate-700 rounded-lg text-slate-300 hover:bg-[#1e293b] hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"

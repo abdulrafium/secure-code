@@ -390,14 +390,15 @@ export default function IDEWorkspace() {
         try { setUserInfo(JSON.parse(atob(token.split('.')[1]))); } catch (e) {}
       }
     } else {
-      // Developer route - prioritize Admin if both exist, otherwise Developer
-      if (cookies['admin_userRole']) {
+      // Developer route - prioritize Admin ONLY if asAdmin=true is in URL, otherwise use Developer
+      const isAsAdmin = window.location.search.includes('asAdmin=true');
+      if (isAsAdmin && cookies['admin_userRole']) {
         setUserRole(cookies['admin_userRole']);
       } else if (cookies['developer_userRole']) {
         setUserRole(cookies['developer_userRole']);
       }
       
-      const token = cookies['admin_accessToken'] || cookies['developer_accessToken'];
+      const token = (isAsAdmin && cookies['admin_accessToken']) ? cookies['admin_accessToken'] : cookies['developer_accessToken'];
       if (token) {
         try { setUserInfo(JSON.parse(atob(token.split('.')[1]))); } catch (e) {}
       }
