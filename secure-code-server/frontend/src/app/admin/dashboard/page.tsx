@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     Users, Folder, Box, Activity, Heart, AlertCircle,
-    Terminal, RotateCcw, Copy, DownloadCloud, UploadCloud, X
+    Terminal, RotateCcw, Copy, Check, DownloadCloud, UploadCloud, X
 } from 'lucide-react';
 import Link from 'next/link';
 import AdminHeader from '../../../components/AdminHeader';
@@ -63,6 +63,7 @@ export default function AdminDashboard() {
     const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
     const [publicKey, setPublicKey] = useState<string | null>(null);
     const [isGeneratingSsh, setIsGeneratingSsh] = useState(false);
+    const [isCopied, setIsCopied] = useState(false);
 
     const [stats, setStats] = useState({ 
         roles: { admin: 0, developer: 0, viewer: 0 }, 
@@ -74,29 +75,35 @@ export default function AdminDashboard() {
     });
 
     useEffect(() => {
-        Promise.all([
-            api.get('/users/stats').catch(() => null),
-            api.get('/users').catch(() => []),
-            api.get('/projects').catch(() => []),
-            api.get('/projects/deployments/all').catch(() => []),
-            api.get('/users/ssh-key/public').catch(() => ({ publicKey: null }))
-        ]).then(([statsData, users, projects, deps, sshData]) => {
-            const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-            
-            const usersThisWeek = (users || []).filter((u: any) => new Date(u.createdAt) > oneWeekAgo).length;
-            const projectsThisWeek = (projects || []).filter((p: any) => new Date(p.createdAt) > oneWeekAgo).length;
+        const fetchData = () => {
+            Promise.all([
+                api.get('/users/stats').catch(() => null),
+                api.get('/users').catch(() => []),
+                api.get('/projects').catch(() => []),
+                api.get('/projects/deployments/all').catch(() => []),
+                api.get('/users/ssh-key/public').catch(() => ({ publicKey: null }))
+            ]).then(([statsData, users, projects, deps, sshData]) => {
+                const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+                
+                const usersThisWeek = (users || []).filter((u: any) => new Date(u.createdAt) > oneWeekAgo).length;
+                const projectsThisWeek = (projects || []).filter((p: any) => new Date(p.createdAt) > oneWeekAgo).length;
 
-            setStats({
-                roles: statsData?.roles || { admin: 0, developer: 0, viewer: 0 },
-                online: statsData?.online || 0,
-                totalUsers: users?.length || 0,
-                usersThisWeek,
-                totalProjects: projects?.length || 0,
-                projectsThisWeek
-            });
-            setDeployments(deps || []);
-            if (sshData?.publicKey) setPublicKey(sshData.publicKey);
-        }).catch(console.error);
+                setStats({
+                    roles: statsData?.roles || { admin: 0, developer: 0, viewer: 0 },
+                    online: statsData?.online || 0,
+                    totalUsers: users?.length || 0,
+                    usersThisWeek,
+                    totalProjects: projects?.length || 0,
+                    projectsThisWeek
+                });
+                setDeployments(deps || []);
+                if (sshData?.publicKey) setPublicKey(sshData.publicKey);
+            }).catch(console.error);
+        };
+
+        fetchData();
+        const interval = setInterval(fetchData, 5000);
+        return () => clearInterval(interval);
     }, []);
 
     const handleGenerateSshKey = async () => {
@@ -116,6 +123,8 @@ export default function AdminDashboard() {
     const handleCopySshKey = () => {
         if (publicKey) {
             navigator.clipboard.writeText(publicKey);
+            setIsCopied(true);
+            setTimeout(() => setIsCopied(false), 2000);
         }
     };
 
@@ -356,9 +365,19 @@ export default function AdminDashboard() {
                             {publicKey && (
                                 <button 
                                     onClick={handleCopySshKey}
-                                    className="absolute bottom-3 right-3 flex items-center space-x-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium rounded-md transition-colors shadow-lg">
-                                    <Copy className="w-3 h-3" />
-                                    <span>Copy</span>
+                                    disabled={isCopied}
+                                    className="absolute bottom-3 right-3 flex items-center space-x-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium rounded-md transition-colors shadow-lg disabled:bg-emerald-700 disabled:cursor-not-allowed">
+                                    {isCopied ? (
+                                        <>
+                                            <Check className="w-3 h-3" />
+                                            <span>Copied!</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Copy className="w-3 h-3" />
+                                            <span>Copy</span>
+                                        </>
+                                    )}
                                 </button>
                             )}
                         </div>

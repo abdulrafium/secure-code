@@ -49,6 +49,8 @@ export default function UsersPage() {
 
     useEffect(() => {
         fetchUsers();
+        const interval = setInterval(fetchUsers, 5000);
+        return () => clearInterval(interval);
     }, []);
 
     const handleSubmit = async () => {
