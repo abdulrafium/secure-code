@@ -25,3 +25,7 @@
 - **Enhanced Auto-Logout:** Idle Timer strictly wipes `sessionStorage` alongside cookies.
 - **IP Whitelisting:** Admins can enforce specific IPv4 addresses for Developer accounts; logins from unauthorized IPs are forcefully rejected (HTTP 401).
 - **Threat Detection Logging:** Integrated a new `SecurityLog` Postgres Entity. When a user runs a blacklisted command in the IDE terminal, the action is blocked and instantly logged to the Admin Dashboard's "Recent Security Threats" panel.
+
+### Day 6: Collaboration & Real-Time Sync
+- Integrate Yjs (CRDT) into the Monaco Editor and link it to the existing WebSocket Gateway.
+- Implement visual cursors (showing username and unique colors) when multiple developers open the same file.

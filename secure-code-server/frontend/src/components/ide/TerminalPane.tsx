@@ -67,7 +67,7 @@ export default function TerminalPane({ projectId, isViewer, accessToken }: { pro
       fitAddonRef.current = fitAddon;
 
       // Connect directly to the backend URL to avoid Next.js WebSocket proxy drops
-      const defaultApiUrl = typeof window !== 'undefined' ? `http://${window.location.hostname}:3001` : 'http://localhost:3001';
+      const defaultApiUrl = typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.host}/api` : 'http://localhost:3001';
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || defaultApiUrl;
       // Socket.io should connect to the root of the API
       const backendUrl = apiUrl.replace('/api', '');

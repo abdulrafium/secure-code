@@ -13,6 +13,9 @@ import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import FileTree, { FileNode } from './FileTree';
+import * as Y from 'yjs';
+import { WebsocketProvider } from 'y-websocket';
+import { MonacoBinding } from 'y-monaco';
 
 import OutputPane from './OutputPane';
 import PortsPane, { ForwardedPort } from './PortsPane';
@@ -135,6 +138,12 @@ export default function IDEWorkspace() {
   const terminalPanelRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const mainAreaRef = useRef<HTMLDivElement>(null);
+
+  // Yjs References
+  const editorRef = useRef<any>(null);
+  const providerRef = useRef<WebsocketProvider | null>(null);
+  const bindingRef = useRef<MonacoBinding | null>(null);
+  const yDocRef = useRef<Y.Doc | null>(null);
 
   // Panel sizes in percent
   const [sidebarWidth, setSidebarWidth] = useState(20);
@@ -791,6 +800,70 @@ export default function IDEWorkspace() {
       window.removeEventListener('pipeline-state-change', handlePipelineEvent);
     };
   }, [contextMenu, editorContextMenu]);
+
+  const cursorColors = [
+    '#FF5733', '#33FF57', '#3357FF', '#FF33F5', '#33FFF5', '#F5FF33', '#FF8C33', '#8C33FF'
+  ];
+
+  // Cleanup Yjs
+  const destroyYjs = () => {
+    if (bindingRef.current) {
+      bindingRef.current.destroy();
+      bindingRef.current = null;
+    }
+    if (providerRef.current) {
+      providerRef.current.destroy();
+      providerRef.current = null;
+    }
+    if (yDocRef.current) {
+      yDocRef.current.destroy();
+      yDocRef.current = null;
+    }
+  };
+
+  // Initialize Yjs whenever active file or editor changes
+  useEffect(() => {
+    if (!editorRef.current || !activeFilePath) return;
+
+    destroyYjs();
+
+    const yDoc = new Y.Doc();
+    yDocRef.current = yDoc;
+
+    const yText = yDoc.getText('monaco');
+
+    const defaultWsUrl = typeof window !== 'undefined' 
+      ? `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`
+      : 'ws://localhost:3001';
+    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || defaultWsUrl;
+    const yjsUrl = wsUrl.endsWith('/') ? `${wsUrl}yjs` : `${wsUrl}/yjs`;
+    
+    // Unique room name per file
+    const roomName = `room-${projectId || 'default'}-${activeFilePath}`;
+
+    const provider = new WebsocketProvider(yjsUrl, roomName, yDoc);
+    providerRef.current = provider;
+
+    // Set awareness (Cursor presence)
+    const color = cursorColors[Math.floor(Math.random() * cursorColors.length)];
+    provider.awareness.setLocalStateField('user', {
+      name: userInfo?.username || 'Guest',
+      color: color
+    });
+
+    // Bind Monaco to Yjs
+    const binding = new MonacoBinding(
+      yText,
+      editorRef.current.getModel(),
+      new Set([editorRef.current]),
+      provider.awareness
+    );
+    bindingRef.current = binding;
+
+    return () => {
+      destroyYjs();
+    };
+  }, [activeFilePath, projectId, userInfo, editorRef.current]);
 
   return (
     <div ref={containerRef} className="flex h-screen w-full bg-[#1e1e1e] text-[#cccccc] overflow-hidden font-sans select-none relative">
