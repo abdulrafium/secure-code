@@ -134,8 +134,8 @@ export class UsersService {
 
     const workspacesDir = process.env.WORKSPACES_DIR || path.resolve(process.cwd(), '..', 'workspaces');
     const sshDir = path.join(workspacesDir, '.ssh');
-    const privateKeyPath = path.join(sshDir, 'id_rsa');
-    const publicKeyPath = path.join(sshDir, 'id_rsa.pub');
+    const privateKeyPath = path.join(sshDir, 'id_ed25519');
+    const publicKeyPath = path.join(sshDir, 'id_ed25519.pub');
     const knownHostsPath = path.join(sshDir, 'known_hosts');
 
     // Ensure .ssh directory exists
@@ -147,8 +147,8 @@ export class UsersService {
     if (fs.existsSync(privateKeyPath)) await fs.promises.unlink(privateKeyPath);
     if (fs.existsSync(publicKeyPath)) await fs.promises.unlink(publicKeyPath);
 
-    // Generate SSH key without a passphrase
-    await execAsync(`ssh-keygen -t rsa -b 4096 -f "${privateKeyPath}" -N "" -q -C "${user.username}@securecode.local"`);
+    // Generate extremely short, highly secure Ed25519 SSH key without a passphrase
+    await execAsync(`ssh-keygen -t ed25519 -f "${privateKeyPath}" -N "" -q -C "${user.username}@securecode.local"`);
 
     // Fetch popular host keys to prevent strict host key checking from blocking git pulls/pushes
     // Fetch popular host keys to prevent strict host key checking from blocking git pulls/pushes
