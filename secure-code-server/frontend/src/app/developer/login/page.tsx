@@ -42,6 +42,8 @@ export default function DeveloperLogin() {
 
             document.cookie = `developer_accessToken=${response.access_token}; path=/; max-age=86400`;
             document.cookie = `developer_userRole=${response.role}; path=/; max-age=86400`;
+            sessionStorage.setItem('developer_accessToken', response.access_token);
+            sessionStorage.setItem('developer_userRole', response.role);
 
             // Wait 2.5 seconds to show off the beautiful alternating brackets animation
             setTimeout(() => {

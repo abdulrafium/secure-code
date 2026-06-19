@@ -37,9 +37,12 @@ export default function AdminHeader() {
 
     useEffect(() => {
         try {
+            const sessionToken = sessionStorage.getItem('admin_accessToken');
             const match = document.cookie.match(/(?:^|; )admin_accessToken=([^;]+)/);
-            if (match) {
-                const token = match[1];
+            const cookieToken = match ? match[1] : null;
+            const token = sessionToken || cookieToken;
+
+            if (token) {
                 const payload = JSON.parse(atob(token.split('.')[1]));
                 if (payload.username) {
                     const displayUser = payload.username.charAt(0).toUpperCase() + payload.username.slice(1);
@@ -63,6 +66,8 @@ export default function AdminHeader() {
         } catch (e) {
             console.error(e);
         }
+        sessionStorage.removeItem('admin_userRole');
+        sessionStorage.removeItem('admin_accessToken');
         document.cookie = 'admin_userRole=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
         document.cookie = 'admin_accessToken=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
         setTimeout(() => {

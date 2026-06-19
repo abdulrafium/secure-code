@@ -43,6 +43,8 @@ export default function ViewerLogin() {
 
             document.cookie = `viewer_accessToken=${response.access_token}; path=/; max-age=86400`;
             document.cookie = `viewer_userRole=${response.role}; path=/; max-age=86400`;
+            sessionStorage.setItem('viewer_accessToken', response.access_token);
+            sessionStorage.setItem('viewer_userRole', response.role);
 
             // Wait 2.5 seconds to show off the beautiful alternating brackets animation
             setTimeout(() => {

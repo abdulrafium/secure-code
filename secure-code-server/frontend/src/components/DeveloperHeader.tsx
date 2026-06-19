@@ -29,9 +29,12 @@ export default function DeveloperHeader() {
 
     useEffect(() => {
         try {
+            const sessionToken = sessionStorage.getItem('developer_accessToken');
             const match = document.cookie.match(/(?:^|; )developer_accessToken=([^;]+)/);
-            if (match) {
-                const token = match[1];
+            const cookieToken = match ? match[1] : null;
+            const token = sessionToken || cookieToken;
+
+            if (token) {
                 const payload = JSON.parse(atob(token.split('.')[1]));
                 if (payload.username) {
                     // Capitalize first letter for display
@@ -55,6 +58,8 @@ export default function DeveloperHeader() {
         } catch (e) {
             console.error(e);
         }
+        sessionStorage.removeItem('developer_userRole');
+        sessionStorage.removeItem('developer_accessToken');
         document.cookie = 'developer_userRole=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
         document.cookie = 'developer_accessToken=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
         setTimeout(() => {

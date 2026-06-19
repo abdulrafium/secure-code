@@ -17,7 +17,14 @@ const getAuthToken = () => {
         }
 
         const match = document.cookie.match(new RegExp('(^| )' + tokenName + '=([^;]+)'));
-        if (match) return match[2];
+        const cookieToken = match ? match[2] : null;
+
+        // For all roles, prioritize sessionStorage for multi-tab isolation
+        if (tokenName === 'developer_accessToken' || tokenName === 'viewer_accessToken' || tokenName === 'admin_accessToken') {
+            return sessionStorage.getItem(tokenName) || cookieToken;
+        }
+
+        return cookieToken;
     }
     return null;
 };

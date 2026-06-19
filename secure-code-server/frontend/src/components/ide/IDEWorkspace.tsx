@@ -366,7 +366,7 @@ export default function IDEWorkspace() {
 
     if (isViewerRoute) {
       if (cookies['viewer_userRole']) setUserRole(cookies['viewer_userRole']);
-      const token = cookies['viewer_accessToken'];
+      const token = sessionStorage.getItem('viewer_accessToken') || cookies['viewer_accessToken'];
       if (token) {
         setAccessToken(token);
         try { 
@@ -378,7 +378,9 @@ export default function IDEWorkspace() {
     } else {
       // Developer route - prioritize Admin ONLY if asAdmin=true is in URL, otherwise use Developer
       const isAsAdmin = window.location.search.includes('asAdmin=true');
-      const token = (isAsAdmin && cookies['admin_accessToken']) ? cookies['admin_accessToken'] : cookies['developer_accessToken'];
+      const devToken = sessionStorage.getItem('developer_accessToken') || cookies['developer_accessToken'];
+      const adminToken = sessionStorage.getItem('admin_accessToken') || cookies['admin_accessToken'];
+      const token = (isAsAdmin && adminToken) ? adminToken : devToken;
       if (token) {
         setAccessToken(token);
         try { 
