@@ -20,16 +20,30 @@ export default function IdleTimer({ children }: { children: React.ReactNode }) {
     } catch (e) {
       console.error(e);
     }
-    // Clear cookies
-    document.cookie = 'accessToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-    document.cookie = 'userRole=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+    
+    // Clear cookies based on context
+    let tokenName = 'accessToken';
+    let roleName = 'userRole';
+    let loginUrl = '/admin/login';
+    
+    if (pathname.startsWith('/admin')) {
+        tokenName = 'admin_accessToken';
+        roleName = 'admin_userRole';
+    } else if (pathname.startsWith('/developer')) {
+        tokenName = 'developer_accessToken';
+        roleName = 'developer_userRole';
+        loginUrl = '/developer/login';
+    } else if (pathname.startsWith('/viewer')) {
+        tokenName = 'viewer_accessToken';
+        roleName = 'viewer_userRole';
+        loginUrl = '/viewer/login';
+    }
+
+    document.cookie = `${tokenName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+    document.cookie = `${roleName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
     
     // Redirect to login if not already there
     if (!isLoginPage) {
-      let loginUrl = '/admin/login';
-      if (pathname.startsWith('/developer')) loginUrl = '/developer/login';
-      else if (pathname.startsWith('/viewer')) loginUrl = '/viewer/login';
-      
       window.location.href = `${loginUrl}?expired=true`;
     }
   };

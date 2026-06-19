@@ -2,7 +2,14 @@ const API_BASE_URL = typeof window !== 'undefined' ? '/api' : (process.env.BACKE
 
 const getAuthToken = () => {
     if (typeof window !== 'undefined') {
-        const match = document.cookie.match(new RegExp('(^| )accessToken=([^;]+)'));
+        const path = window.location.pathname;
+        let tokenName = 'accessToken'; // fallback
+
+        if (path.startsWith('/admin')) tokenName = 'admin_accessToken';
+        else if (path.startsWith('/developer')) tokenName = 'developer_accessToken';
+        else if (path.startsWith('/viewer')) tokenName = 'viewer_accessToken';
+
+        const match = document.cookie.match(new RegExp('(^| )' + tokenName + '=([^;]+)'));
         if (match) return match[2];
     }
     return null;

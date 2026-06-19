@@ -41,8 +41,8 @@ export default function AdminLogin() {
                 return;
             }
 
-            document.cookie = `accessToken=${response.access_token}; path=/; max-age=86400`;
-            document.cookie = `userRole=${response.role}; path=/; max-age=86400`;
+            document.cookie = `admin_accessToken=${response.access_token}; path=/; max-age=86400`;
+            document.cookie = `admin_userRole=${response.role}; path=/; max-age=86400`;
 
             // Wait 2.5 seconds to show off the beautiful alternating brackets animation
             setTimeout(() => {

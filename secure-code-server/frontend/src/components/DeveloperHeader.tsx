@@ -55,8 +55,8 @@ export default function DeveloperHeader() {
         } catch (e) {
             console.error(e);
         }
-        document.cookie = 'userRole=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
-        document.cookie = 'accessToken=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+        document.cookie = 'developer_userRole=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+        document.cookie = 'developer_accessToken=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
         setTimeout(() => {
             router.push('/developer/login');
         }, 2500); // 2.5s for bracket animation

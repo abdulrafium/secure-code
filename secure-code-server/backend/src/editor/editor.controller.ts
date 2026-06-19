@@ -119,7 +119,7 @@ export class EditorController {
     
     // Using a top-level access check for the project root to ensure they have access to the project
     await this.editorService.checkFileAccess(body.projectId, '', req.user);
-    await this.editorService.gitPush(body.projectId, body.commitMessage);
+    await this.editorService.gitPush(body.projectId, body.commitMessage, req.user);
     await this.projectsService.createDeployment(body.projectId, req.user.id, body.commitMessage);
     return { success: true };
   }

@@ -301,7 +301,7 @@ export class EditorService {
     }
   }
 
-  async gitPush(projectId: string, commitMessage: string): Promise<void> {
+  async gitPush(projectId: string, commitMessage: string, user?: any): Promise<void> {
     const rootPath = await this.getRootPath(projectId);
 
     try {
@@ -330,7 +330,14 @@ export class EditorService {
 
       // Escape commit message to prevent shell injection (rudimentary)
       const safeCommitMessage = commitMessage.replace(/"/g, '\\"');
-      await execAsync(`git commit -m "${safeCommitMessage}"`, { cwd: rootPath });
+      
+      // If we have a user object, dynamically set the author for this commit
+      if (user && user.username) {
+        const safeUsername = user.username.replace(/"/g, '\\"');
+        await execAsync(`git -c user.name="${safeUsername}" -c user.email="${safeUsername}@securecode.local" commit -m "${safeCommitMessage}"`, { cwd: rootPath });
+      } else {
+        await execAsync(`git commit -m "${safeCommitMessage}"`, { cwd: rootPath });
+      }
 
       // Attempt to push
       await execAsync('git push', { cwd: rootPath });

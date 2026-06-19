@@ -55,8 +55,8 @@ export default function ViewerHeader() {
         } catch (e) {
             console.error(e);
         }
-        document.cookie = 'userRole=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
-        document.cookie = 'accessToken=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+        document.cookie = 'viewer_userRole=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+        document.cookie = 'viewer_accessToken=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
         setTimeout(() => {
             router.push('/viewer/login');
         }, 2500); // 2.5s for bracket animation

@@ -41,8 +41,8 @@ export default function ViewerLogin() {
                 return;
             }
 
-            document.cookie = `accessToken=${response.access_token}; path=/; max-age=86400`;
-            document.cookie = `userRole=${response.role}; path=/; max-age=86400`;
+            document.cookie = `viewer_accessToken=${response.access_token}; path=/; max-age=86400`;
+            document.cookie = `viewer_userRole=${response.role}; path=/; max-age=86400`;
 
             // Wait 2.5 seconds to show off the beautiful alternating brackets animation
             setTimeout(() => {
