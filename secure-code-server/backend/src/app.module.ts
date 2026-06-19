@@ -9,6 +9,8 @@ import { AuthModule } from './auth/auth.module';
 import { EditorModule } from './editor/editor.module';
 import { ProjectsModule } from './projects/projects.module';
 
+import { LogsModule } from './logs/logs.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -24,6 +26,7 @@ import { ProjectsModule } from './projects/projects.module';
     AuthModule,
     EditorModule,
     ProjectsModule,
+    LogsModule,
   ],
   controllers: [AppController],
   providers: [

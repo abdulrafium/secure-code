@@ -16,6 +16,7 @@ import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Project } from '../projects/entities/project.entity';
+import { LogsService } from '../logs/logs.service';
 // We use require for node-pty as its types can sometimes be problematic in strict mode
 const pty = require('node-pty');
 
@@ -31,6 +32,7 @@ export class TerminalGateway implements OnGatewayConnection, OnGatewayDisconnect
   constructor(
     private readonly editorService: EditorService,
     private readonly jwtService: JwtService,
+    private readonly logsService: LogsService,
     @InjectRepository(Project)
     private readonly projectsRepository: Repository<Project>
   ) { }
@@ -207,6 +209,16 @@ export class TerminalGateway implements OnGatewayConnection, OnGatewayDisconnect
                 if (cmd === lowerRestricted || cmd.startsWith(lowerRestricted + ' ')) {
                   client.emit('terminal.output', `\r\n\x1b[31mError: Command execution blocked by security policy: ${restrictedCmd}\x1b[0m\r\n`);
                   this.inputBuffers.set(client.id, '');
+                  
+                  // Log as Security Threat
+                  this.logsService.logThreat({
+                    userId: user.id,
+                    username: user.username,
+                    action: 'BLOCKED_TERMINAL_COMMAND',
+                    details: `Attempted to run restricted command: ${rawCmd} in project ${projectId}`,
+                    ipAddress: client.handshake.address,
+                  }).catch(e => console.error('Failed to log threat:', e));
+                  
                   return; // Block execution and don't write to pty
                 }
               }

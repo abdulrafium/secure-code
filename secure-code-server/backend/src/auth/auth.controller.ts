@@ -15,7 +15,7 @@ export class AuthController {
   }
 
   @Post('login')
-  async login(@Body() body: any) {
+  async login(@Body() body: any, @Request() req: any) {
     const { username, password } = body;
     const user = await this.authService.validateUser(username, password);
     if (!user) {
@@ -28,6 +28,21 @@ export class AuthController {
     if (user.status === 'Blocked') {
       throw new UnauthorizedException('Sorry, you are permanently blocked by the Admin.');
     }
+
+    // IP Whitelisting Enforcement
+    if (user.allowIp && user.allowIp.trim() !== '') {
+      let clientIp = req.headers['x-forwarded-for'] || req.connection?.remoteAddress || req.socket?.remoteAddress;
+      // Extract the first IP if there is a comma-separated list
+      if (typeof clientIp === 'string') {
+        clientIp = clientIp.split(',')[0].trim();
+      }
+      
+      // Simple string match for MVP. In production, CIDR matching might be needed.
+      if (clientIp !== user.allowIp.trim()) {
+        throw new UnauthorizedException('Access denied from this IP address.');
+      }
+    }
+
     return this.authService.login(user);
   }
 

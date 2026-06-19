@@ -59,6 +59,7 @@ const GraphCard = ({
 
 export default function AdminDashboard() {
     const [deployments, setDeployments] = useState<any[]>([]);
+    const [securityLogs, setSecurityLogs] = useState<any[]>([]);
     const [isDeploymentsModalOpen, setIsDeploymentsModalOpen] = useState(false);
     const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
     const [publicKey, setPublicKey] = useState<string | null>(null);
@@ -81,8 +82,9 @@ export default function AdminDashboard() {
                 api.get('/users').catch(() => []),
                 api.get('/projects').catch(() => []),
                 api.get('/projects/deployments/all').catch(() => []),
-                api.get('/users/ssh-key/public').catch(() => ({ publicKey: null }))
-            ]).then(([statsData, users, projects, deps, sshData]) => {
+                api.get('/users/ssh-key/public').catch(() => ({ publicKey: null })),
+                api.get('/logs').catch(() => [])
+            ]).then(([statsData, users, projects, deps, sshData, logsData]) => {
                 const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
                 
                 const usersThisWeek = (users || []).filter((u: any) => new Date(u.createdAt) > oneWeekAgo).length;
@@ -97,6 +99,7 @@ export default function AdminDashboard() {
                     projectsThisWeek
                 });
                 setDeployments(deps || []);
+                setSecurityLogs(logsData || []);
                 if (sshData?.publicKey) setPublicKey(sshData.publicKey);
             }).catch(console.error);
         };
@@ -446,6 +449,63 @@ export default function AdminDashboard() {
 
                     </div>
 
+                </div>
+
+                {/* Security Logs Section */}
+                <div className="mt-8 mb-8 bg-[#0b1121] border border-slate-800 rounded-xl overflow-hidden shadow-xl">
+                    <div className="flex items-center space-x-3 px-6 py-4 border-b border-slate-800 bg-[#080d1a]">
+                        <AlertCircle className="w-5 h-5 text-red-500" />
+                        <h2 className="text-slate-200 font-medium">Recent Security Threats</h2>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="border-b border-slate-800 text-slate-500 text-[11px] uppercase tracking-wider bg-[#060a16]">
+                                    <th className="px-6 py-3 font-medium">Time</th>
+                                    <th className="px-6 py-3 font-medium">User</th>
+                                    <th className="px-6 py-3 font-medium">Action</th>
+                                    <th className="px-6 py-3 font-medium">Details</th>
+                                    <th className="px-6 py-3 font-medium">IP Address</th>
+                                </tr>
+                            </thead>
+                            <tbody className="text-sm divide-y divide-slate-800">
+                                {securityLogs.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={5} className="px-6 py-8 text-center text-slate-500 text-xs">
+                                            No security threats logged.
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    securityLogs.slice(0, 10).map((log: any, i) => (
+                                        <tr key={i} className="hover:bg-slate-800/30 transition-colors">
+                                            <td className="px-6 py-4 text-slate-400 text-xs whitespace-nowrap">
+                                                {formatRelativeTime(log.createdAt)}
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center space-x-2">
+                                                    <div className="w-6 h-6 rounded-md bg-slate-800 flex items-center justify-center text-slate-400">
+                                                        <UserIcon />
+                                                    </div>
+                                                    <span className="text-slate-300 font-medium">{log.username || 'Unknown'}</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span className="px-2 py-1 bg-red-500/10 text-red-400 text-[10px] font-medium rounded border border-red-500/20">
+                                                    {log.action}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-slate-400 text-xs">
+                                                {log.details}
+                                            </td>
+                                            <td className="px-6 py-4 text-slate-500 text-xs font-mono">
+                                                {log.ipAddress || 'N/A'}
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
 
             </div>

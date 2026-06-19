@@ -6,9 +6,10 @@ import { TerminalGateway } from './terminal.gateway';
 import { Project } from '../projects/entities/project.entity';
 import { JwtModule } from '@nestjs/jwt';
 import { ProjectsModule } from '../projects/projects.module';
+import { LogsModule } from '../logs/logs.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Project]), JwtModule.register({}), forwardRef(() => ProjectsModule)],
+  imports: [TypeOrmModule.forFeature([Project]), JwtModule.register({}), forwardRef(() => ProjectsModule), LogsModule],
   controllers: [EditorController],
   providers: [EditorService, TerminalGateway],
   exports: [EditorService],

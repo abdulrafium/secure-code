@@ -42,6 +42,9 @@ export default function IdleTimer({ children }: { children: React.ReactNode }) {
     document.cookie = `${tokenName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
     document.cookie = `${roleName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
     
+    sessionStorage.removeItem(tokenName);
+    sessionStorage.removeItem(roleName);
+    
     // Redirect to login if not already there
     if (!isLoginPage) {
       window.location.href = `${loginUrl}?expired=true`;
