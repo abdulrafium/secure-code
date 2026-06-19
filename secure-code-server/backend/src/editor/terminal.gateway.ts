@@ -168,6 +168,8 @@ export class TerminalGateway implements OnGatewayConnection, OnGatewayDisconnect
     const ptyProcess = this.ptys.get(client.id);
     if (ptyProcess) {
       const user = this.users.get(client.id);
+      if (user && user.role === 'Viewer') return; // Viewers cannot use terminal
+      
       if (user && user.role !== 'Admin') {
         const projectId = client.handshake.query?.projectId as string;
         if (projectId) {

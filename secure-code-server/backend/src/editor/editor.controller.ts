@@ -38,6 +38,7 @@ export class EditorController {
     @Body() body: { path: string; content: string; projectId: string },
     @Req() req: any
   ) {
+    if (req.user.role === 'Viewer') throw new BadRequestException('Viewers are not allowed to modify files.');
     if (!body.path) throw new BadRequestException('File path is required');
     await this.editorService.checkFileAccess(body.projectId, body.path, req.user);
     await this.editorService.writeFile(body.path, body.content || '', body.projectId);
@@ -50,6 +51,7 @@ export class EditorController {
     @Body() body: { path: string; projectId: string },
     @Req() req: any
   ) {
+    if (req.user.role === 'Viewer') throw new BadRequestException('Viewers are not allowed to modify files.');
     if (!body.path) throw new BadRequestException('Folder path is required');
     await this.editorService.checkFileAccess(body.projectId, body.path, req.user);
     await this.editorService.createFolder(body.path, body.projectId);
@@ -62,6 +64,7 @@ export class EditorController {
     @Body() body: { path: string; projectId: string },
     @Req() req: any
   ) {
+    if (req.user.role === 'Viewer') throw new BadRequestException('Viewers are not allowed to modify files.');
     if (!body.path) throw new BadRequestException('File path is required');
     await this.editorService.checkFileAccess(body.projectId, body.path, req.user);
     await this.editorService.createEmptyFile(body.path, body.projectId);
@@ -75,6 +78,7 @@ export class EditorController {
     @Query('projectId') projectId: string,
     @Req() req: any
   ) {
+    if (req.user.role === 'Viewer') throw new BadRequestException('Viewers are not allowed to modify files.');
     if (!itemPath) throw new BadRequestException('Item path is required');
     await this.editorService.checkFileAccess(projectId, itemPath, req.user);
     await this.editorService.deleteItem(itemPath, projectId);
@@ -87,6 +91,7 @@ export class EditorController {
     @Body() body: { oldPath: string; newPath: string; projectId: string },
     @Req() req: any
   ) {
+    if (req.user.role === 'Viewer') throw new BadRequestException('Viewers are not allowed to modify files.');
     if (!body.oldPath || !body.newPath) {
       throw new BadRequestException('oldPath and newPath are required');
     }
@@ -102,6 +107,7 @@ export class EditorController {
     @Body() body: { srcPath: string; destPath: string; projectId: string },
     @Req() req: any
   ) {
+    if (req.user.role === 'Viewer') throw new BadRequestException('Viewers are not allowed to modify files.');
     if (!body.srcPath || !body.destPath) {
       throw new BadRequestException('srcPath and destPath are required');
     }
@@ -114,6 +120,7 @@ export class EditorController {
   @UseGuards(JwtAuthGuard)
   @Post('git/push')
   async gitPush(@Body() body: { projectId: string; commitMessage: string }, @Req() req: any) {
+    if (req.user.role === 'Viewer') throw new BadRequestException('Viewers are not allowed to push code.');
     if (!body.projectId) throw new BadRequestException('Project ID is required');
     if (!body.commitMessage) throw new BadRequestException('Commit message is required');
     
