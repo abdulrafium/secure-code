@@ -191,10 +191,10 @@ export class ProjectsService {
 
     if (!url) throw new BadRequestException('Repository URL is required');
 
-    // Strict validation for github/gitlab URLs (https or ssh)
-    const isValidUrl = /^https:\/\/(www\.)?(github\.com|gitlab\.com)\/[^\/]+\/[^\/]+/.test(url) || /^git@(github\.com|gitlab\.com):[^\/]+\/[^\/]+/.test(url);
+    // Strict validation for github/gitlab URLs (ssh only)
+    const isValidUrl = /^git@(github\.com|gitlab\.com):[^\/]+\/[^\/]+/.test(url);
     if (!isValidUrl) {
-      throw new BadRequestException('Invalid GitHub/GitLab URL format. Must be a valid HTTPS or SSH URL.');
+      throw new BadRequestException('Invalid GitHub/GitLab URL format. Must be a valid SSH URL (e.g. git@github.com:user/repo.git).');
     }
 
     const safeName = project.name.replace(/[^a-zA-Z0-9-_\.]/g, '_');

@@ -304,6 +304,13 @@ export class EditorService {
   async gitPush(projectId: string, commitMessage: string, user?: any): Promise<void> {
     const rootPath = await this.getRootPath(projectId);
 
+    const workspacesDir = process.env.WORKSPACES_DIR || path.resolve(process.cwd(), '..', 'workspaces');
+    const sshKeyPath = path.join(workspacesDir, '.ssh', 'id_ed25519');
+    const env = { ...process.env };
+    if (fs.existsSync(sshKeyPath)) {
+      env.GIT_SSH_COMMAND = `ssh -i ${sshKeyPath} -o StrictHostKeyChecking=no`;
+    }
+
     try {
       // Must explicitly check for .git in rootPath to prevent Git from walking up the directory tree
       // and interacting with the backend's own parent repository.
@@ -314,13 +321,6 @@ export class EditorService {
 
       // Check if project is a git repo by trying to get remote URL
       let remotes = '';
-      
-      const workspacesDir = process.env.WORKSPACES_DIR || path.resolve(process.cwd(), '..', 'workspaces');
-      const sshKeyPath = path.join(workspacesDir, '.ssh', 'id_ed25519');
-      const env = { ...process.env };
-      if (fs.existsSync(sshKeyPath)) {
-        env.GIT_SSH_COMMAND = `ssh -i ${sshKeyPath} -o StrictHostKeyChecking=no`;
-      }
 
       try {
         const result = await execAsync('git remote -v', { cwd: rootPath, env });

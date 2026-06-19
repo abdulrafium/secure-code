@@ -881,9 +881,9 @@ export default function ProjectsPage() {
                                         const val = e.target.value;
                                         setGitUrl(val);
                                         if (val.length > 0) {
-                                            const isValid = /^https:\/\/(www\.)?(github\.com|gitlab\.com)\/[^\/]+\/[^\/]+/.test(val) || /^git@(github\.com|gitlab\.com):[^\/]+\/[^\/]+/.test(val);
+                                            const isValid = /^git@(github\.com|gitlab\.com):[^\/]+\/[^\/]+/.test(val);
                                             if (!isValid) {
-                                                setGitError('Invalid format. Please use a valid GitHub or GitLab URL.');
+                                                setGitError('Invalid format. Please use a valid SSH URL (e.g. git@github.com:user/repo.git)');
                                                 setTimeout(() => setGitError(''), 5000);
                                             } else {
                                                 setGitError('');
@@ -892,7 +892,7 @@ export default function ProjectsPage() {
                                             setGitError('');
                                         }
                                     }}
-                                    placeholder="Git/Gitlab SSH/HTTPS url"
+                                    placeholder="Git/Gitlab SSH URL (git@github.com:...)"
                                     className="w-full bg-[#050810] border border-slate-800/60 rounded-xl px-4 py-3.5 text-[14px] text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 focus:bg-[#070b14] transition-all shadow-inner"
                                 />
                             </div>
