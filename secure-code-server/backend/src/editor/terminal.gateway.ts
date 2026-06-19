@@ -108,7 +108,10 @@ export class TerminalGateway implements OnGatewayConnection, OnGatewayDisconnect
       const sshKeyPath = path.join(workspacesDir, '.ssh', 'id_ed25519');
       const env: any = {
         ...process.env,
-        GIT_CEILING_DIRECTORIES: workspacesDir
+        GIT_CEILING_DIRECTORIES: workspacesDir,
+        HISTSIZE: '0',
+        HISTFILE: '/dev/null',
+        PROMPT_COMMAND: 'history -c' // aggressively clear history
       };
       if (fs.existsSync(sshKeyPath)) {
         env.GIT_SSH_COMMAND = `ssh -i ${sshKeyPath} -o StrictHostKeyChecking=no`;
@@ -200,16 +203,24 @@ export class TerminalGateway implements OnGatewayConnection, OnGatewayDisconnect
             const remainingBuffer = lines.pop() || '';
 
             for (const line of lines) {
-              const rawCmd = line.trim();
+              // Strip ANSI escape codes (like arrow keys) from our application-level buffer check
+              const cleanLine = line.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
+              const rawCmd = cleanLine.trim();
               if (!rawCmd) continue;
-              const cmd = rawCmd.toLowerCase();
+              
+              // Normalize spaces and tabs
+              const normalizedCmd = rawCmd.toLowerCase().replace(/[\s\t]+/g, ' ');
+              const baseCmd = normalizedCmd.split(' ')[0];
 
               for (const restrictedCmd of combinedBlacklist) {
-                const lowerRestricted = restrictedCmd.toLowerCase();
-                if (cmd === lowerRestricted || cmd.startsWith(lowerRestricted + ' ')) {
+                const lowerRestricted = restrictedCmd.toLowerCase().replace(/[\s\t]+/g, ' ');
+                if (baseCmd === lowerRestricted || normalizedCmd === lowerRestricted || normalizedCmd.startsWith(lowerRestricted + ' ')) {
                   client.emit('terminal.output', `\r\n\x1b[31mError: Command execution blocked by security policy: ${restrictedCmd}\x1b[0m\r\n`);
                   this.inputBuffers.set(client.id, '');
                   
+                  // Clear the hanging prompt in the pty by sending a SIGINT (Ctrl+C)
+                  ptyProcess.write('\x03');
+
                   // Log as Security Threat
                   this.logsService.logThreat({
                     userId: user.id,
@@ -219,7 +230,7 @@ export class TerminalGateway implements OnGatewayConnection, OnGatewayDisconnect
                     ipAddress: client.handshake.address,
                   }).catch(e => console.error('Failed to log threat:', e));
                   
-                  return; // Block execution and don't write to pty
+                  return; // Block execution and don't write the enter key to pty
                 }
               }
             }

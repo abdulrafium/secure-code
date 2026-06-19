@@ -49,6 +49,19 @@ const handleResponse = async (response: Response) => {
         } catch (e) {
             errorMessage = response.statusText || errorMessage;
         }
+
+        if (response.status === 401 && errorMessage === 'SESSION_EXPIRED') {
+            if (typeof window !== 'undefined') {
+                sessionStorage.clear();
+                document.cookie.split(";").forEach((c) => {
+                  document.cookie = c
+                    .replace(/^ +/, "")
+                    .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+                });
+                window.location.href = '/?expired=true';
+            }
+        }
+
         throw new Error(errorMessage);
     }
     

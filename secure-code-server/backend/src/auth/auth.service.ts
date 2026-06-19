@@ -3,6 +3,7 @@ import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { Role } from '../users/enums/role.enum';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class AuthService {
@@ -22,11 +23,14 @@ export class AuthService {
 
   async logout(userId: string) {
     await this.usersService.setOnlineStatus(userId, false);
+    await this.usersService.updateSessionId(userId, null);
   }
 
   async login(user: any) {
     await this.usersService.setOnlineStatus(user.id, true);
-    const payload = { username: user.username, sub: user.id, role: user.role, status: user.status };
+    const sessionId = randomUUID();
+    await this.usersService.updateSessionId(user.id, sessionId);
+    const payload = { username: user.username, sub: user.id, role: user.role, status: user.status, sessionId };
     return {
       access_token: this.jwtService.sign(payload),
       role: user.role

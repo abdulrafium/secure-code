@@ -50,6 +50,9 @@ export class User {
   @Column({ default: false })
   isOnline: boolean;
 
+  @Column({ nullable: true })
+  sessionId: string | null;
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 

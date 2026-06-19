@@ -1,11 +1,15 @@
 import { Controller, Post, Body, UnauthorizedException, UseGuards, Request } from '@nestjs/common';
 import { AuthService } from './auth.service';
+import { LogsService } from '../logs/logs.service';
 import { Role } from '../users/enums/role.enum';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly logsService: LogsService
+  ) {}
 
   @Post('register')
   async register(@Body() body: any) {
@@ -39,6 +43,14 @@ export class AuthController {
       
       // Simple string match for MVP. In production, CIDR matching might be needed.
       if (clientIp !== user.allowIp.trim()) {
+        this.logsService.logThreat({
+          userId: user.id,
+          username: user.username,
+          action: 'BLOCKED_IP_LOGIN',
+          details: `Attempted to log in from unauthorized IP address: ${clientIp} (Expected: ${user.allowIp.trim()})`,
+          ipAddress: clientIp,
+        }).catch(e => console.error('Failed to log threat:', e));
+
         throw new UnauthorizedException('Access denied from this IP address.');
       }
     }

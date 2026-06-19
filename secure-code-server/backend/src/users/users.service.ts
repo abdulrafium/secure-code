@@ -62,6 +62,10 @@ export class UsersService {
     });
   }
 
+  async updateSessionId(userId: string, sessionId: string | null): Promise<void> {
+    await this.usersRepository.update(userId, { sessionId });
+  }
+
   async create(
     username: string,
     passwordPlain: string,
