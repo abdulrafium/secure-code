@@ -141,6 +141,7 @@ export default function IDEWorkspace() {
 
   // Yjs References
   const editorRef = useRef<any>(null);
+  const [isEditorMounted, setIsEditorMounted] = useState(false);
   const providerRef = useRef<WebsocketProvider | null>(null);
   const bindingRef = useRef<MonacoBinding | null>(null);
   const yDocRef = useRef<Y.Doc | null>(null);
@@ -732,6 +733,9 @@ export default function IDEWorkspace() {
   }, []);
 
   const handleEditorMount = (editor: any, monaco: any) => {
+    editorRef.current = editor;
+    setIsEditorMounted(true);
+    
     // Always intercept copy/cut/paste and route them to __internalClipboard.
     // We do this for everyone (even admin) because we don't want code to leak
     // to the host OS clipboard, and userRole might be empty on initial mount.
@@ -863,7 +867,7 @@ export default function IDEWorkspace() {
     return () => {
       destroyYjs();
     };
-  }, [activeFilePath, projectId, userInfo, editorRef.current]);
+  }, [activeFilePath, projectId, userInfo, isEditorMounted]);
 
   return (
     <div ref={containerRef} className="flex h-screen w-full bg-[#1e1e1e] text-[#cccccc] overflow-hidden font-sans select-none relative">
