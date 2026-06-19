@@ -894,42 +894,42 @@ export default function IDEWorkspace() {
           // Fix: CSS classes must safely escape clientID if needed, but it's just a number.
           css += `
             .yRemoteSelection-${clientID} {
-              background-color: ${ucolor}40; /* 25% opacity */
+              background-color: ${ucolor}40 !important;
             }
             .yRemoteSelectionHead-${clientID} {
-              position: absolute;
-              border-left: ${ucolor} solid 2px;
-              border-top: ${ucolor} solid 2px;
-              border-bottom: ${ucolor} solid 2px;
-              height: 100%;
-              box-sizing: border-box;
+              position: absolute !important;
+              border-left: ${ucolor} solid 2px !important;
+              border-top: ${ucolor} solid 2px !important;
+              border-bottom: ${ucolor} solid 2px !important;
+              height: 100% !important;
+              box-sizing: border-box !important;
+              z-index: 9 !important;
             }
             .yRemoteSelectionHead-${clientID}::after {
-              position: absolute;
-              content: ' ';
-              border: 3px solid ${ucolor};
-              border-radius: 4px;
-              left: -4px;
-              top: -5px;
+              position: absolute !important;
+              content: ' ' !important;
+              border: 3px solid ${ucolor} !important;
+              border-radius: 4px !important;
+              left: -4px !important;
+              top: -5px !important;
+              z-index: 9 !important;
             }
             .yRemoteSelectionHead-${clientID}::before {
-              content: '${uname}';
-              position: absolute;
-              top: -16px;
-              left: -2px;
-              font-size: 11px;
-              background-color: ${ucolor};
-              color: #fff;
-              padding: 1px 4px;
-              border-radius: 3px;
-              white-space: nowrap;
-              opacity: 0;
-              transition: opacity 0.2s ease-in-out;
-              pointer-events: none;
-              z-index: 10;
-            }
-            .yRemoteSelectionHead-${clientID}:hover::before {
-              opacity: 1;
+              content: '${uname}' !important;
+              position: absolute !important;
+              top: -18px !important;
+              left: -2px !important;
+              font-size: 11px !important;
+              font-family: sans-serif !important;
+              background-color: ${ucolor} !important;
+              color: #fff !important;
+              padding: 2px 6px !important;
+              border-radius: 3px !important;
+              white-space: nowrap !important;
+              opacity: 1 !important;
+              pointer-events: none !important;
+              z-index: 10 !important;
+              box-shadow: 0 1px 3px rgba(0,0,0,0.3) !important;
             }
           `;
         }
