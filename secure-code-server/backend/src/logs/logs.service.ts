@@ -18,4 +18,8 @@ export class LogsService {
   async getLogs() {
     return await this.logsRepository.find({ order: { createdAt: 'DESC' }, take: 100 });
   }
+
+  async deleteLog(id: string) {
+    return await this.logsRepository.delete(id);
+  }
 }

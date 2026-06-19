@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     Users, Folder, Box, Activity, Heart, AlertCircle,
-    Terminal, RotateCcw, Copy, Check, DownloadCloud, UploadCloud, X
+    Terminal, RotateCcw, Copy, Check, DownloadCloud, UploadCloud, X, Trash2
 } from 'lucide-react';
 import Link from 'next/link';
 import AdminHeader from '../../../components/AdminHeader';
@@ -62,6 +62,8 @@ export default function AdminDashboard() {
     const [securityLogs, setSecurityLogs] = useState<any[]>([]);
     const [isDeploymentsModalOpen, setIsDeploymentsModalOpen] = useState(false);
     const [isAlertsModalOpen, setIsAlertsModalOpen] = useState(false);
+    const [logToDelete, setLogToDelete] = useState<any | null>(null);
+    const [projectsList, setProjectsList] = useState<any[]>([]);
     const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
     const [publicKey, setPublicKey] = useState<string | null>(null);
     const [isGeneratingSsh, setIsGeneratingSsh] = useState(false);
@@ -100,6 +102,7 @@ export default function AdminDashboard() {
                     projectsThisWeek
                 });
                 setDeployments(deps || []);
+                setProjectsList(projects || []);
                 setSecurityLogs(logsData || []);
                 if (sshData?.publicKey) setPublicKey(sshData.publicKey);
             }).catch(console.error);
@@ -140,9 +143,20 @@ export default function AdminDashboard() {
                 }
                 setIsCopied(true);
                 setTimeout(() => setIsCopied(false), 2000);
-            } catch (err) {
-                console.error('Failed to copy', err);
+            } catch (error) {
+                console.error('Failed to copy text', error);
             }
+        }
+    };
+
+    const handleDeleteLog = async () => {
+        if (!logToDelete) return;
+        try {
+            await api.delete(`/logs/${logToDelete.id}`);
+            setSecurityLogs(prev => prev.filter(l => l.id !== logToDelete.id));
+            setLogToDelete(null);
+        } catch (error) {
+            console.error('Failed to delete security log', error);
         }
     };
 
@@ -484,12 +498,13 @@ export default function AdminDashboard() {
                                             <th className="px-6 py-4 font-medium">Action</th>
                                             <th className="px-6 py-4 font-medium">Details</th>
                                             <th className="px-6 py-4 font-medium">IP Address</th>
+                                            <th className="px-6 py-4 font-medium text-right">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody className="text-sm divide-y divide-slate-800/50">
                                         {securityLogs.length === 0 ? (
                                             <tr>
-                                                <td colSpan={5} className="px-6 py-12 text-center text-slate-500 text-sm italic">
+                                                <td colSpan={6} className="px-6 py-12 text-center text-slate-500 text-sm italic">
                                                     No security threats logged.
                                                 </td>
                                             </tr>
@@ -513,10 +528,28 @@ export default function AdminDashboard() {
                                                         </span>
                                                     </td>
                                                     <td className="px-6 py-4 text-slate-400 text-xs">
-                                                        {log.details}
+                                                        {(() => {
+                                                            const match = log.details?.match(/in project ([a-f0-9\-]{36})/);
+                                                            let formattedDetails = log.details;
+                                                            if (match) {
+                                                                const pId = match[1];
+                                                                const p = projectsList.find(proj => proj.id === pId);
+                                                                formattedDetails = formattedDetails.replace(pId, p ? `"${p.name}"` : `${pId.substring(0,8)}...`);
+                                                            }
+                                                            return formattedDetails;
+                                                        })()}
                                                     </td>
                                                     <td className="px-6 py-4 text-slate-500 text-xs font-mono">
-                                                        {log.ipAddress || 'N/A'}
+                                                        {log.ipAddress?.replace(/^::ffff:/, '') || 'N/A'}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-right">
+                                                        <button 
+                                                            onClick={() => setLogToDelete(log)}
+                                                            className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
+                                                            title="Delete threat log"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
                                                     </td>
                                                 </tr>
                                             ))
@@ -637,6 +670,39 @@ export default function AdminDashboard() {
                     </div>
                 </div>
             )}
+
+            {/* DELETE LOG MODAL */}
+            {logToDelete && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[#050810]/90 backdrop-blur-md p-4 transition-all duration-300">
+                    <div className="relative w-full max-w-sm bg-[#0a0f1c] border border-slate-800 rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden">
+                        <div className="h-1.5 w-full bg-red-500"></div>
+                        <div className="p-8 flex flex-col items-center text-center">
+                            <div className="w-20 h-20 rounded-full flex items-center justify-center mb-6 shadow-2xl border-4 border-[#0a0f1c] bg-red-500/10 text-red-500 shadow-red-500/20">
+                                <Trash2 className="w-10 h-10" />
+                            </div>
+                            <h2 className="text-[22px] font-bold text-white mb-2 tracking-wide">Delete Threat Log</h2>
+                            <p className="text-slate-400 text-[15px] leading-relaxed mb-8">
+                                Are you sure you want to permanently delete this security log? This action cannot be undone.
+                            </p>
+                            <div className="w-full flex space-x-3">
+                                <button
+                                    onClick={() => setLogToDelete(null)}
+                                    className="flex-1 py-3 rounded-xl font-medium text-slate-300 bg-slate-800 hover:bg-slate-700 transition-all active:scale-[0.98]"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleDeleteLog}
+                                    className="flex-1 py-3 rounded-xl font-medium text-white bg-red-600 hover:bg-red-500 shadow-[0_0_20px_rgba(220,38,38,0.3)] transition-all active:scale-[0.98]"
+                                >
+                                    Delete
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
         </div>
     );
 }

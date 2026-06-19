@@ -20,7 +20,7 @@
 - Watermark Protection (UI Overlay with User Info)
 - Advanced Terminal Blacklist (Hardcoded global blocks)
 
-### Phase 1: Advanced Security Hardening (Completed)
+### Advanced Security Hardening (Completed)
 - **Session Bleed Fix:** Migrated Auth Tokens to `sessionStorage` preventing multi-tab session bleeding.
 - **Enhanced Auto-Logout:** Idle Timer strictly wipes `sessionStorage` alongside cookies.
 - **IP Whitelisting:** Admins can enforce specific IPv4 addresses for Developer accounts; logins from unauthorized IPs are forcefully rejected (HTTP 401).
