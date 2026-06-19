@@ -86,7 +86,7 @@ export default function IDEWorkspace() {
     setShowCommitModal(false);
     if (isPipelineRunning) return;
     setIsPipelineRunning(true);
-    setPipelineStage('build');
+    setPipelineStage('deploy');
     
     try {
       await api.post('/editor/git/push', {
@@ -624,7 +624,9 @@ export default function IDEWorkspace() {
         path: activeFile.path,
         content: activeFile.content
       });
-      // Could show a tiny toast here, but VS Code usually just saves silently
+      setOpenFiles(prev => prev.map(f => 
+        f.path === activeFile.path ? { ...f, originalContent: activeFile.content } : f
+      ));
     } catch (err: any) {
       setAlertMessage(err.message || "Failed to save file.");
     }
@@ -1060,67 +1062,68 @@ export default function IDEWorkspace() {
 
         {/* Floating Top Right Tools (CI/CD Pipeline) */}
         <div className="absolute top-2 right-4 z-50 flex flex-col items-end pointer-events-none">
-          {/* Status Lights */}
-          <div className="flex items-center space-x-1 bg-[#1e1e1e]/90 backdrop-blur border border-[#333] rounded-full px-2 py-1.5 mb-2 pointer-events-auto shadow-lg">
-            {/* Code */}
-            <div className="flex flex-col items-center px-2 hover:bg-white/10 rounded transition-colors">
-              <div className={`w-4 h-4 rounded-full border flex items-center justify-center mb-0.5 transition-all ${pipelineStage === 'code' ? 'border-[#00FF00] shadow-[0_0_10px_rgba(0,255,0,0.7)]' : 'border-[#00FF00]/40'}`}>
-                <div className={`w-1.5 h-1.5 rounded-full transition-all ${pipelineStage === 'code' ? 'bg-[#00FF00] shadow-[0_0_6px_rgba(0,255,0,1)] scale-100' : 'bg-[#00FF00]/40 scale-75'}`}></div>
+          {/* Status Lights - Hidden for Viewers */}
+          {!isViewer && (
+            <div className="flex items-center space-x-1 bg-[#1e1e1e]/90 backdrop-blur border border-[#333] rounded-full px-2 py-1.5 mb-2 pointer-events-auto shadow-lg">
+              {/* Code */}
+              <div className="flex flex-col items-center px-2 hover:bg-white/10 rounded transition-colors">
+                <div className={`w-4 h-4 rounded-full border flex items-center justify-center mb-0.5 transition-all ${pipelineStage === 'code' ? 'border-[#00FF00] shadow-[0_0_10px_rgba(0,255,0,0.7)]' : 'border-[#00FF00]/40'}`}>
+                  <div className={`w-1.5 h-1.5 rounded-full transition-all ${pipelineStage === 'code' ? 'bg-[#00FF00] shadow-[0_0_6px_rgba(0,255,0,1)] scale-100' : 'bg-[#00FF00]/40 scale-75'}`}></div>
+                </div>
+                <span className="text-[9px] text-slate-300 font-medium">Code</span>
               </div>
-              <span className="text-[9px] text-slate-300 font-medium">Code</span>
-            </div>
-            
-            {/* Build */}
-            <div className="flex flex-col items-center px-2 hover:bg-white/10 rounded transition-colors">
-              <div className={`w-4 h-4 rounded-full border flex items-center justify-center mb-0.5 transition-all ${pipelineStage === 'build' ? 'border-blue-400 shadow-[0_0_10px_rgba(96,165,250,0.7)]' : 'border-blue-400/40'} ${pipelineStage === 'build' && isPipelineRunning ? 'animate-spin' : ''}`}>
-                <div className={`w-1.5 h-1.5 rounded-full transition-all ${pipelineStage === 'build' ? 'bg-blue-400 shadow-[0_0_6px_rgba(96,165,250,1)] scale-100' : 'bg-blue-400/40 scale-75'}`}></div>
+              
+              {/* Build */}
+              <div className="flex flex-col items-center px-2 hover:bg-white/10 rounded transition-colors">
+                <div className={`w-4 h-4 rounded-full border flex items-center justify-center mb-0.5 transition-all ${pipelineStage === 'build' ? 'border-blue-400 shadow-[0_0_10px_rgba(96,165,250,0.7)]' : 'border-blue-400/40'} ${pipelineStage === 'build' && isPipelineRunning ? 'animate-spin' : ''}`}>
+                  <div className={`w-1.5 h-1.5 rounded-full transition-all ${pipelineStage === 'build' ? 'bg-blue-400 shadow-[0_0_6px_rgba(96,165,250,1)] scale-100' : 'bg-blue-400/40 scale-75'}`}></div>
+                </div>
+                <span className="text-[9px] text-slate-300 font-medium">Build</span>
               </div>
-              <span className="text-[9px] text-slate-300 font-medium">Build</span>
-            </div>
-            
-            {/* Test */}
-            <div className="flex flex-col items-center px-2 hover:bg-white/10 rounded transition-colors">
-              <div className={`w-4 h-4 rounded-full border flex items-center justify-center mb-0.5 transition-all ${pipelineStage === 'test' ? 'border-purple-400 shadow-[0_0_10px_rgba(192,132,252,0.7)]' : 'border-purple-400/40'} ${pipelineStage === 'test' && isPipelineRunning ? 'animate-pulse' : ''}`}>
-                <div className={`w-1.5 h-1.5 rounded-full transition-all ${pipelineStage === 'test' ? 'bg-purple-400 shadow-[0_0_6px_rgba(192,132,252,1)] scale-100' : 'bg-purple-400/40 scale-75'}`}></div>
+              
+              {/* Test */}
+              <div className="flex flex-col items-center px-2 hover:bg-white/10 rounded transition-colors">
+                <div className={`w-4 h-4 rounded-full border flex items-center justify-center mb-0.5 transition-all ${pipelineStage === 'test' ? 'border-purple-400 shadow-[0_0_10px_rgba(192,132,252,0.7)]' : 'border-purple-400/40'} ${pipelineStage === 'test' && isPipelineRunning ? 'animate-pulse' : ''}`}>
+                  <div className={`w-1.5 h-1.5 rounded-full transition-all ${pipelineStage === 'test' ? 'bg-purple-400 shadow-[0_0_6px_rgba(192,132,252,1)] scale-100' : 'bg-purple-400/40 scale-75'}`}></div>
+                </div>
+                <span className="text-[9px] text-slate-300 font-medium">Test</span>
               </div>
-              <span className="text-[9px] text-slate-300 font-medium">Test</span>
-            </div>
-            
-            {/* Deploy */}
-            <div className="flex flex-col items-center px-2 hover:bg-white/10 rounded transition-colors">
-              <div className={`w-4 h-4 rounded-full border flex items-center justify-center mb-0.5 transition-all ${pipelineStage === 'deploy' ? 'border-pink-400 shadow-[0_0_10px_rgba(244,114,182,0.7)]' : 'border-pink-400/40'} ${pipelineStage === 'deploy' && isPipelineRunning ? 'animate-ping' : ''}`}>
-                <div className={`w-1.5 h-1.5 rounded-full transition-all ${pipelineStage === 'deploy' ? 'bg-pink-400 shadow-[0_0_6px_rgba(244,114,182,1)] scale-100' : 'bg-pink-400/40 scale-75'}`}></div>
+              
+              {/* Deploy */}
+              <div className="flex flex-col items-center px-2 hover:bg-white/10 rounded transition-colors">
+                <div className={`w-4 h-4 rounded-full border flex items-center justify-center mb-0.5 transition-all ${pipelineStage === 'deploy' ? 'border-pink-400 shadow-[0_0_10px_rgba(244,114,182,0.7)]' : 'border-pink-400/40'} ${pipelineStage === 'deploy' && isPipelineRunning ? 'animate-ping' : ''}`}>
+                  <div className={`w-1.5 h-1.5 rounded-full transition-all ${pipelineStage === 'deploy' ? 'bg-pink-400 shadow-[0_0_6px_rgba(244,114,182,1)] scale-100' : 'bg-pink-400/40 scale-75'}`}></div>
+                </div>
+                <span className="text-[9px] text-slate-300 font-medium">Deploy</span>
               </div>
-              <span className="text-[9px] text-slate-300 font-medium">Deploy</span>
-            </div>
-            
-            {/* Live */}
-            <div className="flex flex-col items-center px-2 hover:bg-white/10 rounded transition-colors">
-              <div className={`w-4 h-4 rounded-full border flex items-center justify-center mb-0.5 transition-all ${pipelineStage === 'live' ? 'border-blue-500 shadow-[0_0_12px_rgba(59,130,246,0.9)]' : 'border-blue-500/40'}`}>
-                <div className={`w-1.5 h-1.5 rounded-full transition-all ${pipelineStage === 'live' ? 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,1)] scale-100' : 'bg-blue-500/40 scale-75'}`}></div>
+              
+              {/* Live */}
+              <div className="flex flex-col items-center px-2 hover:bg-white/10 rounded transition-colors">
+                <div className={`w-4 h-4 rounded-full border flex items-center justify-center mb-0.5 transition-all ${pipelineStage === 'live' ? 'border-blue-500 shadow-[0_0_12px_rgba(59,130,246,0.9)]' : 'border-blue-500/40'}`}>
+                  <div className={`w-1.5 h-1.5 rounded-full transition-all ${pipelineStage === 'live' ? 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,1)] scale-100' : 'bg-blue-500/40 scale-75'}`}></div>
+                </div>
+                <span className="text-[9px] text-slate-300 font-medium">Live</span>
               </div>
-              <span className="text-[9px] text-slate-300 font-medium">Live</span>
             </div>
-          </div>
+          )}
           
           {/* Action Buttons */}
           <div className="flex items-center space-x-2 pointer-events-auto mt-1 mr-2">
-            <button 
-              onClick={startPipeline}
-              disabled={isPipelineRunning || isViewer}
-              className={`px-4 py-1.5 rounded text-white text-[12px] font-bold shadow-md transition-all ${isPipelineRunning ? 'bg-[#295ed9]/50 cursor-not-allowed' : 'bg-[#295ed9] hover:bg-[#346df0] active:scale-95'} ${isViewer ? 'cursor-not-allowed' : ''}`}
-            >
-              {isPipelineRunning ? 'pushing...' : 'code push'}
-            </button>
+            {!isViewer && (
+              <button 
+                onClick={startPipeline}
+                disabled={isPipelineRunning}
+                className={`px-4 py-1.5 rounded text-white text-[12px] font-bold shadow-md transition-all ${isPipelineRunning ? 'bg-[#295ed9]/50 cursor-not-allowed' : 'bg-[#295ed9] hover:bg-[#346df0] active:scale-95'}`}
+              >
+                {isPipelineRunning ? 'pushing...' : 'code push'}
+              </button>
+            )}
             <button 
               onClick={() => {
-                if (!isViewer) {
-                  setPipelineStage('live');
-                  window.open('http://localhost:3000', '_blank');
-                }
+                setPipelineStage('live');
+                window.open('http://localhost:3000', '_blank');
               }}
-              disabled={isViewer}
-              className={`px-4 py-1.5 rounded text-white text-[12px] font-bold shadow-md transition-transform bg-[#295ed9] hover:bg-[#346df0] active:scale-95 ${isViewer ? 'cursor-not-allowed' : ''}`}
+              className="px-4 py-1.5 rounded text-white text-[12px] font-bold shadow-md transition-transform bg-[#295ed9] hover:bg-[#346df0] active:scale-95"
             >
               Live link
             </button>
@@ -1143,6 +1146,9 @@ export default function IDEWorkspace() {
                   className={`flex items-center px-3 h-full cursor-pointer group border-r border-[#1e1e1e] min-w-fit ${isActive ? 'bg-[#1e1e1e] text-white border-t border-t-blue-500' : 'bg-[#2d2d2d] text-[#969696] hover:bg-[#2b2b2b]'}`}
                 >
                   <span className="text-[13px] mr-2">{file.name}</span>
+                  {file.content !== file.originalContent && (
+                    <div className="w-2 h-2 rounded-full bg-white mr-2" title="Unsaved changes" />
+                  )}
                   <div
                     className={`w-5 h-5 flex items-center justify-center rounded-md hover:bg-[#4d4d4d] ${isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
                     onClick={(e) => closeFile(e, file.path)}

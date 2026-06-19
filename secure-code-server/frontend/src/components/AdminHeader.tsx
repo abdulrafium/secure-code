@@ -37,7 +37,7 @@ export default function AdminHeader() {
 
     useEffect(() => {
         try {
-            const match = document.cookie.match(/(?:^|; )accessToken=([^;]+)/);
+            const match = document.cookie.match(/(?:^|; )admin_accessToken=([^;]+)/);
             if (match) {
                 const token = match[1];
                 const payload = JSON.parse(atob(token.split('.')[1]));
