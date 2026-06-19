@@ -81,6 +81,22 @@ export default function IDEWorkspace() {
   const [pipelineStage, setPipelineStage] = useState<'code' | 'build' | 'test' | 'deploy' | 'live'>('code');
   const [isPipelineRunning, setIsPipelineRunning] = useState(false);
 
+  const handleApiError = (action: string, err: any, itemName?: string) => {
+    console.error(`Failed to ${action}`, err);
+    const backendMessage = err.response?.data?.message || err.response?.data?.error || err.message;
+    const msgStr = typeof backendMessage === 'string' ? backendMessage : JSON.stringify(backendMessage);
+    
+    const namePrefix = itemName ? `"${itemName}" ` : '';
+    
+    if (msgStr.toLowerCase().includes('restrict') || msgStr.toLowerCase().includes('denied')) {
+      setAlertMessage(`${namePrefix}is restricted by the admin.`);
+    } else if (msgStr.toLowerCase().includes('already exists') || msgStr.toLowerCase().includes('exists')) {
+      setAlertMessage(`${namePrefix}already exists.`);
+    } else {
+      setAlertMessage(`Could not ${action} ${itemName ? `"${itemName}"` : 'item'}: ${msgStr || 'See console for details.'}`);
+    }
+  };
+
   const executeGitPush = async () => {
     if (!commitMessage.trim()) return;
     
@@ -198,15 +214,7 @@ export default function IDEWorkspace() {
       const treeEndpoint = projectId ? `/editor/tree?path=&projectId=${projectId}` : `/editor/tree?path=`;
       api.get(treeEndpoint).then(data => setTree(data)).catch(() => { });
     } catch (err: any) {
-      const msg = err?.message || '';
-      const kind = showNewItemInput === 'file' ? 'file' : 'folder';
-      if (msg.toLowerCase().includes('already exists')) {
-        setAlertMessage(`\u201c${newItemName}\u201d ${kind} already exists in this location.`);
-      } else if (msg.toLowerCase().includes('not allowed') || msg.toLowerCase().includes('restricted')) {
-        setAlertMessage(`Cannot create: \u201c${newItemName}\u201d is restricted by the admin.`);
-      } else {
-        setAlertMessage(msg || `Failed to create ${kind}.`);
-      }
+      handleApiError(`create ${showNewItemInput === 'file' ? 'file' : 'folder'}`, err, newItemName);
     } finally {
       setShowNewItemInput(null);
       setNewItemName('');
@@ -240,13 +248,7 @@ export default function IDEWorkspace() {
           api.get(treeEndpoint).then(data => setTree(data)).catch(console.error);
           setSystemLogs(prev => [...prev, `Deleted: ${nodeToDelete.name}`]);
         } catch (err: any) {
-          const msg = err?.message || '';
-          if (msg.toLowerCase().includes('not allowed') || msg.toLowerCase().includes('restricted')) {
-            const label = nodeToDelete.isDirectory ? `"${nodeToDelete.name}" folder` : `"${nodeToDelete.name}" file`;
-            setAlertMessage(`Cannot delete: ${label} is restricted by the admin.`);
-          } else {
-            setAlertMessage(msg || 'Failed to delete item.');
-          }
+          handleApiError('delete', err, nodeToDelete.name);
         }
       }
     });
@@ -287,16 +289,7 @@ export default function IDEWorkspace() {
             await api.post('/editor/copy', { srcPath: fileClipboard.path, destPath: finalPath, projectId: projectId || '' });
           }
         } catch (pasteErr: any) {
-          const msg = pasteErr?.message || '';
-          if (msg.toLowerCase().includes('already exists') || msg.toLowerCase().includes('item with this name')) {
-            const label = sourceIsDir ? `"${sourceName}" folder` : `"${sourceName}" file`;
-            setAlertMessage(`${label} already exists in the destination folder.`);
-          } else if (msg.toLowerCase().includes('not allowed') || msg.toLowerCase().includes('restricted')) {
-            const label = sourceIsDir ? `"${sourceName}" folder` : `"${sourceName}" file`;
-            setAlertMessage(`Cannot paste: ${label} is restricted by the admin.`);
-          } else {
-            setAlertMessage(msg || 'Failed to paste item.');
-          }
+          handleApiError('paste', pasteErr, sourceName);
           return;
         }
         setRefreshToggle(prev => prev + 1);
@@ -308,13 +301,7 @@ export default function IDEWorkspace() {
         handleDeleteItem(node);
       }
     } catch (err: any) {
-      const msg = err?.message || '';
-      if (msg.toLowerCase().includes('not allowed') || msg.toLowerCase().includes('restricted')) {
-        const label = node.isDirectory ? `"${node.name}" folder` : `"${node.name}" file`;
-        setAlertMessage(`Cannot ${action}: ${label} is restricted by the admin.`);
-      } else {
-        setAlertMessage(msg || `Failed to ${action} item.`);
-      }
+      handleApiError(action, err, node.name);
     }
   };
 
@@ -335,14 +322,7 @@ export default function IDEWorkspace() {
       const treeEndpoint = projectId ? `/editor/tree?path=&projectId=${projectId}` : `/editor/tree?path=`;
       api.get(treeEndpoint).then(data => setTree(data)).catch(console.error);
     } catch (err: any) {
-      const msg = err?.message || '';
-      if (msg.toLowerCase().includes('already exists') || msg.toLowerCase().includes('item with this name')) {
-        setAlertMessage(`\u201c${newName}\u201d already exists in this folder. Please choose a different name.`);
-      } else if (msg.toLowerCase().includes('not allowed') || msg.toLowerCase().includes('restricted')) {
-        setAlertMessage(`Cannot rename: \u201c${oldName}\u201d is restricted by the admin.`);
-      } else {
-        setAlertMessage(msg || 'Failed to rename item.');
-      }
+      handleApiError('rename', err, oldName);
     }
   };
 
@@ -593,8 +573,7 @@ export default function IDEWorkspace() {
         setSystemLogs(prev => [...prev, `Opened file: ${node.name}`]);
       }
     } catch (err: any) {
-      console.error("Failed to load file", err);
-      setAlertMessage("Could not load file. See console for details.");
+      handleApiError('open file', err, node.name);
     }
   };
 
@@ -634,7 +613,7 @@ export default function IDEWorkspace() {
         f.path === activeFile.path ? { ...f, originalContent: activeFile.content } : f
       ));
     } catch (err: any) {
-      setAlertMessage(err.message || "Failed to save file.");
+      handleApiError('save file', err, activeFile.name);
     }
   };
 

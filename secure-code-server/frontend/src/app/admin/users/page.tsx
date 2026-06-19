@@ -278,7 +278,7 @@ export default function UsersPage() {
                                                     <span className="text-emerald-400 font-medium tracking-wide">Online</span>
                                                 </div>
                                             ) : (
-                                                <span className="text-slate-400">{formatRelativeTime(user.lastActive || user.updatedAt)}</span>
+                                                <span className="text-slate-400">{user.lastActive ? formatRelativeTime(user.lastActive) : 'Not Yet'}</span>
                                             )}
                                         </td>
                                         <td className="px-8 py-6">
