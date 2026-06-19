@@ -132,7 +132,8 @@ export class UsersService {
     const user = await this.findById(id);
     if (!user) throw new Error('User not found');
 
-    const sshDir = path.join(os.homedir(), '.ssh');
+    const workspacesDir = process.env.WORKSPACES_DIR || path.resolve(process.cwd(), '..', 'workspaces');
+    const sshDir = path.join(workspacesDir, '.ssh');
     const privateKeyPath = path.join(sshDir, 'id_rsa');
     const publicKeyPath = path.join(sshDir, 'id_rsa.pub');
     const knownHostsPath = path.join(sshDir, 'known_hosts');
