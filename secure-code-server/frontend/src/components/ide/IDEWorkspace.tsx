@@ -373,8 +373,35 @@ export default function IDEWorkspace() {
   }, [openFiles, activeFilePath, terminalOpen, sidebarWidth, terminalHeight, stateKey]);
 
   useEffect(() => {
-    const roleCookie = document.cookie.split('; ').find(row => row.startsWith('userRole='));
-    if (roleCookie) setUserRole(roleCookie.split('=')[1]);
+    // Determine context based on URL
+    const isViewerRoute = window.location.pathname.startsWith('/viewer');
+    
+    // Find all cookies
+    const cookies = document.cookie.split('; ').reduce((acc, row) => {
+      const [key, value] = row.split('=');
+      acc[key] = value;
+      return acc;
+    }, {} as Record<string, string>);
+
+    if (isViewerRoute) {
+      if (cookies['viewer_userRole']) setUserRole(cookies['viewer_userRole']);
+      const token = cookies['viewer_accessToken'];
+      if (token) {
+        try { setUserInfo(JSON.parse(atob(token.split('.')[1]))); } catch (e) {}
+      }
+    } else {
+      // Developer route - prioritize Admin if both exist, otherwise Developer
+      if (cookies['admin_userRole']) {
+        setUserRole(cookies['admin_userRole']);
+      } else if (cookies['developer_userRole']) {
+        setUserRole(cookies['developer_userRole']);
+      }
+      
+      const token = cookies['admin_accessToken'] || cookies['developer_accessToken'];
+      if (token) {
+        try { setUserInfo(JSON.parse(atob(token.split('.')[1]))); } catch (e) {}
+      }
+    }
 
     // Fetch tree first
     const endpoint = projectId ? `/editor/tree?path=&projectId=${projectId}` : `/editor/tree?path=`;
@@ -388,18 +415,6 @@ export default function IDEWorkspace() {
 
     fetchFullTree();
     const treeInterval = setInterval(fetchFullTree, 5000);
-
-    // Decode JWT from cookie for watermark
-    const tokenCookie = document.cookie.split('; ').find(row => row.startsWith('accessToken='));
-    if (tokenCookie) {
-      try {
-        const token = tokenCookie.split('=')[1];
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        setUserInfo(payload);
-      } catch (e) {
-        console.error('Failed to parse token', e);
-      }
-    }
 
     // Listen to custom terminal pipeline events
     const handlePipelineEvent = (e: any) => {

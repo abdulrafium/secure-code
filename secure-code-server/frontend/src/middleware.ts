@@ -16,8 +16,9 @@ export function middleware(request: NextRequest) {
 
     // Check Developer routes
     if (path.startsWith('/developer') && !path.startsWith('/developer/login')) {
-        const token = request.cookies.get('developer_accessToken')?.value;
-        if (!token) {
+        const devToken = request.cookies.get('developer_accessToken')?.value;
+        const adminToken = request.cookies.get('admin_accessToken')?.value;
+        if (!devToken && !adminToken) {
             return NextResponse.redirect(new URL('/developer/login', request.url));
         }
     }
