@@ -456,7 +456,11 @@ export default function IDEWorkspace() {
         try {
           const fileExt = filePath.split('.').pop() || '';
           if (['png', 'jpg', 'jpeg', 'gif', 'svg'].includes(fileExt.toLowerCase())) {
-            const url = `${process.env.NEXT_PUBLIC_API_URL}/editor/file-blob?path=${encodeURIComponent(filePath)}&projectId=${projectId}`;
+            let apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+            if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+              apiUrl = apiUrl.replace('http://', 'https://').replace(':3001', '');
+            }
+            const url = `${apiUrl}/editor/file-blob?path=${encodeURIComponent(filePath)}&projectId=${projectId}`;
             const resp = await fetch(url);
             const blob = await resp.blob();
             const objectUrl = URL.createObjectURL(blob);
@@ -531,7 +535,11 @@ export default function IDEWorkspace() {
       const fileExt = node.path.split('.').pop() || '';
 
       if (['png', 'jpg', 'jpeg', 'gif', 'svg'].includes(fileExt.toLowerCase())) {
-        const url = `${process.env.NEXT_PUBLIC_API_URL}/editor/file-blob?path=${encodeURIComponent(node.path)}&projectId=${projectId}`;
+        let apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+        if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+          apiUrl = apiUrl.replace('http://', 'https://').replace(':3001', '');
+        }
+        const url = `${apiUrl}/editor/file-blob?path=${encodeURIComponent(node.path)}&projectId=${projectId}`;
         const resp = await fetch(url);
         const blob = await resp.blob();
         const objectUrl = URL.createObjectURL(blob);
@@ -839,7 +847,12 @@ export default function IDEWorkspace() {
     const defaultWsUrl = typeof window !== 'undefined' 
       ? `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`
       : 'ws://localhost:3001';
-    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || defaultWsUrl;
+    let wsUrl = process.env.NEXT_PUBLIC_WS_URL || defaultWsUrl;
+    
+    // Automatically upgrade to wss:// and remove port 3001 if served over https
+    if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+      wsUrl = wsUrl.replace('ws://', 'wss://').replace('http://', 'https://').replace(':3001', '');
+    }
     const yjsUrl = wsUrl.endsWith('/') ? `${wsUrl}yjs` : `${wsUrl}/yjs`;
     
     // Unique room name per file

@@ -68,7 +68,13 @@ export default function TerminalPane({ projectId, isViewer, accessToken }: { pro
 
       // Connect directly to the backend URL to avoid Next.js WebSocket proxy drops
       const defaultApiUrl = typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.host}/api` : 'http://localhost:3001';
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || defaultApiUrl;
+      let apiUrl = process.env.NEXT_PUBLIC_API_URL || defaultApiUrl;
+      
+      // Automatically upgrade to https:// and remove port 3001 if served over https
+      if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+        apiUrl = apiUrl.replace('http://', 'https://').replace('ws://', 'wss://').replace(':3001', '');
+      }
+
       // Socket.io should connect to the root of the API
       const backendUrl = apiUrl.replace('/api', '');
 
