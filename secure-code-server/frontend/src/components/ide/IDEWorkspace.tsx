@@ -531,6 +531,9 @@ export default function IDEWorkspace() {
           ? savedActivePath
           : validFiles[validFiles.length - 1].path;
         setActiveFilePath(restoredActive);
+        if (restoredActive) {
+          setActiveNodePaths(new Set([restoredActive]));
+        }
       }
       hasRestoredState.current = true;
     }).catch(() => {
@@ -1150,6 +1153,7 @@ export default function IDEWorkspace() {
             renamingNodePath={renamingNodePath}
             onRenameCommit={handleRenameCommit}
             onRenameCancel={handleRenameCancel}
+            expandPath={activeFilePath}
           />
         </div>
       </div>

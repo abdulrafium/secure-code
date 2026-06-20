@@ -49,6 +49,7 @@ interface FileTreeProps {
   renamingNodePath?: string | null;
   onRenameCommit?: (oldPath: string, newName: string) => void;
   onRenameCancel?: () => void;
+  expandPath?: string | null;
 }
 
 const getFileIcon = (fileName: string) => {
@@ -117,7 +118,7 @@ export default function FileTree({
   setShowNewItemInput, currentPath = '',
   globalExpandedNodes, setGlobalExpandedNodes,
   globalLoadedChildren, setGlobalLoadedChildren, onContextMenu,
-  renamingNodePath, onRenameCommit, onRenameCancel
+  renamingNodePath, onRenameCommit, onRenameCancel, expandPath
 }: FileTreeProps) {
 
   // Create state only at the root level, otherwise use passed-down state
@@ -184,6 +185,50 @@ export default function FileTree({
       setExpandedNodes(prev => ({ ...prev, '': true }));
     }
   }, [nodes, isRoot, setExpandedNodes]);
+
+  // ── Auto-expand folders when active file changes (Root only) ────────────────
+  useEffect(() => {
+    if (!isRoot || !expandPath) return;
+
+    const parts = expandPath.split('/');
+    parts.pop(); // remove file name
+    if (parts.length === 0) return;
+
+    let current = '';
+    const toExpand: string[] = [];
+    for (const p of parts) {
+      current = current ? `${current}/${p}` : p;
+      toExpand.push(current);
+    }
+
+    let changed = false;
+    const newExpanded = { ...expandedNodes };
+    const missing: string[] = [];
+
+    toExpand.forEach(p => {
+      if (!newExpanded[p]) {
+        newExpanded[p] = true;
+        changed = true;
+      }
+      if (!loadedChildren[p] && p !== '') {
+        missing.push(p);
+      }
+    });
+
+    if (changed) setExpandedNodes(newExpanded);
+
+    if (missing.length > 0) {
+      missing.forEach(async (p) => {
+        try {
+          const endpoint = projectId
+            ? `/editor/tree?path=${encodeURIComponent(p)}&projectId=${projectId}`
+            : `/editor/tree?path=${encodeURIComponent(p)}`;
+          const data = await api.get(endpoint);
+          setLoadedChildren(prev => ({ ...prev, [p]: data }));
+        } catch { /* skip on error */ }
+      });
+    }
+  }, [expandPath, isRoot, projectId]);
 
   // ── On mount: re-fetch children for any folders restored as expanded ─────────
   useEffect(() => {
@@ -384,6 +429,7 @@ export default function FileTree({
                 renamingNodePath={renamingNodePath}
                 onRenameCommit={onRenameCommit}
                 onRenameCancel={onRenameCancel}
+                expandPath={expandPath}
               />
             )}
           </div>
