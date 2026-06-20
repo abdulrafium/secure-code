@@ -717,7 +717,7 @@ export default function AdminDashboard() {
 
                 {/* --- REAL-TIME PROGRESS TOAST --- */}
                 {activeJobId && (
-                    <div className="fixed top-6 right-6 z-[110] w-80 bg-[#0b1121] border border-slate-700 shadow-2xl rounded-xl p-4 animate-in slide-in-from-right-8">
+                    <div className="fixed top-24 right-6 z-[110] w-80 bg-[#0b1121] border border-slate-700 shadow-2xl rounded-xl p-4 animate-in slide-in-from-right-8">
                         <div className="flex justify-between items-start mb-2">
                             <div className="flex items-center space-x-2">
                                 {jobStatus === 'completed' ? (

@@ -46,8 +46,8 @@ services:
       - JWT_SECRET=super-secret-change-this-in-production
     volumes:
       - workspaces_data:/workspaces
-      - ./sessions:/sessions
-      - ./backups:/backups
+      - sessions_data:/sessions
+      - backups_data:/backups
     networks:
       - secure_code_network
     depends_on:
@@ -106,6 +106,7 @@ volumes:
   certbot_www:
   certbot_conf:
   sessions_data:
+  backups_data:
 
 networks:
   secure_code_network:

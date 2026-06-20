@@ -42,7 +42,7 @@ COPY --from=builder /app/dist ./dist
 
 # Create a user to run the app securely and setup workspaces directory permissions
 RUN groupadd -r nestjs && useradd -r -g nestjs nestjs
-RUN mkdir -p /workspaces && chown nestjs:nestjs /workspaces
+RUN mkdir -p /workspaces /sessions /backups && chown nestjs:nestjs /workspaces /sessions /backups
 USER nestjs
 
 EXPOSE 3001
