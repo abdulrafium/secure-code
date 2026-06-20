@@ -13,7 +13,6 @@ export default function SystemSettingsPage() {
 
     // Local state for the form inputs
     const [maintenanceMode, setMaintenanceMode] = useState(false);
-    const [allowViewerRegistration, setAllowViewerRegistration] = useState(false);
     const [blockedCommands, setBlockedCommands] = useState("");
     const [systemMessage, setSystemMessage] = useState("");
 
@@ -23,7 +22,6 @@ export default function SystemSettingsPage() {
                 const data = await api.get('/settings');
                 setSettings(data);
                 if (data.maintenanceMode !== undefined) setMaintenanceMode(data.maintenanceMode);
-                if (data.allowViewerRegistration !== undefined) setAllowViewerRegistration(data.allowViewerRegistration);
                 if (data.blockedCommands !== undefined) setBlockedCommands(data.blockedCommands);
                 if (data.systemMessage !== undefined) setSystemMessage(data.systemMessage);
             } catch (err) {
@@ -41,7 +39,6 @@ export default function SystemSettingsPage() {
         try {
             const payload = {
                 maintenanceMode,
-                allowViewerRegistration,
                 blockedCommands,
                 systemMessage
             };
@@ -117,24 +114,6 @@ export default function SystemSettingsPage() {
                                             onChange={(e) => setMaintenanceMode(e.target.checked)}
                                         />
                                         <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
-                                    </label>
-                                </div>
-                                <div className="w-full h-px bg-slate-800/50"></div>
-                                
-                                {/* Toggle Viewer Registration */}
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <h3 className="text-sm font-medium text-slate-200">Allow Viewer Registration</h3>
-                                        <p className="text-xs text-slate-500 mt-1">Allow new users to sign up automatically as Viewers.</p>
-                                    </div>
-                                    <label className="relative inline-flex items-center cursor-pointer">
-                                        <input 
-                                            type="checkbox" 
-                                            className="sr-only peer"
-                                            checked={allowViewerRegistration}
-                                            onChange={(e) => setAllowViewerRegistration(e.target.checked)}
-                                        />
-                                        <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
                                     </label>
                                 </div>
                             </div>

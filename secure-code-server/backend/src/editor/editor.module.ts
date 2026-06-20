@@ -7,9 +7,10 @@ import { Project } from '../projects/entities/project.entity';
 import { JwtModule } from '@nestjs/jwt';
 import { ProjectsModule } from '../projects/projects.module';
 import { LogsModule } from '../logs/logs.module';
+import { SettingsModule } from '../settings/settings.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Project]), JwtModule.register({}), forwardRef(() => ProjectsModule), LogsModule],
+  imports: [TypeOrmModule.forFeature([Project]), JwtModule.register({}), forwardRef(() => ProjectsModule), LogsModule, SettingsModule],
   controllers: [EditorController],
   providers: [EditorService, TerminalGateway],
   exports: [EditorService],

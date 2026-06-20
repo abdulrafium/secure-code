@@ -17,6 +17,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Project } from '../projects/entities/project.entity';
 import { LogsService } from '../logs/logs.service';
+import { SettingsService } from '../settings/settings.service';
 // We use require for node-pty as its types can sometimes be problematic in strict mode
 const pty = require('node-pty');
 
@@ -33,6 +34,7 @@ export class TerminalGateway implements OnGatewayConnection, OnGatewayDisconnect
     private readonly editorService: EditorService,
     private readonly jwtService: JwtService,
     private readonly logsService: LogsService,
+    private readonly settingsService: SettingsService,
     @InjectRepository(Project)
     private readonly projectsRepository: Repository<Project>
   ) { }
@@ -182,6 +184,16 @@ export class TerminalGateway implements OnGatewayConnection, OnGatewayDisconnect
           const globalBlacklist = ['git', 'sudo', 'su', 'curl', 'wget', 'apt', 'apt-get', 'dpkg', 'rm -rf /'];
           const customBlacklist = project?.allowedCommands || [];
           const combinedBlacklist = [...new Set([...globalBlacklist, ...customBlacklist])];
+          
+          let dynamicBlockedRegex: RegExp | null = null;
+          try {
+            const blockedCommandsStr = await this.settingsService.getSetting('blockedCommands', '');
+            if (blockedCommandsStr && blockedCommandsStr.trim() !== '') {
+               dynamicBlockedRegex = new RegExp(blockedCommandsStr, 'i');
+            }
+          } catch (e) {
+            console.error('Failed to parse blocked commands regex:', e);
+          }
 
           let buffer = this.inputBuffers.get(client.id) || '';
 
@@ -214,7 +226,17 @@ export class TerminalGateway implements OnGatewayConnection, OnGatewayDisconnect
 
               for (const restrictedCmd of combinedBlacklist) {
                 const lowerRestricted = restrictedCmd.toLowerCase().replace(/[\s\t]+/g, ' ');
+                let isBlocked = false;
+                
                 if (baseCmd === lowerRestricted || normalizedCmd === lowerRestricted || normalizedCmd.startsWith(lowerRestricted + ' ')) {
+                   isBlocked = true;
+                }
+                
+                if (!isBlocked && dynamicBlockedRegex && dynamicBlockedRegex.test(rawCmd)) {
+                   isBlocked = true;
+                }
+
+                if (isBlocked) {
                   client.emit('terminal.output', `\r\n\x1b[31mError: Command execution blocked by security policy: ${restrictedCmd}\x1b[0m\r\n`);
                   this.inputBuffers.set(client.id, '');
                   

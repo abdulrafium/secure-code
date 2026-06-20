@@ -1,6 +1,7 @@
 import { Controller, Post, Body, UnauthorizedException, UseGuards, Request } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LogsService } from '../logs/logs.service';
+import { SettingsService } from '../settings/settings.service';
 import { Role } from '../users/enums/role.enum';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
@@ -8,15 +9,9 @@ import { JwtAuthGuard } from './jwt-auth.guard';
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
-    private readonly logsService: LogsService
+    private readonly logsService: LogsService,
+    private readonly settingsService: SettingsService
   ) {}
-
-  @Post('register')
-  async register(@Body() body: any) {
-    // In production, use DTOs with class-validator
-    const { username, password, role } = body;
-    return this.authService.register(username, password, role || Role.Viewer);
-  }
 
   @Post('login')
   async login(@Body() body: any, @Request() req: any) {
@@ -31,6 +26,18 @@ export class AuthController {
     }
     if (user.status === 'Blocked') {
       throw new UnauthorizedException('Sorry, you are permanently blocked by the Admin.');
+    }
+
+    const maintenanceMode = await this.settingsService.getSetting('maintenanceMode', false);
+    if (maintenanceMode && user.role !== Role.Admin) {
+      this.logsService.logEvent({
+        userId: user.id,
+        username: user.username,
+        action: 'BLOCKED_LOGIN_MAINTENANCE',
+        details: 'Attempted to log in during maintenance mode.',
+        ipAddress: req.headers['x-forwarded-for'] || req.connection?.remoteAddress || req.socket?.remoteAddress || 'unknown',
+      }).catch(e => console.error('Failed to log event:', e));
+      throw new UnauthorizedException('System is currently in maintenance mode. Only Admins can log in.');
     }
 
     // IP Whitelisting Enforcement
