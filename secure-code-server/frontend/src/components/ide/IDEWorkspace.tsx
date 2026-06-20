@@ -63,7 +63,7 @@ export default function IDEWorkspace() {
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{ message: string, onConfirm: () => void } | null>(null);
   const [renamingNodePath, setRenamingNodePath] = useState<string | null>(null);
-  const [activeNodePath, setActiveNodePath] = useState<string | null>(null);
+  const [activeNodePaths, setActiveNodePaths] = useState<Set<string>>(new Set());
   const [activeFolderPath, setActiveFolderPath] = useState<string>('');
   const [refreshToggle, setRefreshToggle] = useState<number>(0);
   
@@ -78,7 +78,7 @@ export default function IDEWorkspace() {
   const [newItemName, setNewItemName] = useState('');
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; node: FileNode } | null>(null);
   const [editorContextMenu, setEditorContextMenu] = useState<{ x: number; y: number } | null>(null);
-  const [fileClipboard, setFileClipboard] = useState<{ path: string; action: 'copy' | 'cut' } | null>(null);
+  const [fileClipboard, setFileClipboard] = useState<{ paths: string[]; action: 'copy' | 'cut' } | null>(null);
 
   // CI/CD Pipeline Simulation State
   const [pipelineStage, setPipelineStage] = useState<'code' | 'build' | 'test' | 'deploy' | 'live'>('code');
@@ -231,37 +231,25 @@ export default function IDEWorkspace() {
     }
   };
 
-  const handleNodeSelect = (node: FileNode) => {
-    setActiveNodePath(node.path);
+  const handleNodeSelect = (e: React.MouseEvent, node: FileNode) => {
+    setActiveNodePaths(prev => {
+      const next = new Set(prev);
+      if (e.ctrlKey || e.metaKey) {
+        if (next.has(node.path)) next.delete(node.path);
+        else next.add(node.path);
+      } else {
+        next.clear();
+        next.add(node.path);
+      }
+      return next;
+    });
+    
     if (node.isDirectory) {
       setActiveFolderPath(node.path);
     } else {
-      const parts = node.path.split('/');
-      parts.pop();
-      setActiveFolderPath(parts.join('/'));
+      const parentPath = node.path.substring(0, node.path.lastIndexOf('/'));
+      setActiveFolderPath(parentPath);
     }
-  };
-
-  const handleDeleteItem = async (targetNode?: FileNode) => {
-    const nodeToDelete = targetNode || (activeFile ? tree.find(n => n.path === activeFile.path) : null);
-    if (!nodeToDelete) return;
-    
-    setConfirmDialog({
-      message: `Are you sure you want to delete "${nodeToDelete.name}"?`,
-      onConfirm: async () => {
-        try {
-          await api.delete(`/editor/item?path=${encodeURIComponent(nodeToDelete.path)}&projectId=${projectId || ''}`);
-          setOpenFiles(prev => prev.filter(f => f.path !== nodeToDelete.path));
-          if (activeFilePath === nodeToDelete.path) setActiveFilePath(null);
-          setRefreshToggle(prev => prev + 1);
-          const treeEndpoint = projectId ? `/editor/tree?path=&projectId=${projectId}` : `/editor/tree?path=`;
-          api.get(treeEndpoint).then(data => setTree(data)).catch(console.error);
-          setSystemLogs(prev => [...prev, `Deleted: ${nodeToDelete.name}`]);
-        } catch (err: any) {
-          handleApiError('delete', err, nodeToDelete.name);
-        }
-      }
-    });
   };
 
   const handleContextMenuAction = async (action: string) => {
@@ -274,45 +262,76 @@ export default function IDEWorkspace() {
         if (!node.isDirectory) {
           handleFileClick(node);
         } else {
-          // For directories, we can simulate a click on the file tree element
           const el = document.getElementById(`tree-node-${node.path}`);
           if (el) el.click();
         }
       } else if (action === 'copy' || action === 'cut') {
-        setFileClipboard({ path: node.path, action });
-        setSystemLogs(prev => [...prev, `${action === 'copy' ? 'Copied' : 'Cut'}: ${node.name}`]);
-      } else if (action === 'paste') {
-        if (!fileClipboard) return;
-        const isCut = fileClipboard.action === 'cut';
-        const targetFolder = node.isDirectory ? node.path : node.path.split('/').slice(0, -1).join('/');
-        const sourceName = fileClipboard.path.split('/').pop()!;
-        const finalPath = targetFolder ? `${targetFolder}/${sourceName}` : sourceName;
-
-        // Determine if source is file or folder for specific error messages
-        const sourceIsDir = !!tree.find(n => n.path === fileClipboard.path)?.isDirectory;
-
-        try {
-          if (isCut) {
-            await api.post('/editor/rename', { oldPath: fileClipboard.path, newPath: finalPath, projectId: projectId || '' });
-            setFileClipboard(null);
-          } else {
-            await api.post('/editor/copy', { srcPath: fileClipboard.path, destPath: finalPath, projectId: projectId || '' });
-          }
-        } catch (pasteErr: any) {
-          handleApiError('paste', pasteErr, sourceName);
-          return;
+        const paths = Array.from(activeNodePaths);
+        if (paths.length > 0) {
+          setFileClipboard({ paths, action });
+          setSystemLogs(prev => [...prev, `${action === 'copy' ? 'Copied' : 'Cut'}: ${paths.join(', ')}`]);
         }
-        setRefreshToggle(prev => prev + 1);
-        const treeEndpoint = projectId ? `/editor/tree?path=&projectId=${projectId}` : `/editor/tree?path=`;
-        api.get(treeEndpoint).then(data => setTree(data)).catch(console.error);
+      } else if (action === 'paste') {
+        if (!fileClipboard || fileClipboard.paths.length === 0) return;
+        const isCut = fileClipboard.action === 'cut';
+        const targetDir = node.isDirectory ? node.path : node.path.substring(0, node.path.lastIndexOf('/'));
+        
+        try {
+          await Promise.all(fileClipboard.paths.map(async (srcPath) => {
+            const sourceName = srcPath.split('/').pop()!;
+            const finalPath = targetDir ? `${targetDir}/${sourceName}` : sourceName;
+            
+            if (srcPath === finalPath) return; 
+            
+            if (isCut) {
+              await api.post('/editor/rename', { oldPath: srcPath, newPath: finalPath, projectId: projectId || '' });
+            } else {
+              await api.post('/editor/copy', { srcPath: srcPath, destPath: finalPath, projectId: projectId || '' });
+            }
+          }));
+
+          if (isCut) setFileClipboard(null);
+          setRefreshToggle(prev => prev + 1);
+          const endpoint = projectId ? `/editor/tree?path=&projectId=${projectId}` : `/editor/tree?path=`;
+          const data = await api.get(endpoint);
+          setTree(data);
+        } catch (err: any) {
+          handleApiError('paste items', err);
+        }
       } else if (action === 'rename') {
         setRenamingNodePath(node.path);
       } else if (action === 'delete') {
-        handleDeleteItem(node);
+        handleDeleteItem();
       }
     } catch (err: any) {
       handleApiError(action, err, node.name);
     }
+  };
+
+  const handleDeleteItem = async (targetNode?: FileNode) => {
+    const pathsToDelete = targetNode ? [targetNode.path] : Array.from(activeNodePaths);
+    if (pathsToDelete.length === 0) return;
+    
+    const msg = pathsToDelete.length === 1 ? `Are you sure you want to delete "${pathsToDelete[0].split('/').pop()}"?` : `Are you sure you want to delete ${pathsToDelete.length} items?`;
+    
+    setConfirmDialog({
+      message: msg,
+      onConfirm: async () => {
+        try {
+          await Promise.all(pathsToDelete.map(p => api.delete(`/editor/item?path=${encodeURIComponent(p)}&projectId=${projectId || ''}`)));
+          const deletedSet = new Set(pathsToDelete);
+          setOpenFiles(prev => prev.filter(f => !deletedSet.has(f.path)));
+          setActiveNodePaths(new Set());
+          setRefreshToggle(prev => prev + 1);
+          const treeEndpoint = projectId ? `/editor/tree?path=&projectId=${projectId}` : `/editor/tree?path=`;
+          const data = await api.get(treeEndpoint);
+          setTree(data);
+          setSystemLogs(prev => [...prev, `Deleted: ${pathsToDelete.join(', ')}`]);
+        } catch (err: any) {
+          handleApiError('delete', err);
+        }
+      }
+    });
   };
 
   const handleRenameCommit = async (oldPath: string, newName: string) => {
@@ -527,6 +546,7 @@ export default function IDEWorkspace() {
 
     const alreadyOpen = openFiles.find(f => f.path === node.path);
     if (alreadyOpen) {
+      setActiveNodePaths(new Set([node.path]));
       setActiveFilePath(node.path);
       return;
     }
@@ -545,7 +565,11 @@ export default function IDEWorkspace() {
         const objectUrl = URL.createObjectURL(blob);
 
         const newFile: OpenFile = { path: node.path, name: node.name, content: objectUrl, isBinary: true, originalContent: '' };
-        setOpenFiles(prev => [...prev, newFile]);
+        setOpenFiles(prev => {
+          if (prev.find(f => f.path === node.path)) return prev;
+          return [...prev, newFile];
+        });
+        setActiveNodePaths(new Set([node.path]));
         setActiveFilePath(node.path);
         setSystemLogs(prev => [...prev, `Opened binary file: ${node.name}`]);
       } else {
@@ -589,6 +613,7 @@ export default function IDEWorkspace() {
         };
 
         setOpenFiles(prev => [...prev, newFile]);
+        setActiveNodePaths(new Set([node.path]));
         setActiveFilePath(node.path);
         setSystemLogs(prev => [...prev, `Opened file: ${node.name}`]);
       }
@@ -601,8 +626,10 @@ export default function IDEWorkspace() {
     e.stopPropagation();
     const newOpen = openFiles.filter(f => f.path !== path);
     setOpenFiles(newOpen);
-    if (activeFilePath === path) {
-      setActiveFilePath(newOpen.length > 0 ? newOpen[newOpen.length - 1].path : null);
+    if (activeNodePaths.has(path)) {
+      const nextActive = newOpen.length > 0 ? newOpen[newOpen.length - 1].path : null;
+      setActiveNodePaths(nextActive ? new Set([nextActive]) : new Set());
+      setActiveFilePath(nextActive);
     }
   };
 
@@ -1093,7 +1120,7 @@ export default function IDEWorkspace() {
 
         <div className="flex-1 overflow-y-auto custom-scrollbar p-2" onClick={(e) => {
           if (e.target === e.currentTarget) {
-            setActiveNodePath(null);
+            setActiveNodePaths(new Set());
             setActiveFolderPath('');
           }
         }}>
@@ -1102,7 +1129,7 @@ export default function IDEWorkspace() {
             onFileClick={handleFileClick}
             projectId={projectId || ''}
             isViewer={isViewer}
-            activeNodePath={activeNodePath !== null ? activeNodePath : undefined}
+            activeNodePaths={activeNodePaths}
             onNodeSelect={handleNodeSelect}
             refreshToggle={refreshToggle}
             showNewItemInput={showNewItemInput}
@@ -1113,6 +1140,11 @@ export default function IDEWorkspace() {
             setShowNewItemInput={setShowNewItemInput}
             onContextMenu={(e, node) => {
               e.preventDefault();
+              if (!activeNodePaths.has(node.path)) {
+                setActiveNodePaths(new Set([node.path]));
+              }
+              if (node.isDirectory) setActiveFolderPath(node.path);
+              else setActiveFolderPath(node.path.substring(0, node.path.lastIndexOf('/')));
               setContextMenu({ x: e.clientX, y: e.clientY, node });
             }}
             renamingNodePath={renamingNodePath}
@@ -1148,8 +1180,10 @@ export default function IDEWorkspace() {
                 <span>Cut</span><span className="text-[#888] group-hover:text-[#ccc]">Ctrl+X</span>
               </div>
               <div 
-                className={`px-4 py-1.5 flex justify-between group ${fileClipboard && (!contextMenu.node.isDirectory ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#094771] cursor-pointer')}`}
-                onClick={() => handleContextMenuAction('paste')}
+                onClick={() => {
+                  if (fileClipboard && fileClipboard.paths.length > 0 && (contextMenu.node.isDirectory || contextMenu.node.path === '')) handleContextMenuAction('paste');
+                }}
+                className={`px-4 py-1.5 flex justify-between group ${fileClipboard && fileClipboard.paths.length > 0 && (contextMenu.node.isDirectory || contextMenu.node.path === '') ? 'hover:bg-[#094771] cursor-pointer' : 'opacity-50 cursor-not-allowed'}`}
               >
                 <span>Paste</span><span className="text-[#888] group-hover:text-[#ccc]">Ctrl+V</span>
               </div>
@@ -1295,8 +1329,11 @@ export default function IDEWorkspace() {
               return (
                 <div
                   key={file.path}
-                  onClick={() => setActiveFilePath(file.path)}
-                  className={`flex items-center px-3 h-full cursor-pointer group border-r border-[#1e1e1e] min-w-fit ${isActive ? 'bg-[#1e1e1e] text-white border-t border-t-blue-500' : 'bg-[#2d2d2d] text-[#969696] hover:bg-[#2b2b2b]'}`}
+                  onClick={() => {
+                    setActiveFilePath(file.path);
+                    setActiveNodePaths(new Set([file.path]));
+                  }}
+                  className={`flex items-center px-3 h-full cursor-pointer group border-r border-[#1e1e1e] min-w-fit ${activeNodePaths.has(file.path) ? 'bg-[#1e1e1e] text-white border-t border-t-blue-500' : 'bg-[#2d2d2d] text-[#969696] hover:bg-[#2b2b2b]'}`}
                 >
                   <span className="text-[13px] mr-2">{file.name}</span>
                   {file.content !== file.originalContent && (
@@ -1327,7 +1364,8 @@ export default function IDEWorkspace() {
                 height="100%"
                 language={activeFile.language}
                 theme="vs-dark"
-                value={activeFile.content}
+                path={activeFile.path}
+                defaultValue={activeFile.content}
                 onChange={handleEditorChange}
                 onMount={handleEditorMount}
                 options={{ ...EDITOR_OPTIONS, readOnly: isViewer }}

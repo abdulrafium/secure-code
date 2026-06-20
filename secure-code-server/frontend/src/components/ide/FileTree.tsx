@@ -30,8 +30,8 @@ interface FileTreeProps {
   level?: number;
   projectId?: string | null;
   isViewer?: boolean;
-  activeNodePath?: string;
-  onNodeSelect?: (node: FileNode) => void;
+  activeNodePaths?: Set<string>;
+  onNodeSelect?: (e: React.MouseEvent, node: FileNode) => void;
   refreshToggle?: number;
   showNewItemInput?: 'file' | 'folder' | null;
   activeFolderPath?: string;
@@ -112,7 +112,7 @@ function saveExpandedState(projectId: string | null | undefined, state: Record<s
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function FileTree({
-  nodes, onFileClick, level = 0, projectId, isViewer, activeNodePath, onNodeSelect, refreshToggle,
+  nodes, onFileClick, level = 0, projectId, isViewer, activeNodePaths, onNodeSelect, refreshToggle,
   showNewItemInput, activeFolderPath, newItemName, setNewItemName, handleCreateItem,
   setShowNewItemInput, currentPath = '',
   globalExpandedNodes, setGlobalExpandedNodes,
@@ -296,12 +296,14 @@ export default function FileTree({
           <div key={node.path} className="flex flex-col">
             <div
               id={`tree-node-${node.path}`}
-              className={`flex items-center py-0.5 cursor-pointer select-none ${activeNodePath === node.path ? 'bg-[#37373d] text-white outline outline-1 outline-[#007fd4] outline-offset-[-1px]' : 'text-[#cccccc] hover:bg-[#2a2d2e]'}`}
+              className={`flex items-center py-0.5 cursor-pointer select-none ${activeNodePaths?.has(node.path) ? 'bg-[#37373d] text-white outline outline-1 outline-[#007fd4] outline-offset-[-1px]' : 'text-[#cccccc] hover:bg-[#2a2d2e]'}`}
               style={{ paddingLeft: `${(level * 12) + 4}px` }}
-              onClick={() => {
-                if (onNodeSelect) onNodeSelect(node);
-                if (node.isDirectory) toggleFolder(node);
-                else onFileClick(node);
+              onClick={(e) => {
+                if (onNodeSelect) onNodeSelect(e, node);
+                if (!e.ctrlKey && !e.metaKey) {
+                  if (node.isDirectory) toggleFolder(node);
+                  else onFileClick(node);
+                }
               }}
               onContextMenu={(e) => {
                 if (onContextMenu) onContextMenu(e, node);
@@ -364,7 +366,7 @@ export default function FileTree({
                 level={level + 1}
                 projectId={projectId}
                 isViewer={isViewer}
-                activeNodePath={activeNodePath}
+                activeNodePaths={activeNodePaths}
                 onNodeSelect={onNodeSelect}
                 refreshToggle={refreshToggle}
                 showNewItemInput={showNewItemInput}
