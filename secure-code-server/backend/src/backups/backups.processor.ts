@@ -60,8 +60,10 @@ export class BackupsProcessor extends WorkerHost {
       
       await job.updateProgress(50);
 
-      // Step 2: Tar the DB and the physical workspaces directory
-      const tarCommand = `tar -czf "${filePath}" -C /tmp "db-${timestamp}.sql" -C / workspaces`;
+      // Step 2: Tar the DB, the physical workspaces directory, and the sessions directory
+      const sessionDir = path.join(process.cwd(), '..', 'sessions');
+      // We will tar the DB from /tmp, workspaces from /, and sessions from the sessionDir's parent directory
+      const tarCommand = `tar -czf "${filePath}" -C /tmp "db-${timestamp}.sql" -C / workspaces -C "${path.join(process.cwd(), '..')}" sessions`;
       try {
         await execAsync(tarCommand);
       } catch (err: any) {
@@ -144,6 +146,14 @@ export class BackupsProcessor extends WorkerHost {
       if (fs.existsSync(workspaceExtractPath)) {
         const copyCommand = `cp -rn "${workspaceExtractPath}/"* /workspaces/ || true`;
         await execAsync(copyCommand);
+      }
+
+      const sessionsExtractPath = path.join(extractDir, 'sessions');
+      if (fs.existsSync(sessionsExtractPath)) {
+        const liveSessionsDir = path.join(process.cwd(), '..', 'sessions');
+        if (!fs.existsSync(liveSessionsDir)) fs.mkdirSync(liveSessionsDir, { recursive: true });
+        const copySessionsCommand = `cp -rn "${sessionsExtractPath}/"* "${liveSessionsDir}/" || true`;
+        await execAsync(copySessionsCommand);
       }
 
       await job.updateProgress(90);
