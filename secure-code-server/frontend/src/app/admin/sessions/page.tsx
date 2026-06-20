@@ -64,8 +64,14 @@ export default function SessionsPage() {
 
             try {
                 const data = await api.get(`/logs/sessions/${filename}`);
-                if (data && playerEl) {
+                if (playerEl) {
                     playerEl.innerHTML = ''; // clear loading
+                    
+                    if (!Array.isArray(data) || data.length < 2) {
+                        playerEl.innerHTML = '<div class="text-slate-500 text-sm w-full h-full flex flex-col items-center justify-center"><p>Session data is incomplete or empty.</p><p class="text-xs opacity-70 mt-1">The user may have closed the window immediately.</p></div>';
+                        return;
+                    }
+
                     const rrwebPlayerModule = await import('rrweb-player');
                     const RrwebPlayer = rrwebPlayerModule.default || rrwebPlayerModule as any;
                     
@@ -73,8 +79,8 @@ export default function SessionsPage() {
                         target: playerEl,
                         props: {
                             events: data,
-                            width: playerEl.clientWidth,
-                            height: playerEl.clientHeight,
+                            width: playerEl.clientWidth || 1024,
+                            height: playerEl.clientHeight || 600,
                             autoPlay: true,
                             showController: true,
                             speedOption: [1, 2, 4, 8],

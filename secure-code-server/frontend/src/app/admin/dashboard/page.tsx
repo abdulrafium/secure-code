@@ -91,6 +91,7 @@ export default function AdminDashboard() {
     const [jobProgress, setJobProgress] = useState<number>(0);
     const [jobStatus, setJobStatus] = useState<string>('RUNNING');
     const [jobType, setJobType] = useState<string>('');
+    const [backupToDelete, setBackupToDelete] = useState<string | null>(null);
 
     const [stats, setStats] = useState({ 
         roles: { admin: 0, developer: 0, viewer: 0 }, 
@@ -314,19 +315,21 @@ export default function AdminDashboard() {
         }
     };
 
-    const handleDeleteBackup = async (filename: string) => {
-        if (!confirm(`Are you sure you want to delete backup ${filename}?`)) return;
+    const handleDeleteBackup = async () => {
+        if (!backupToDelete) return;
         try {
-            const res = await api.delete(`/backups/${filename}`);
+            const res = await api.delete(`/backups/${backupToDelete}`);
             if (res.success) {
-                setAvailableBackups(prev => prev.filter(b => b.filename !== filename));
-                if (selectedBackup === filename) setSelectedBackup(null);
+                setAvailableBackups(prev => prev.filter(b => b.filename !== backupToDelete));
+                if (selectedBackup === backupToDelete) setSelectedBackup(null);
             } else {
                 alert(res.message || 'Failed to delete backup.');
             }
         } catch (error) {
             console.error('Failed to delete backup', error);
             alert('Failed to delete backup.');
+        } finally {
+            setBackupToDelete(null);
         }
     };
 
@@ -834,7 +837,7 @@ export default function AdminDashboard() {
                                                 <button 
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        handleDeleteBackup(bkp.filename);
+                                                        setBackupToDelete(bkp.filename);
                                                     }}
                                                     className="p-2 text-slate-500 hover:text-red-400 hover:bg-slate-800/50 rounded-lg transition-colors ml-4 shrink-0"
                                                     title="Delete Backup"
@@ -1167,6 +1170,41 @@ export default function AdminDashboard() {
                                 >
                                     <RotateCcw className={`w-4 h-4 ${isGeneratingBackup ? 'animate-spin' : ''}`} />
                                     <span>{isGeneratingBackup ? 'Generating...' : 'Yes, Generate Code'}</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Backup Delete Confirmation Modal */}
+            {backupToDelete && (
+                <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-[#0b1121] border border-slate-800 rounded-xl w-full max-w-sm shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="p-6 text-center flex flex-col items-center">
+                            <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center border border-red-500/20 mb-4 shrink-0 shadow-[0_0_15px_rgba(239,68,68,0.2)]">
+                                <Trash2 className="w-8 h-8 text-red-500" />
+                            </div>
+                            <h2 className="text-xl font-bold text-slate-200 mb-2">Delete Backup?</h2>
+                            <p className="text-sm text-slate-400 mb-1">
+                                Are you sure you want to permanently delete:
+                            </p>
+                            <p className="text-xs font-mono text-slate-300 break-all bg-[#080d1a] border border-slate-800 p-2 rounded-lg w-full mb-6">
+                                {backupToDelete}
+                            </p>
+                            
+                            <div className="flex w-full space-x-3">
+                                <button
+                                    onClick={() => setBackupToDelete(null)}
+                                    className="flex-1 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium rounded-lg transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleDeleteBackup}
+                                    className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-500 text-white text-sm font-medium rounded-lg transition-colors shadow-lg shadow-red-900/20"
+                                >
+                                    Delete
                                 </button>
                             </div>
                         </div>
