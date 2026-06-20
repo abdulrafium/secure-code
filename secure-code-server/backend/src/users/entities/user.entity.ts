@@ -41,7 +41,7 @@ export class User {
   @Column({ nullable: true, type: 'text' })
   publicKey: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   backupCode: string | null;
 
   @Column({ type: 'timestamptz', nullable: true })
