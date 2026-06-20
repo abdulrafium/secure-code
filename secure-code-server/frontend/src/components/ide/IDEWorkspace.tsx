@@ -1000,17 +1000,29 @@ export default function IDEWorkspace() {
     provider.awareness.on('change', updateAwarenessStyles);
     updateAwarenessStyles();
 
-    const model = editorRef.current.getModel();
-    if (model) {
-      // Bind Monaco to Yjs
-      const binding = new MonacoBinding(
-        yText,
-        model,
-        new Set([editorRef.current]),
-        provider.awareness
-      );
-      bindingRef.current = binding;
-    }
+    provider.on('sync', (isSynced: boolean) => {
+      if (isSynced && !bindingRef.current) {
+        const model = editorRef.current?.getModel();
+        if (model) {
+          // If the Yjs document is completely empty (new room or server restarted),
+          // seed it with the model's current content (which was fetched from disk)
+          if (yText.toString() === '') {
+            const val = model.getValue();
+            if (val) {
+              yText.insert(0, val);
+            }
+          }
+          // Bind Monaco to Yjs only AFTER syncing to prevent clearing the editor
+          const binding = new MonacoBinding(
+            yText,
+            model,
+            new Set([editorRef.current]),
+            provider.awareness
+          );
+          bindingRef.current = binding;
+        }
+      }
+    });
 
     return () => {
       provider.awareness.off('change', updateAwarenessStyles);
@@ -1320,10 +1332,22 @@ export default function IDEWorkspace() {
               
               {/* Live */}
               <div className="flex flex-col items-center px-2 hover:bg-white/10 rounded transition-colors">
-                <div className={`w-4 h-4 rounded-full border flex items-center justify-center mb-0.5 transition-all ${pipelineStage === 'live' ? 'border-blue-500 shadow-[0_0_12px_rgba(59,130,246,0.9)]' : 'border-blue-500/40'}`}>
-                  <div className={`w-1.5 h-1.5 rounded-full transition-all ${pipelineStage === 'live' ? 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,1)] scale-100' : 'bg-blue-500/40 scale-75'}`}></div>
+                <div className={`w-4 h-4 rounded-full border flex items-center justify-center mb-0.5 transition-all ${pipelineStage === 'live' ? 'border-[#ff9800] shadow-[0_0_10px_rgba(255,152,0,0.7)]' : 'border-[#ff9800]/40'} ${pipelineStage === 'live' && isPipelineRunning ? 'animate-pulse' : ''}`}>
+                  <div className={`w-1.5 h-1.5 rounded-full transition-all ${pipelineStage === 'live' ? 'bg-[#ff9800] shadow-[0_0_6px_rgba(255,152,0,1)] scale-100' : 'bg-[#ff9800]/40 scale-75'}`}></div>
                 </div>
                 <span className="text-[9px] text-slate-300 font-medium">Live</span>
+              </div>
+              
+              {/* Compare Icon */}
+              <div 
+                className={`flex items-center justify-center ml-2 pl-2 border-l border-[#333] cursor-pointer transition-colors ${isDiffMode ? 'text-[#ff9800]' : 'text-slate-300 hover:text-white'}`}
+                onClick={() => setIsDiffMode(!isDiffMode)}
+                title={isDiffMode ? "Exit Compare Mode" : "Compare with saved code"}
+              >
+                <div className="flex flex-col items-center px-2 hover:bg-white/10 rounded transition-colors py-0.5">
+                  <Columns className="w-4 h-4 mb-0.5" />
+                  <span className="text-[9px] font-medium">Compare</span>
+                </div>
               </div>
             </div>
           )}
@@ -1407,17 +1431,6 @@ export default function IDEWorkspace() {
             >
               <ChevronRight className="w-4 h-4 text-[#cccccc]" />
             </button>
-
-            {/* Compare Icon */}
-            {!isViewer && (
-              <div 
-                className={`flex items-center justify-center px-3 border-l border-[#1e1e1e] cursor-pointer transition-colors flex-shrink-0 ${isDiffMode ? 'bg-[#ff9800] text-white' : 'bg-[#2d2d2d] text-[#969696] hover:bg-[#4d4d4d] hover:text-white'}`}
-                onClick={() => setIsDiffMode(!isDiffMode)}
-                title={isDiffMode ? "Exit Compare Mode" : "Compare with saved code"}
-              >
-                <Columns className="w-4 h-4" />
-              </div>
-            )}
           </div>
 
           {/* Breadcrumbs */}
