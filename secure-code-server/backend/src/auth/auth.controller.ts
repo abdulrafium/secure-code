@@ -34,13 +34,13 @@ export class AuthController {
     }
 
     // IP Whitelisting Enforcement
+    let clientIp = req.headers['x-forwarded-for'] || req.connection?.remoteAddress || req.socket?.remoteAddress || 'unknown';
+    if (typeof clientIp === 'string') {
+      clientIp = clientIp.split(',')[0].trim();
+    }
+
+    // IP Whitelisting Enforcement
     if (user.allowIp && user.allowIp.trim() !== '') {
-      let clientIp = req.headers['x-forwarded-for'] || req.connection?.remoteAddress || req.socket?.remoteAddress;
-      // Extract the first IP if there is a comma-separated list
-      if (typeof clientIp === 'string') {
-        clientIp = clientIp.split(',')[0].trim();
-      }
-      
       // Simple string match for MVP. In production, CIDR matching might be needed.
       if (clientIp !== user.allowIp.trim()) {
         this.logsService.logThreat({
@@ -54,6 +54,14 @@ export class AuthController {
         throw new UnauthorizedException('Access denied from this IP address.');
       }
     }
+
+    this.logsService.logEvent({
+      userId: user.id,
+      username: user.username,
+      action: 'LOGIN',
+      details: 'User logged in successfully.',
+      ipAddress: clientIp,
+    }).catch(e => console.error('Failed to log event:', e));
 
     return this.authService.login(user);
   }

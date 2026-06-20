@@ -3,9 +3,14 @@ import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import * as bcrypt from 'bcrypt';
 
+import { LogsService } from '../logs/logs.service';
+
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly logsService: LogsService
+  ) {}
 
   @UseGuards(JwtAuthGuard)
   @Patch('profile')
@@ -25,6 +30,14 @@ export class UsersController {
     // Update profile
     const updatedUser = await this.usersService.updateProfile(userId, { newUsername, newPassword });
     
+    this.logsService.logEvent({
+      userId: req.user.id,
+      username: req.user.username,
+      action: 'UPDATE_PROFILE',
+      details: `User updated their own profile (Username/Password)`,
+      ipAddress: req.headers['x-forwarded-for'] || req.connection?.remoteAddress || req.socket?.remoteAddress,
+    }).catch(e => console.error(e));
+
     // Omit password hash from response
     const { passwordHash, ...result } = updatedUser;
     return result;
@@ -83,19 +96,37 @@ export class UsersController {
 
   @UseGuards(JwtAuthGuard)
   @Post()
-  async createUser(@Body() body: any) {
+  async createUser(@Body() body: any, @Request() req: any) {
     const { username, password, role, status, allowIp, publicKey } = body;
     const formattedRole = role ? (role.charAt(0).toUpperCase() + role.slice(1).toLowerCase()) : undefined;
     const formattedStatus = status ? (status.charAt(0).toUpperCase() + status.slice(1).toLowerCase()) : undefined;
     const newUser = await this.usersService.create(username, password, formattedRole, formattedStatus, allowIp, publicKey);
+    
+    this.logsService.logEvent({
+      userId: req.user.id,
+      username: req.user.username,
+      action: 'CREATE_USER',
+      details: `Created new user: ${username} with role ${formattedRole}`,
+      ipAddress: req.headers['x-forwarded-for'] || req.connection?.remoteAddress || req.socket?.remoteAddress,
+    }).catch(e => console.error(e));
+
     const { passwordHash, ...result } = newUser;
     return result;
   }
 
   @UseGuards(JwtAuthGuard)
   @Delete(':id')
-  async deleteUser(@Param('id') id: string) {
+  async deleteUser(@Param('id') id: string, @Request() req: any) {
     await this.usersService.delete(id);
+
+    this.logsService.logEvent({
+      userId: req.user.id,
+      username: req.user.username,
+      action: 'DELETE_USER',
+      details: `Deleted user ID: ${id}`,
+      ipAddress: req.headers['x-forwarded-for'] || req.connection?.remoteAddress || req.socket?.remoteAddress,
+    }).catch(e => console.error(e));
+
     return { success: true };
   }
 
@@ -115,9 +146,18 @@ export class UsersController {
 
   @UseGuards(JwtAuthGuard)
   @Patch(':id')
-  async adminUpdateUser(@Param('id') id: string, @Body() body: any) {
+  async adminUpdateUser(@Param('id') id: string, @Body() body: any, @Request() req: any) {
     const { username, role, status, allowIp, publicKey } = body;
     const updatedUser = await this.usersService.adminUpdateUser(id, { username, role, status, allowIp, publicKey });
+    
+    this.logsService.logEvent({
+      userId: req.user.id,
+      username: req.user.username,
+      action: 'UPDATE_USER',
+      details: `Updated user ID: ${id}`,
+      ipAddress: req.headers['x-forwarded-for'] || req.connection?.remoteAddress || req.socket?.remoteAddress,
+    }).catch(e => console.error(e));
+
     const { passwordHash, ...result } = updatedUser;
     return result;
   }

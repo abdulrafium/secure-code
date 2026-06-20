@@ -143,6 +143,14 @@ export default function AdminHeader() {
                         Account Settings
                         {pathname === '/admin/settings' && <div className="absolute bottom-0 left-0 w-full h-[2px] bg-blue-500 rounded-t-full shadow-[0_-2px_10px_rgba(59,130,246,0.5)]" />}
                     </Link>
+                    <Link href="/admin/system-settings" className={`font-medium text-[13px] h-full flex items-center relative transition-colors ${pathname === '/admin/system-settings' ? 'text-blue-500' : 'text-slate-400 hover:text-slate-200'}`}>
+                        System Settings
+                        {pathname === '/admin/system-settings' && <div className="absolute bottom-0 left-0 w-full h-[2px] bg-blue-500 rounded-t-full shadow-[0_-2px_10px_rgba(59,130,246,0.5)]" />}
+                    </Link>
+                    <Link href="/admin/logs" className={`font-medium text-[13px] h-full flex items-center relative transition-colors ${pathname === '/admin/logs' ? 'text-blue-500' : 'text-slate-400 hover:text-slate-200'}`}>
+                        Audit Logs
+                        {pathname === '/admin/logs' && <div className="absolute bottom-0 left-0 w-full h-[2px] bg-blue-500 rounded-t-full shadow-[0_-2px_10px_rgba(59,130,246,0.5)]" />}
+                    </Link>
                 </nav>
 
                 {/* Right: Profile & Mobile Menu */}
@@ -216,6 +224,12 @@ export default function AdminHeader() {
                         </Link>
                         <Link onClick={() => setIsMobileMenuOpen(false)} href="/admin/settings" className={`px-4 py-3 rounded-lg text-sm font-medium transition-colors ${pathname === '/admin/settings' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-300 hover:bg-slate-800/50'}`}>
                             Account Settings
+                        </Link>
+                        <Link onClick={() => setIsMobileMenuOpen(false)} href="/admin/system-settings" className={`px-4 py-3 rounded-lg text-sm font-medium transition-colors ${pathname === '/admin/system-settings' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-300 hover:bg-slate-800/50'}`}>
+                            System Settings
+                        </Link>
+                        <Link onClick={() => setIsMobileMenuOpen(false)} href="/admin/logs" className={`px-4 py-3 rounded-lg text-sm font-medium transition-colors ${pathname === '/admin/logs' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-300 hover:bg-slate-800/50'}`}>
+                            Audit Logs
                         </Link>
                     </nav>
                 </div>

@@ -29,3 +29,7 @@
 ### Day 6: Collaboration & Real-Time Sync
 - Integrate Yjs (CRDT) into the Monaco Editor and link it to the existing WebSocket Gateway.
 - Implement visual cursors (showing username and unique colors) when multiple developers open the same file.
+
+### Admin Dashboard Enhancements (Completed)
+- **Admin System Settings:** Built a dedicated UI (`/admin/system-settings`) backed by a new `SystemSetting` database table to dynamically control global configurations (e.g., Maintenance Mode, Blocked Terminal Regex).
+- **Admin Logs & Reports:** Upgraded the security log into a full-scale `AuditLog` trailing system (`/admin/logs`) that precisely tracks who logged in, who created projects, and who updated settings with exact timestamps and IP addresses.

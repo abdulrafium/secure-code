@@ -15,6 +15,12 @@ export class LogsService {
     return await this.logsRepository.save(log);
   }
 
+  // General system-wide audit trailing
+  async logEvent(data: { userId?: string; username?: string; action: string; details: string; ipAddress?: string }) {
+    const log = this.logsRepository.create(data);
+    return await this.logsRepository.save(log);
+  }
+
   async getLogs() {
     return await this.logsRepository.find({ order: { createdAt: 'DESC' }, take: 100 });
   }

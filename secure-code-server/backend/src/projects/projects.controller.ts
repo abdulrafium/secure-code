@@ -3,11 +3,16 @@ import type { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ProjectsService } from './projects.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { LogsService } from '../logs/logs.service';
 
 @Controller('projects')
 export class ProjectsController {
-  constructor(private readonly projectsService: ProjectsService) {}
+  constructor(
+    private readonly projectsService: ProjectsService,
+    private readonly logsService: LogsService
+  ) {}
 
+  @UseGuards(JwtAuthGuard)
   @Get()
   async findAll() {
     return this.projectsService.findAll();
@@ -41,10 +46,21 @@ export class ProjectsController {
     return this.projectsService.unassignUser(id, userId);
   }
 
+  @UseGuards(JwtAuthGuard)
   @Post()
-  async create(@Body('name') name: string) {
+  async create(@Body('name') name: string, @Request() req: any) {
     if (!name) throw new BadRequestException('Project name is required');
-    return this.projectsService.create(name);
+    const project = await this.projectsService.create(name);
+    
+    this.logsService.logEvent({
+      userId: req.user.id,
+      username: req.user.username,
+      action: 'CREATE_PROJECT',
+      details: `Created new project: ${name}`,
+      ipAddress: req.headers['x-forwarded-for'] || req.connection?.remoteAddress || req.socket?.remoteAddress,
+    }).catch(e => console.error(e));
+
+    return project;
   }
 
   @Patch(':id')
@@ -97,9 +113,19 @@ export class ProjectsController {
     await this.projectsService.exportZip(id, res);
   }
 
+  @UseGuards(JwtAuthGuard)
   @Delete(':id')
-  async remove(@Param('id') id: string) {
+  async remove(@Param('id') id: string, @Request() req: any) {
     await this.projectsService.remove(id);
+    
+    this.logsService.logEvent({
+      userId: req.user.id,
+      username: req.user.username,
+      action: 'DELETE_PROJECT',
+      details: `Deleted project ID: ${id}`,
+      ipAddress: req.headers['x-forwarded-for'] || req.connection?.remoteAddress || req.socket?.remoteAddress,
+    }).catch(e => console.error(e));
+
     return { success: true };
   }
 }

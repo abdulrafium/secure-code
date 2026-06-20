@@ -10,6 +10,7 @@ import { EditorModule } from './editor/editor.module';
 import { ProjectsModule } from './projects/projects.module';
 
 import { LogsModule } from './logs/logs.module';
+import { SettingsModule } from './settings/settings.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { LogsModule } from './logs/logs.module';
     EditorModule,
     ProjectsModule,
     LogsModule,
+    SettingsModule,
   ],
   controllers: [AppController],
   providers: [
