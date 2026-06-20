@@ -113,6 +113,9 @@ export default function AdminDashboard() {
                 setProjectsList(projects || []);
                 setSecurityLogs(logsData || []);
                 if (sshData?.publicKey) setPublicKey(sshData.publicKey);
+                if (backupData?.backupCode !== undefined && backupData?.backupCode !== null) {
+                    setBackupCode(backupData.backupCode || null);
+                }
             }).catch(console.error);
         };
 
@@ -186,7 +189,17 @@ export default function AdminDashboard() {
     const handleCopyBackupCode = async () => {
         if (!backupCode || backupCode === 'RECOVERED') return;
         try {
-            await navigator.clipboard.writeText(backupCode);
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(backupCode);
+            } else {
+                const textArea = document.createElement("textarea");
+                textArea.value = backupCode;
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+            }
             setIsBackupCopied(true);
             setTimeout(() => setIsBackupCopied(false), 2000);
         } catch (err) {
@@ -471,8 +484,8 @@ export default function AdminDashboard() {
                                     onClick={() => setShowBackupConfirm(true)}
                                     className="flex items-center space-x-1 px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-[10px] font-medium rounded-md transition-colors border border-emerald-500/20"
                                 >
-                                    <RotateCcw className={`w-3 h-3 ${isGeneratingBackup ? 'animate-spin' : ''}`} />
-                                    <span>{isGeneratingBackup ? 'Generating...' : 'Generate Code'}</span>
+                                    <RotateCcw className="w-3 h-3" />
+                                    <span>Generate Code</span>
                                 </button>
                             </div>
                             <p className="text-slate-600 text-[10px] mb-3">This code can only be used once.</p>
@@ -848,10 +861,11 @@ export default function AdminDashboard() {
                                 </button>
                                 <button
                                     onClick={handleGenerateBackupCode}
-                                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg transition-colors flex items-center space-x-2 shadow-lg shadow-emerald-900/20"
+                                    disabled={isGeneratingBackup}
+                                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg transition-colors flex items-center space-x-2 shadow-lg shadow-emerald-900/20 disabled:opacity-50"
                                 >
-                                    <RotateCcw className="w-4 h-4" />
-                                    <span>Yes, Generate Code</span>
+                                    <RotateCcw className={`w-4 h-4 ${isGeneratingBackup ? 'animate-spin' : ''}`} />
+                                    <span>{isGeneratingBackup ? 'Generating...' : 'Yes, Generate Code'}</span>
                                 </button>
                             </div>
                         </div>
