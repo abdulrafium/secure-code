@@ -7,6 +7,88 @@ import { api } from '../../../lib/api';
 
 import 'rrweb-player/dist/style.css';
 
+const RrwebPlayerWrapper = ({ filename }: { filename: string }) => {
+    const containerRef = React.useRef<HTMLDivElement>(null);
+    const [status, setStatus] = useState<'loading' | 'error' | 'empty' | 'playing'>('loading');
+
+    useEffect(() => {
+        let playerInstance: any = null;
+        let isMounted = true;
+
+        const loadSession = async () => {
+            try {
+                const data = await api.get(`/logs/sessions/${filename}`);
+                if (!isMounted) return;
+
+                if (!Array.isArray(data) || data.length < 2) {
+                    setStatus('empty');
+                    return;
+                }
+
+                const rrwebPlayerModule = await import('rrweb-player');
+                const RrwebPlayer = rrwebPlayerModule.default || rrwebPlayerModule as any;
+                
+                if (containerRef.current && isMounted) {
+                    setStatus('playing');
+                    // wait a tick for DOM to update from 'loading' state if needed
+                    setTimeout(() => {
+                        if (containerRef.current) {
+                            containerRef.current.innerHTML = '';
+                            playerInstance = new RrwebPlayer({
+                                target: containerRef.current,
+                                props: {
+                                    events: data,
+                                    width: containerRef.current.clientWidth || 1024,
+                                    height: containerRef.current.clientHeight || 600,
+                                    autoPlay: true,
+                                    showController: true,
+                                    speedOption: [1, 2, 4, 8],
+                                },
+                            });
+                        }
+                    }, 50);
+                }
+            } catch (error) {
+                console.error('Failed to load session data:', error);
+                if (isMounted) setStatus('error');
+            }
+        };
+
+        loadSession();
+
+        return () => {
+            isMounted = false;
+            if (playerInstance) {
+                // Cleanup if the library supports it, or just empty the DOM.
+                if (containerRef.current) containerRef.current.innerHTML = '';
+            }
+        };
+    }, [filename]);
+
+    return (
+        <div className="w-full h-full flex justify-center items-center overflow-hidden">
+            {status === 'loading' && (
+                <div className="text-slate-500 animate-pulse text-sm">Loading playback...</div>
+            )}
+            {status === 'empty' && (
+                <div className="text-slate-500 text-sm flex flex-col items-center justify-center">
+                    <p>Session data is incomplete or empty.</p>
+                    <p className="text-xs opacity-70 mt-1">The user may have closed the window immediately.</p>
+                </div>
+            )}
+            {status === 'error' && (
+                <div className="text-red-500 text-sm flex flex-col items-center justify-center">
+                    <p>Failed to load session data.</p>
+                </div>
+            )}
+            <div 
+                ref={containerRef} 
+                className={`w-full h-full flex justify-center items-center ${status === 'playing' ? 'block' : 'hidden'}`}
+            ></div>
+        </div>
+    );
+};
+
 export default function SessionsPage() {
     const [sessionsList, setSessionsList] = useState<any[]>([]);
     const [usersMap, setUsersMap] = useState<Record<string, any>>({});
@@ -53,47 +135,8 @@ export default function SessionsPage() {
         return new Date(mostRecentB).getTime() - new Date(mostRecentA).getTime();
     });
 
-    const handlePlaySession = async (filename: string) => {
+    const handlePlaySession = (filename: string) => {
         setActiveSessionFilename(filename);
-        
-        setTimeout(async () => {
-            const playerEl = document.getElementById('rrweb-player-container');
-            if (playerEl) {
-                playerEl.innerHTML = '<div class="text-slate-500 animate-pulse text-sm w-full h-full flex items-center justify-center">Loading playback...</div>';
-            }
-
-            try {
-                const data = await api.get(`/logs/sessions/${filename}`);
-                if (playerEl) {
-                    playerEl.innerHTML = ''; // clear loading
-                    
-                    if (!Array.isArray(data) || data.length < 2) {
-                        playerEl.innerHTML = '<div class="text-slate-500 text-sm w-full h-full flex flex-col items-center justify-center"><p>Session data is incomplete or empty.</p><p class="text-xs opacity-70 mt-1">The user may have closed the window immediately.</p></div>';
-                        return;
-                    }
-
-                    const rrwebPlayerModule = await import('rrweb-player');
-                    const RrwebPlayer = rrwebPlayerModule.default || rrwebPlayerModule as any;
-                    
-                    new RrwebPlayer({
-                        target: playerEl,
-                        props: {
-                            events: data,
-                            width: playerEl.clientWidth || 1024,
-                            height: playerEl.clientHeight || 600,
-                            autoPlay: true,
-                            showController: true,
-                            speedOption: [1, 2, 4, 8],
-                        },
-                    });
-                }
-            } catch (error) {
-                console.error('Failed to play session', error);
-                if (playerEl) {
-                    playerEl.innerHTML = '<div class="text-red-500 text-sm w-full h-full flex items-center justify-center">Failed to load session data.</div>';
-                }
-            }
-        }, 100);
     };
 
     const handleDeleteSession = async () => {
@@ -209,9 +252,7 @@ export default function SessionsPage() {
                                     >
                                         <X className="w-5 h-5" />
                                     </button>
-                                    <div id="rrweb-player-container" className="w-full h-full flex justify-center items-center">
-                                        {/* Player will mount here */}
-                                    </div>
+                                    <RrwebPlayerWrapper filename={activeSessionFilename} />
                                 </div>
                             )}
                         </div>
