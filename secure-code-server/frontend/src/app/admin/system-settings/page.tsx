@@ -81,11 +81,12 @@ export default function SystemSettingsPage() {
                     </button>
                 </div>
 
+                {/* Toast Notification */}
                 {saveMessage.text && (
-                    <div className={`p-4 rounded-lg flex items-center space-x-3 text-sm font-medium ${
-                        saveMessage.type === 'success' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                    <div className={`fixed bottom-6 right-6 z-[200] p-4 rounded-xl flex items-center space-x-3 text-sm font-medium shadow-2xl animate-in slide-in-from-bottom-5 fade-in duration-300 ${
+                        saveMessage.type === 'success' ? 'bg-[#062415] text-emerald-400 border border-emerald-500/30' : 'bg-[#2a0c0c] text-red-400 border border-red-500/30'
                     }`}>
-                        {saveMessage.type === 'success' ? <Shield className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+                        {saveMessage.type === 'success' ? <Shield className="w-5 h-5" /> : <AlertTriangle className="w-5 h-5" />}
                         <span>{saveMessage.text}</span>
                     </div>
                 )}

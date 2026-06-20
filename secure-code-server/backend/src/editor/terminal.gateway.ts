@@ -179,38 +179,37 @@ export class TerminalGateway implements OnGatewayConnection, OnGatewayDisconnect
       
       if (user && user.role !== 'Admin') {
         const projectId = client.handshake.query?.projectId as string;
-        if (projectId) {
-          const project = await this.projectsRepository.findOne({ where: { id: projectId } });
-          const globalBlacklist = ['git', 'sudo', 'su', 'curl', 'wget', 'apt', 'apt-get', 'dpkg', 'rm -rf /'];
-          const customBlacklist = project?.allowedCommands || [];
-          const combinedBlacklist = [...new Set([...globalBlacklist, ...customBlacklist])];
-          
-          let dynamicBlockedRegex: RegExp | null = null;
-          try {
-            const blockedCommandsStr = await this.settingsService.getSetting('blockedCommands', '');
-            if (blockedCommandsStr && blockedCommandsStr.trim() !== '') {
-               dynamicBlockedRegex = new RegExp(blockedCommandsStr, 'i');
+        let buffer = this.inputBuffers.get(client.id) || '';
+
+        if (data === '\x7f' || data === '\b') {
+          buffer = buffer.slice(0, -1);
+          this.inputBuffers.set(client.id, buffer);
+          ptyProcess.write(data);
+          return;
+        } else if (data === '\x03') { // Ctrl+C
+          this.inputBuffers.set(client.id, '');
+          ptyProcess.write(data);
+          return;
+        }
+
+        buffer += data;
+
+        if (buffer.includes('\r') || buffer.includes('\n')) {
+          if (projectId) {
+            const project = await this.projectsRepository.findOne({ where: { id: projectId } });
+            const globalBlacklist = ['git', 'sudo', 'su', 'curl', 'wget', 'apt', 'apt-get', 'dpkg', 'rm -rf /'];
+            const customBlacklist = project?.allowedCommands || [];
+            const combinedBlacklist = [...new Set([...globalBlacklist, ...customBlacklist])];
+            
+            let dynamicBlockedRegex: RegExp | null = null;
+            try {
+              const blockedCommandsStr = await this.settingsService.getSetting('blockedCommands', '');
+              if (blockedCommandsStr && blockedCommandsStr.trim() !== '') {
+                 dynamicBlockedRegex = new RegExp(blockedCommandsStr, 'i');
+              }
+            } catch (e) {
+              console.error('Failed to parse blocked commands regex:', e);
             }
-          } catch (e) {
-            console.error('Failed to parse blocked commands regex:', e);
-          }
-
-          let buffer = this.inputBuffers.get(client.id) || '';
-
-          if (data === '\x7f' || data === '\b') {
-            buffer = buffer.slice(0, -1);
-            this.inputBuffers.set(client.id, buffer);
-            ptyProcess.write(data);
-            return;
-          } else if (data === '\x03') { // Ctrl+C
-            this.inputBuffers.set(client.id, '');
-            ptyProcess.write(data);
-            return;
-          }
-
-          buffer += data;
-
-          if (buffer.includes('\r') || buffer.includes('\n')) {
             const lines = buffer.split(/[\r\n]+/);
             const remainingBuffer = lines.pop() || '';
 
@@ -224,43 +223,61 @@ export class TerminalGateway implements OnGatewayConnection, OnGatewayDisconnect
               const normalizedCmd = rawCmd.toLowerCase().replace(/[\s\t]+/g, ' ');
               const baseCmd = normalizedCmd.split(' ')[0];
 
-              for (const restrictedCmd of combinedBlacklist) {
-                const lowerRestricted = restrictedCmd.toLowerCase().replace(/[\s\t]+/g, ' ');
-                let isBlocked = false;
-                
-                if (baseCmd === lowerRestricted || normalizedCmd === lowerRestricted || normalizedCmd.startsWith(lowerRestricted + ' ')) {
-                   isBlocked = true;
-                }
-                
-                if (!isBlocked && dynamicBlockedRegex && dynamicBlockedRegex.test(rawCmd)) {
-                   isBlocked = true;
-                }
+              // Project's "allowedCommands" in the database is actually used as RESTRICTED commands in the UI.
+              const projectRestricted = project?.allowedCommands || [];
+              const combinedBlacklist = [...new Set([...globalBlacklist, ...projectRestricted])];
 
-                if (isBlocked) {
-                  client.emit('terminal.output', `\r\n\x1b[31mError: Command execution blocked by security policy: ${restrictedCmd}\x1b[0m\r\n`);
-                  this.inputBuffers.set(client.id, '');
-                  
-                  // Clear the hanging prompt in the pty by sending a SIGINT (Ctrl+C)
-                  ptyProcess.write('\x03');
+              let isBlocked = false;
+              let blockedBy = '';
 
-                  // Log as Security Threat
-                  this.logsService.logThreat({
-                    userId: user.id,
-                    username: user.username,
-                    action: 'BLOCKED_TERMINAL_COMMAND',
-                    details: `Attempted to run restricted command: ${rawCmd} in project ${projectId}`,
-                    ipAddress: client.handshake.address,
-                  }).catch(e => console.error('Failed to log threat:', e));
+              // Check regex first
+              if (dynamicBlockedRegex && dynamicBlockedRegex.test(rawCmd)) {
+                 isBlocked = true;
+                 blockedBy = 'Custom Regex';
+              }
+
+              // Check global and project blacklists
+              if (!isBlocked) {
+                for (const restrictedCmd of combinedBlacklist) {
+                  const lowerRestricted = restrictedCmd.toLowerCase().replace(/[\s\t]+/g, ' ');
                   
-                  return; // Block execution and don't write the enter key to pty
+                  if (baseCmd === lowerRestricted || normalizedCmd === lowerRestricted || normalizedCmd.startsWith(lowerRestricted + ' ')) {
+                     isBlocked = true;
+                     blockedBy = restrictedCmd;
+                     break;
+                  }
                 }
+              }
+
+              if (isBlocked) {
+                client.emit('terminal.output', `\r\n\x1b[31mError: Command execution blocked by security policy: ${blockedBy}\x1b[0m\r\n`);
+                this.inputBuffers.set(client.id, '');
+                
+                // Clear the hanging prompt in the pty by sending a SIGINT (Ctrl+C)
+                ptyProcess.write('\x03');
+
+                // Log as Security Threat
+                this.logsService.logThreat({
+                  userId: user.id,
+                  username: user.username,
+                  action: 'BLOCKED_TERMINAL_COMMAND',
+                  details: `Attempted to run restricted command: ${rawCmd} in project ${projectId}`,
+                  ipAddress: client.handshake.address,
+                }).catch(e => console.error('Failed to log threat:', e));
+                
+                return; // Block execution and don't write the enter key to pty
               }
             }
 
             this.inputBuffers.set(client.id, remainingBuffer);
           } else {
-            this.inputBuffers.set(client.id, buffer);
+            // No projectId, but we still handle the buffer
+            const lines = buffer.split(/[\r\n]+/);
+            const remainingBuffer = lines.pop() || '';
+            this.inputBuffers.set(client.id, remainingBuffer);
           }
+        } else {
+          this.inputBuffers.set(client.id, buffer);
         }
       }
 

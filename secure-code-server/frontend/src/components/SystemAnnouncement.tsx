@@ -13,10 +13,13 @@ export default function SystemAnnouncement() {
             try {
                 // api.get uses standard fetch. We can use it directly if no token is needed,
                 // but since the endpoint is public, it works flawlessly.
-                const data = await api.get('/settings/public');
+                // Add cache buster to prevent stale browser cache on VM restarts
+                const data = await api.get(`/settings/public?_t=${new Date().getTime()}`);
                 if (data) {
-                    if (data.systemMessage) setMessage(data.systemMessage);
-                    if (data.showSystemMessage) setShowSystemMessage(data.showSystemMessage);
+                    if (data.systemMessage !== undefined) setMessage(data.systemMessage);
+                    if (data.showSystemMessage !== undefined) {
+                        setShowSystemMessage(data.showSystemMessage === true || data.showSystemMessage === 'true');
+                    }
                 }
             } catch (err) {
                 console.error("Failed to fetch system announcement", err);
