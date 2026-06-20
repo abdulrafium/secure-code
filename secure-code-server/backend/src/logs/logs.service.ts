@@ -120,4 +120,20 @@ export class LogsService {
       return [];
     }
   }
+
+  async deleteSession(filename: string) {
+    try {
+      const safeFilename = path.basename(filename);
+      const filePath = path.join(process.cwd(), '..', 'sessions', safeFilename);
+      
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+        return { success: true, message: 'Session deleted successfully' };
+      }
+      return { success: false, message: 'Session not found' };
+    } catch (error) {
+      console.error('Failed to delete session', error);
+      return { success: false, message: 'Failed to delete session' };
+    }
+  }
 }

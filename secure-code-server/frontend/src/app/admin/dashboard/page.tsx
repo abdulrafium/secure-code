@@ -647,6 +647,7 @@ export default function AdminDashboard() {
                             </div>
                             <p className="text-slate-600 text-[10px] mb-4">Manage and secure your data backups</p>
 
+                            <div className="flex space-x-2">
                                 <button 
                                     onClick={() => selectedBackup ? setSelectedBackup(null) : setIsBackupsModalOpen(true)}
                                     className="flex-1 flex items-center justify-center space-x-2 py-2 bg-blue-500/5 hover:bg-blue-500/10 text-blue-400 text-xs font-medium rounded-lg border border-blue-500/20 transition-colors group"

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { User, Video, Folder, Calendar, Activity } from 'lucide-react';
+import { User, Video, Folder, Calendar, Activity, Trash2, X, AlertTriangle } from 'lucide-react';
 import AdminHeader from '../../../components/AdminHeader';
 import { api } from '../../../lib/api';
 
@@ -12,6 +12,8 @@ export default function SessionsPage() {
     const [usersMap, setUsersMap] = useState<Record<string, any>>({});
     const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
     const [activeSessionFilename, setActiveSessionFilename] = useState<string | null>(null);
+    const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -83,6 +85,26 @@ export default function SessionsPage() {
         }
     };
 
+    const handleDeleteSession = async () => {
+        if (!sessionToDelete) return;
+        setIsDeleting(true);
+        try {
+            await api.delete(`/logs/sessions/${sessionToDelete}`);
+            setSessionsList(prev => prev.filter(s => s.filename !== sessionToDelete));
+            if (activeSessionFilename === sessionToDelete) {
+                setActiveSessionFilename(null);
+                const playerEl = document.getElementById('rrweb-player-container');
+                if (playerEl) playerEl.innerHTML = '';
+            }
+            setSessionToDelete(null);
+        } catch (error) {
+            console.error('Failed to delete session', error);
+            alert('Failed to delete session');
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
     return (
         <div className="min-h-screen bg-[#050b14] font-sans text-slate-300 flex flex-col">
             <AdminHeader />
@@ -140,7 +162,7 @@ export default function SessionsPage() {
                                                 </div>
                                                 <div className="min-w-0">
                                                     <p className={`text-sm font-medium truncate ${isSelected ? 'text-blue-300' : 'text-slate-300'}`}>
-                                                        {user ? user.username : \`User \${userId.slice(0, 8)}\`}
+                                                        {user ? user.username : `User ${userId.slice(0, 8)}`}
                                                     </p>
                                                     <p className="text-xs text-slate-500">{sessionCount} sessions</p>
                                                 </div>
@@ -201,13 +223,26 @@ export default function SessionsPage() {
                                                 }`}
                                             >
                                                 <div>
-                                                    <div className="flex justify-between items-start mb-2">
-                                                        <span className={`text-xs font-medium truncate ${isPlaying ? 'text-emerald-400' : 'text-slate-300'}`}>
-                                                            {new Date(session.updatedAt).toLocaleDateString()}
+                                                    <div className="flex justify-between items-start mb-2 relative">
+                                                        <span className={`text-[11px] font-medium truncate ${isPlaying ? 'text-emerald-400' : 'text-slate-300'}`}>
+                                                            {new Date(session.updatedAt).toLocaleString(undefined, {
+                                                                month: 'short', day: 'numeric', year: 'numeric'
+                                                            })}
                                                         </span>
-                                                        <span className="text-[10px] text-slate-500 bg-slate-900 px-1.5 py-0.5 rounded">
-                                                            {new Date(session.updatedAt).toLocaleTimeString()}
-                                                        </span>
+                                                        <div className="flex items-center space-x-2">
+                                                            <span className="text-[10px] text-slate-500 bg-slate-900 px-1.5 py-0.5 rounded">
+                                                                {new Date(session.updatedAt).toLocaleTimeString(undefined, {
+                                                                    hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true
+                                                                })}
+                                                            </span>
+                                                            <button 
+                                                                onClick={(e) => { e.stopPropagation(); setSessionToDelete(session.filename); }}
+                                                                className="text-slate-500 hover:text-red-400 p-0.5 rounded hover:bg-slate-800 transition-colors"
+                                                                title="Delete Session"
+                                                            >
+                                                                <Trash2 className="w-3 h-3" />
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                     <div className="flex items-center space-x-1.5 text-slate-400 mt-3">
                                                         <Folder className="w-3.5 h-3.5" />
@@ -240,6 +275,39 @@ export default function SessionsPage() {
                     </div>
 
                 </div>
+
+                {/* --- DELETE CONFIRMATION MODAL --- */}
+                {sessionToDelete && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                        <div className="absolute inset-0 bg-[#040814]/80 backdrop-blur-sm" onClick={() => setSessionToDelete(null)} />
+                        <div className="relative w-full max-w-md bg-[#0b1121] border border-slate-800 rounded-2xl shadow-2xl p-6 overflow-hidden">
+                            <div className="flex items-center space-x-3 mb-4">
+                                <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center shrink-0">
+                                    <AlertTriangle className="w-5 h-5 text-red-400" />
+                                </div>
+                                <h2 className="text-lg font-medium text-slate-200">Delete Session?</h2>
+                            </div>
+                            <p className="text-slate-400 text-sm mb-6 pl-13">
+                                Are you sure you want to permanently delete this session recording? This action cannot be undone.
+                            </p>
+                            <div className="flex justify-end space-x-3">
+                                <button
+                                    onClick={() => setSessionToDelete(null)}
+                                    className="px-4 py-2 text-sm font-medium text-slate-300 hover:text-white bg-transparent hover:bg-slate-800/50 rounded-lg transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleDeleteSession}
+                                    disabled={isDeleting}
+                                    className="px-4 py-2 text-sm font-medium text-white bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 rounded-lg transition-colors flex items-center"
+                                >
+                                    {isDeleting ? 'Deleting...' : 'Yes, Delete'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </main>
         </div>
     );

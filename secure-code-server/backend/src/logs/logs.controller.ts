@@ -59,4 +59,12 @@ export class LogsController {
     }
     return this.logsService.getSessionData(filename);
   }
+
+  @Delete('sessions/:filename')
+  async deleteSession(@Request() req: any, @Param('filename') filename: string) {
+    if (req.user?.role !== 'Admin') {
+      throw new UnauthorizedException('Only admins can delete sessions.');
+    }
+    return this.logsService.deleteSession(filename);
+  }
 }
