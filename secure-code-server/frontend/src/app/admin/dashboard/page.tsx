@@ -99,7 +99,13 @@ export default function AdminDashboard() {
         totalUsers: 0, 
         usersThisWeek: 0,
         totalProjects: 0,
-        projectsThisWeek: 0
+        projectsThisWeek: 0,
+        runningServices: 0,
+        servicesThisWeek: 0,
+        requestsToday: 0,
+        requestsYesterday: 0,
+        systemHealth: 100,
+        healthStatus: 'Excellent'
     });
 
     useEffect(() => {
@@ -114,10 +120,38 @@ export default function AdminDashboard() {
                 api.get('/logs').catch(() => []),
                 api.get('/logs/sessions').catch(() => [])
             ]).then(([statsData, users, projects, deps, sshData, backupData, logsData, sessionsData]) => {
+                const now = new Date();
                 const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+                
+                const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                const yesterdayStart = new Date(todayStart.getTime() - 24 * 60 * 60 * 1000);
                 
                 const usersThisWeek = (users || []).filter((u: any) => new Date(u.createdAt) > oneWeekAgo).length;
                 const projectsThisWeek = (projects || []).filter((p: any) => new Date(p.createdAt) > oneWeekAgo).length;
+
+                // Running Services: Unique projects that have a 'Success' deployment
+                const successfulDeps = (deps || []).filter((d: any) => d.status === 'Success');
+                const runningServicesCount = new Set(successfulDeps.map((d: any) => d.projectId)).size || successfulDeps.length;
+                const servicesThisWeek = successfulDeps.filter((d: any) => new Date(d.createdAt) > oneWeekAgo).length;
+
+                // Requests Today
+                const requestsToday = (logsData || []).filter((l: any) => new Date(l.createdAt) >= todayStart).length;
+                const requestsYesterday = (logsData || []).filter((l: any) => {
+                    const d = new Date(l.createdAt);
+                    return d >= yesterdayStart && d < todayStart;
+                }).length;
+
+                // System Health
+                let systemHealth = 100;
+                let healthStatus = 'Excellent';
+                const logsToday = (logsData || []).filter((l: any) => new Date(l.createdAt) >= todayStart);
+                if (logsToday.length > 0) {
+                    const threats = logsToday.filter((l: any) => l.action?.includes('THREAT') || l.action?.includes('BLOCKED')).length;
+                    systemHealth = Math.max(0, 100 - (threats / logsToday.length) * 100);
+                    if (systemHealth < 95) healthStatus = 'Good';
+                    if (systemHealth < 85) healthStatus = 'Warning';
+                    if (systemHealth < 70) healthStatus = 'Critical';
+                }
 
                 setStats({
                     roles: statsData?.roles || { admin: 0, developer: 0, viewer: 0 },
@@ -125,7 +159,13 @@ export default function AdminDashboard() {
                     totalUsers: users?.length || 0,
                     usersThisWeek,
                     totalProjects: projects?.length || 0,
-                    projectsThisWeek
+                    projectsThisWeek,
+                    runningServices: runningServicesCount,
+                    servicesThisWeek,
+                    requestsToday,
+                    requestsYesterday,
+                    systemHealth: parseFloat(systemHealth.toFixed(1)),
+                    healthStatus
                 });
                 setDeployments(deps || []);
                 setProjectsList(projects || []);
@@ -420,8 +460,8 @@ export default function AdminDashboard() {
                             <span className="text-slate-400 text-xs font-medium">Running Services</span>
                         </div>
                         <div className="mt-3">
-                            <h3 className="text-2xl font-bold text-white">86</h3>
-                            <p className="text-emerald-400 text-xs mt-1 font-medium">+8 this week</p>
+                            <h3 className="text-2xl font-bold text-white">{stats.runningServices}</h3>
+                            <p className="text-emerald-400 text-xs mt-1 font-medium">+{stats.servicesThisWeek} this week</p>
                         </div>
                     </div>
 
@@ -434,8 +474,12 @@ export default function AdminDashboard() {
                             <span className="text-slate-400 text-xs font-medium">Requests Today</span>
                         </div>
                         <div className="mt-3">
-                            <h3 className="text-2xl font-bold text-white">2.4M</h3>
-                            <p className="text-emerald-400 text-xs mt-1 font-medium">+18.6% than yesterday</p>
+                            <h3 className="text-2xl font-bold text-white">{stats.requestsToday.toLocaleString()}</h3>
+                            <p className={`${stats.requestsToday >= stats.requestsYesterday ? 'text-emerald-400' : 'text-red-400'} text-xs mt-1 font-medium`}>
+                                {stats.requestsYesterday > 0 
+                                    ? `${stats.requestsToday >= stats.requestsYesterday ? '+' : ''}${(((stats.requestsToday - stats.requestsYesterday) / stats.requestsYesterday) * 100).toFixed(1)}% than yesterday`
+                                    : '+100% than yesterday'}
+                            </p>
                         </div>
                     </div>
 
@@ -448,8 +492,10 @@ export default function AdminDashboard() {
                             <span className="text-slate-400 text-xs font-medium">System Health</span>
                         </div>
                         <div className="mt-3">
-                            <h3 className="text-2xl font-bold text-white">99.9%</h3>
-                            <p className="text-slate-500 text-xs mt-1 font-medium">Excellent</p>
+                            <h3 className="text-2xl font-bold text-white">{stats.systemHealth}%</h3>
+                            <p className={`${stats.healthStatus === 'Excellent' || stats.healthStatus === 'Good' ? 'text-emerald-500' : stats.healthStatus === 'Warning' ? 'text-amber-500' : 'text-red-500'} text-xs mt-1 font-medium`}>
+                                {stats.healthStatus}
+                            </p>
                         </div>
                     </div>
 
