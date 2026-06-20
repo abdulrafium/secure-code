@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Get,
+  Delete,
   Param,
   UseGuards,
   Request,
@@ -49,5 +50,14 @@ export class BackupsController {
       throw new ForbiddenException('Only Admins can view backup status');
     }
     return this.backupsService.getBackupStatus(jobId);
+  }
+
+  @Delete(':filename')
+  @UseGuards(JwtAuthGuard)
+  async deleteBackup(@Param('filename') filename: string, @Request() req: any) {
+    if (req.user.role !== 'Admin') {
+      throw new ForbiddenException('Only Admins can delete backups');
+    }
+    return this.backupsService.deleteBackup(filename);
   }
 }

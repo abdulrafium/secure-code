@@ -314,6 +314,22 @@ export default function AdminDashboard() {
         }
     };
 
+    const handleDeleteBackup = async (filename: string) => {
+        if (!confirm(`Are you sure you want to delete backup ${filename}?`)) return;
+        try {
+            const res = await api.delete(`/backups/${filename}`);
+            if (res.success) {
+                setAvailableBackups(prev => prev.filter(b => b.filename !== filename));
+                if (selectedBackup === filename) setSelectedBackup(null);
+            } else {
+                alert(res.message || 'Failed to delete backup.');
+            }
+        } catch (error) {
+            console.error('Failed to delete backup', error);
+            alert('Failed to delete backup.');
+        }
+    };
+
     const formatRelativeTime = (dateStr: string) => {
         const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
         if (diff < 60) return 'just now';
@@ -652,40 +668,40 @@ export default function AdminDashboard() {
                             </div>
                             <p className="text-slate-600 text-[10px] mb-4">Manage and secure your data backups</p>
 
-                            <div className="flex space-x-2">
+                            <div className="flex space-x-2 mt-2">
+                                <button 
+                                    onClick={handleExportBackup}
+                                    disabled={isExportingBackup}
+                                    className="flex-1 flex items-center justify-center space-x-1.5 py-2 bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-400 text-[11px] font-medium rounded-lg border border-emerald-500/20 transition-colors disabled:opacity-50"
+                                >
+                                    <UploadCloud className={`w-3.5 h-3.5 ${isExportingBackup ? 'animate-bounce' : ''}`} />
+                                    <span>{isExportingBackup ? 'Exporting...' : 'Export'}</span>
+                                </button>
                                 <button 
                                     onClick={() => selectedBackup ? setSelectedBackup(null) : setIsBackupsModalOpen(true)}
-                                    className="flex-1 flex items-center justify-center space-x-2 py-2 bg-blue-500/5 hover:bg-blue-500/10 text-blue-400 text-xs font-medium rounded-lg border border-blue-500/20 transition-colors group"
+                                    className="flex-1 flex items-center justify-center space-x-1.5 py-2 bg-blue-500/5 hover:bg-blue-500/10 text-blue-400 text-[11px] font-medium rounded-lg border border-blue-500/20 transition-colors group"
                                 >
                                     {selectedBackup ? (
                                         <>
-                                            <span className="truncate max-w-[100px] text-[10px]">{selectedBackup}</span>
+                                            <span className="truncate max-w-[60px]">{selectedBackup}</span>
                                             <X className="w-3.5 h-3.5 text-red-400 opacity-50 group-hover:opacity-100" />
                                         </>
                                     ) : (
                                         <>
                                             <DownloadCloud className="w-3.5 h-3.5" />
-                                            <span>Import Backup</span>
+                                            <span>Import</span>
                                         </>
                                     )}
                                 </button>
                                 <button 
                                     onClick={handleRestoreBackup}
                                     disabled={!selectedBackup || isRestoringBackup}
-                                    className="flex-1 flex items-center justify-center space-x-2 py-2 bg-purple-500/5 hover:bg-purple-500/10 text-purple-400 text-xs font-medium rounded-lg border border-purple-500/20 transition-colors disabled:opacity-50"
+                                    className="flex-1 flex items-center justify-center space-x-1.5 py-2 bg-purple-500/5 hover:bg-purple-500/10 text-purple-400 text-[11px] font-medium rounded-lg border border-purple-500/20 transition-colors disabled:opacity-50"
                                 >
                                     <RotateCcw className={`w-3.5 h-3.5 ${isRestoringBackup ? 'animate-spin' : ''}`} />
-                                    <span>{isRestoringBackup ? 'Restoring...' : 'Restore Backup'}</span>
+                                    <span>{isRestoringBackup ? 'Restoring...' : 'Restore'}</span>
                                 </button>
                             </div>
-                            <button 
-                                onClick={handleExportBackup}
-                                disabled={isExportingBackup}
-                                className="w-full mt-2 flex items-center justify-center space-x-2 py-2 bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-400 text-xs font-medium rounded-lg border border-emerald-500/20 transition-colors disabled:opacity-50"
-                            >
-                                <UploadCloud className={`w-3.5 h-3.5 ${isExportingBackup ? 'animate-bounce' : ''}`} />
-                                <span>{isExportingBackup ? 'Exporting...' : 'Export Full Backup'}</span>
-                            </button>
                         </div>
 
                     </div>
@@ -733,19 +749,31 @@ export default function AdminDashboard() {
                                 ) : (
                                     <Activity className="w-4 h-4 text-indigo-400 animate-pulse" />
                                 )}
-                                <span className="text-sm font-medium text-slate-200">
-                                    {jobType === 'EXPORT' ? 'Exporting Backup' : jobType === 'RESTORE' ? 'Restoring Backup' : `${jobType} Job`}
-                                </span>
+                                <div>
+                                    <h4 className="text-sm font-medium text-slate-200">
+                                        {jobStatus === 'completed' 
+                                            ? (jobType === 'RESTORE' ? 'Restore Complete' : 'Export Complete') 
+                                            : jobStatus === 'failed' 
+                                                ? (jobType === 'RESTORE' ? 'Restore Failed' : 'Export Failed') 
+                                                : (jobType === 'RESTORE' ? 'Restoring Backup' : 'Exporting Backup')
+                                        }
+                                    </h4>
+                                    <p className="text-[10px] text-slate-500 mt-0.5">Job ID: {activeJobId}</p>
+                                </div>
                             </div>
-                            <button onClick={() => setIsToastVisible(false)} className="text-slate-500 hover:text-slate-300">
-                                <X className="w-4 h-4" />
-                            </button>
+                            {jobStatus !== 'completed' && jobStatus !== 'failed' && (
+                                <button onClick={() => setIsToastVisible(false)} className="text-slate-500 hover:text-slate-300">
+                                    <X className="w-4 h-4" />
+                                </button>
+                            )}
                         </div>
-                        <div className="w-full bg-slate-800 rounded-full h-1.5 mb-1">
+                        <div className="w-full bg-slate-800 rounded-full h-1.5 mb-1.5 overflow-hidden">
                             <div 
-                                className={`h-1.5 rounded-full transition-all duration-500 ${jobStatus === 'failed' ? 'bg-red-500' : 'bg-indigo-500'}`} 
+                                className={`h-1.5 rounded-full transition-all duration-500 ${
+                                    jobStatus === 'completed' ? 'bg-emerald-500' : jobStatus === 'failed' ? 'bg-red-500' : 'bg-indigo-500'
+                                }`}
                                 style={{ width: `${jobProgress}%` }}
-                            />
+                            ></div>
                         </div>
                         <div className="flex justify-between items-center text-[10px]">
                             <span className={jobStatus === 'completed' ? 'text-emerald-400' : jobStatus === 'failed' ? 'text-red-400' : 'text-slate-400'}>
@@ -786,13 +814,15 @@ export default function AdminDashboard() {
                                         {availableBackups.map((bkp, i) => (
                                             <div 
                                                 key={i} 
-                                                onClick={() => {
-                                                    setSelectedBackup(bkp.filename);
-                                                    setIsBackupsModalOpen(false);
-                                                }}
-                                                className="flex items-center justify-between p-3 rounded-xl border border-slate-800/50 bg-[#0b1121] hover:bg-blue-500/10 hover:border-blue-500/30 cursor-pointer transition-all group"
+                                                className="flex items-center justify-between p-3 rounded-xl border border-slate-800/50 bg-[#0b1121] hover:bg-blue-500/10 hover:border-blue-500/30 transition-all group"
                                             >
-                                                <div className="flex items-center space-x-3">
+                                                <div 
+                                                    className="flex items-center space-x-3 cursor-pointer flex-1"
+                                                    onClick={() => {
+                                                        setSelectedBackup(bkp.filename);
+                                                        setIsBackupsModalOpen(false);
+                                                    }}
+                                                >
                                                     <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400">
                                                         <Box className="w-4 h-4" />
                                                     </div>
@@ -801,6 +831,16 @@ export default function AdminDashboard() {
                                                         <p className="text-xs text-slate-500">{(bkp.size / 1024 / 1024).toFixed(2)} MB • {new Date(bkp.updatedAt).toLocaleString()}</p>
                                                     </div>
                                                 </div>
+                                                <button 
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleDeleteBackup(bkp.filename);
+                                                    }}
+                                                    className="p-2 text-slate-500 hover:text-red-400 hover:bg-slate-800/50 rounded-lg transition-colors ml-4 shrink-0"
+                                                    title="Delete Backup"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
                                             </div>
                                         ))}
                                     </div>

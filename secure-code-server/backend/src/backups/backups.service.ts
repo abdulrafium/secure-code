@@ -84,4 +84,20 @@ export class BackupsService {
       message: 'Restore job added to queue',
     };
   }
+
+  async deleteBackup(filename: string) {
+    try {
+      const backupDir = path.join(process.cwd(), '..', 'backups');
+      const safeFilename = path.basename(filename);
+      const filePath = path.join(backupDir, safeFilename);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+        return { success: true, message: 'Backup deleted' };
+      }
+      return { success: false, message: 'Backup not found' };
+    } catch (error) {
+      this.logger.error('Failed to delete backup', error);
+      return { success: false, message: 'Failed to delete backup' };
+    }
+  }
 }

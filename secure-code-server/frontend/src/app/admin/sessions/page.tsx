@@ -66,8 +66,10 @@ export default function SessionsPage() {
                 const data = await api.get(`/logs/sessions/${filename}`);
                 if (data && playerEl) {
                     playerEl.innerHTML = ''; // clear loading
-                    const rrwebPlayer = (await import('rrweb-player')).default;
-                    new rrwebPlayer({
+                    const rrwebPlayerModule = await import('rrweb-player');
+                    const RrwebPlayer = rrwebPlayerModule.default || rrwebPlayerModule as any;
+                    
+                    new RrwebPlayer({
                         target: playerEl,
                         props: {
                             events: data,
