@@ -8,7 +8,7 @@ import SystemAnnouncement from '../components/SystemAnnouncement';
 
 export default function LandingPage() {
     return (
-        <div className="min-h-screen bg-[#050810] text-slate-200 font-sans selection:bg-blue-500/30 overflow-x-hidden">
+        <div className="min-h-screen bg-[#050810] text-slate-200 font-sans selection:bg-blue-500/30">
 
             {/* Background Decorative Elements */}
             <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">

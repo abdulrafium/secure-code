@@ -30,14 +30,17 @@ export default function SystemAnnouncement() {
     return (
         <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white w-full shadow-[0_4px_20px_rgba(37,99,235,0.2)] relative z-[100] animate-in slide-in-from-top-4 fade-in duration-500">
             <div className="max-w-[1400px] mx-auto px-4 py-2.5 sm:px-6 lg:px-8 flex items-center justify-center">
-                <div className="flex items-center space-x-3 justify-center w-full">
-                    <div className="flex-shrink-0 bg-white/20 p-1.5 rounded-full backdrop-blur-sm shadow-inner">
-                        <Megaphone className="w-4 h-4 text-white" />
+                <div className="flex items-center space-x-3 sm:space-x-4 justify-center w-full">
+                    <div className="flex-shrink-0 bg-white/20 p-2 rounded-full backdrop-blur-sm shadow-inner relative">
+                        <Megaphone className="w-4 h-4 text-white animate-pulse" />
+                        <span className="absolute top-0 right-0 w-2 h-2 bg-blue-300 rounded-full animate-ping"></span>
                     </div>
-                    <p className="text-sm font-medium tracking-wide drop-shadow-sm text-center">
-                        <span className="font-bold mr-2 text-blue-200">System Update:</span>
-                        {message}
-                    </p>
+                    <div className="flex items-center">
+                        <span className="font-bold text-blue-200 uppercase tracking-widest text-xs mr-3 hidden sm:block">System Update</span>
+                        <span className="font-bold text-sm bg-white/10 border border-white/20 text-white px-5 py-1.5 rounded-full backdrop-blur-md shadow-inner tracking-wide">
+                            {message}
+                        </span>
+                    </div>
                 </div>
             </div>
         </div>
