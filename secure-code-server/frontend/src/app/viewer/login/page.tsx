@@ -52,6 +52,7 @@ export default function ViewerLogin() {
             }, 2500);
         } catch (err: any) {
             setIsLoading(false);
+            const msg = err.message || '';
             if (msg.includes('suspended')) {
                 setPopupInfo({ type: 'suspended', message: msg });
             } else if (msg.includes('blocked')) {
