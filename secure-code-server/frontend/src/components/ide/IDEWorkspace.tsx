@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import Editor from '@monaco-editor/react';
+import Editor, { DiffEditor } from '@monaco-editor/react';
 import {
   ChevronDown, ChevronRight, X, Plus, Terminal as TerminalIcon,
   Search, Type, Languages, Hash, FilePlus, FolderPlus,
@@ -69,6 +69,7 @@ export default function IDEWorkspace() {
   
   const [showCommitModal, setShowCommitModal] = useState(false);
   const [commitMessage, setCommitMessage] = useState('');
+  const [isDiffMode, setIsDiffMode] = useState(false);
 
   const activeFile = openFiles.find(f => f.path === activeFilePath) || null;
   const isViewer = userRole.toLowerCase() === 'viewer';
@@ -844,7 +845,9 @@ export default function IDEWorkspace() {
   }, [contextMenu, editorContextMenu]);
 
   const cursorColors = [
-    '#FF5733', '#33FF57', '#3357FF', '#FF33F5', '#33FFF5', '#F5FF33', '#FF8C33', '#8C33FF'
+    'hsl(10, 80%, 40%)', 'hsl(120, 80%, 35%)', 'hsl(220, 80%, 45%)',
+    'hsl(300, 80%, 40%)', 'hsl(180, 80%, 35%)', 'hsl(50, 90%, 35%)',
+    'hsl(25, 90%, 40%)', 'hsl(270, 80%, 45%)'
   ];
 
   // Cleanup Yjs
@@ -902,10 +905,15 @@ export default function IDEWorkspace() {
     const username = userInfo?.username || 'Guest';
     const color = getHashColor(username);
     
-    provider.awareness.setLocalStateField('user', {
-      name: username,
-      color: color
-    });
+    if (!isViewer) {
+      provider.awareness.setLocalStateField('user', {
+        name: username,
+        color: color
+      });
+    } else {
+      // Clear awareness for viewers so they don't render cursors
+      provider.awareness.setLocalStateField('user', null);
+    }
 
     let styleEl = document.getElementById('yjs-awareness-styles') as HTMLStyleElement;
     if (!styleEl) {
@@ -924,7 +932,8 @@ export default function IDEWorkspace() {
           // Fix: CSS classes must safely escape clientID if needed, but it's just a number.
           css += `
             .yRemoteSelection-${clientID} {
-              background-color: ${ucolor}40 !important;
+              background-color: ${ucolor} !important;
+              opacity: 0.3 !important;
             }
             .yRemoteSelectionHead-${clientID} {
               position: absolute !important;
@@ -934,6 +943,10 @@ export default function IDEWorkspace() {
               height: 100% !important;
               box-sizing: border-box !important;
               z-index: 9 !important;
+              pointer-events: auto !important;
+            }
+            .yRemoteSelectionHead-${clientID}:hover {
+              z-index: 100 !important;
             }
             .yRemoteSelectionHead-${clientID}::after {
               position: absolute !important;
@@ -952,14 +965,20 @@ export default function IDEWorkspace() {
               font-size: 11px !important;
               font-family: sans-serif !important;
               background-color: ${ucolor} !important;
-              color: #fff !important;
+              color: #ffffff !important;
+              text-shadow: 0px 1px 2px rgba(0,0,0,0.8) !important;
               padding: 2px 6px !important;
               border-radius: 3px !important;
               white-space: nowrap !important;
-              opacity: 1 !important;
+              opacity: 0.8 !important;
               pointer-events: none !important;
               z-index: 10 !important;
               box-shadow: 0 1px 3px rgba(0,0,0,0.3) !important;
+              transition: opacity 0.2s ease-in-out !important;
+            }
+            .yRemoteSelectionHead-${clientID}:hover::before {
+              opacity: 1 !important;
+              z-index: 100 !important;
             }
           `;
         }
@@ -1300,6 +1319,13 @@ export default function IDEWorkspace() {
           
           {/* Action Buttons */}
           <div className="flex items-center space-x-2 pointer-events-auto mt-1 mr-2">
+            <button 
+              onClick={() => setIsDiffMode(!isDiffMode)}
+              className={`px-4 py-1.5 rounded text-white text-[12px] font-bold shadow-md transition-all ${isDiffMode ? 'bg-[#ff9800] hover:bg-[#ffb74d]' : 'bg-[#4d4d4d] hover:bg-[#5d5d5d]'}`}
+              title="Compare with saved code"
+            >
+              {isDiffMode ? 'Exit Compare' : 'Compare'}
+            </button>
             {!isViewer && (
               <button 
                 onClick={startPipeline}
@@ -1364,16 +1390,27 @@ export default function IDEWorkspace() {
           {/* Monaco Editor */}
           <div className="flex-1 relative border-t border-[#2d2d2d] min-h-0">
             {activeFile ? (
-              <Editor
-                height="100%"
-                language={activeFile.language}
-                theme="vs-dark"
-                path={activeFile.path}
-                defaultValue={activeFile.content}
-                onChange={handleEditorChange}
-                onMount={handleEditorMount}
-                options={{ ...EDITOR_OPTIONS, readOnly: isViewer }}
-              />
+              isDiffMode ? (
+                <DiffEditor
+                  height="100%"
+                  language={activeFile.language}
+                  theme="vs-dark"
+                  original={activeFile.originalContent || ''}
+                  modified={activeFile.content || ''}
+                  options={{ ...EDITOR_OPTIONS, readOnly: true }}
+                />
+              ) : (
+                <Editor
+                  height="100%"
+                  language={activeFile.language}
+                  theme="vs-dark"
+                  path={activeFile.path}
+                  defaultValue={activeFile.content}
+                  onChange={handleEditorChange}
+                  onMount={handleEditorMount}
+                  options={{ ...EDITOR_OPTIONS, readOnly: isViewer }}
+                />
+              )
             ) : (
               <div className="flex items-center justify-center h-full text-slate-600 text-3xl font-light">
                 Select a file to edit
