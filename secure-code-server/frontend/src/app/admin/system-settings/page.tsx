@@ -15,6 +15,7 @@ export default function SystemSettingsPage() {
     const [maintenanceMode, setMaintenanceMode] = useState(false);
     const [blockedCommands, setBlockedCommands] = useState("");
     const [systemMessage, setSystemMessage] = useState("");
+    const [showSystemMessage, setShowSystemMessage] = useState(false);
 
     useEffect(() => {
         const fetchSettings = async () => {
@@ -24,6 +25,7 @@ export default function SystemSettingsPage() {
                 if (data.maintenanceMode !== undefined) setMaintenanceMode(data.maintenanceMode);
                 if (data.blockedCommands !== undefined) setBlockedCommands(data.blockedCommands);
                 if (data.systemMessage !== undefined) setSystemMessage(data.systemMessage);
+                if (data.showSystemMessage !== undefined) setShowSystemMessage(data.showSystemMessage);
             } catch (err) {
                 console.error("Failed to load settings:", err);
             } finally {
@@ -40,7 +42,8 @@ export default function SystemSettingsPage() {
             const payload = {
                 maintenanceMode,
                 blockedCommands,
-                systemMessage
+                systemMessage,
+                showSystemMessage
             };
             await api.patch('/settings', payload);
             setSaveMessage({ text: 'Settings saved successfully!', type: 'success' });
@@ -148,14 +151,30 @@ export default function SystemSettingsPage() {
                             <div className="p-6 space-y-4">
                                 <div>
                                     <label className="block text-sm font-medium text-slate-200 mb-2">System Message</label>
-                                    <p className="text-xs text-slate-500 mb-3">This message will be displayed prominently to all users in their IDE workspace.</p>
+                                    <p className="text-xs text-slate-500 mb-3">This message will be displayed prominently to all users.</p>
                                     <input
                                         type="text"
                                         value={systemMessage}
                                         onChange={(e) => setSystemMessage(e.target.value)}
-                                        className="w-full bg-[#050810] border border-slate-800 rounded-lg p-3 text-sm text-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors"
+                                        className="w-full bg-[#050810] border border-slate-800 rounded-lg p-3 text-sm text-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors mb-5"
                                         placeholder="e.g. System maintenance scheduled for Saturday 2AM UTC."
                                     />
+                                    
+                                    <div className="flex items-center justify-between mt-4 border-t border-slate-800 pt-5">
+                                        <div>
+                                            <h3 className="text-sm font-medium text-slate-200">Show Announcement Banner</h3>
+                                            <p className="text-xs text-slate-500 mt-1">Toggle to display or hide the banner without losing the message text above.</p>
+                                        </div>
+                                        <label className="relative inline-flex items-center cursor-pointer">
+                                            <input 
+                                                type="checkbox" 
+                                                className="sr-only peer"
+                                                checked={showSystemMessage}
+                                                onChange={(e) => setShowSystemMessage(e.target.checked)}
+                                            />
+                                            <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
+                                        </label>
+                                    </div>
                                 </div>
                             </div>
                         </div>

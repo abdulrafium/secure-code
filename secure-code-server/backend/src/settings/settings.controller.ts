@@ -15,7 +15,8 @@ export class SettingsController {
   async getPublicSettings() {
     const maintenanceMode = await this.settingsService.getSetting('maintenanceMode', false);
     const systemMessage = await this.settingsService.getSetting('systemMessage', '');
-    return { maintenanceMode, systemMessage };
+    const showSystemMessage = await this.settingsService.getSetting('showSystemMessage', false);
+    return { maintenanceMode, systemMessage, showSystemMessage };
   }
 
   @UseGuards(JwtAuthGuard)
