@@ -11,6 +11,13 @@ export class SettingsController {
     private readonly logsService: LogsService
   ) {}
 
+  @Get('public')
+  async getPublicSettings() {
+    const maintenanceMode = await this.settingsService.getSetting('maintenanceMode', false);
+    const systemMessage = await this.settingsService.getSetting('systemMessage', '');
+    return { maintenanceMode, systemMessage };
+  }
+
   @UseGuards(JwtAuthGuard)
   @Get()
   async getSettings(@Request() req: any) {

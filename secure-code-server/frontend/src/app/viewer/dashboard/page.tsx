@@ -5,6 +5,7 @@ import ViewerHeader from '@/components/ViewerHeader';
 import { Hexagon, Eye, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useRouter } from 'next/navigation';
+import SystemAnnouncement from '@/components/SystemAnnouncement';
 
 export default function ViewerDashboardPage() {
     const router = useRouter();
@@ -48,6 +49,7 @@ export default function ViewerDashboardPage() {
 
     return (
         <div className="min-h-screen bg-[#050810] text-slate-200 font-sans">
+            <SystemAnnouncement />
             <ViewerHeader />
 
             <div className="max-w-[1400px] mx-auto p-8 mt-4">

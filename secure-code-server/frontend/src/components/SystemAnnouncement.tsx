@@ -1,0 +1,52 @@
+"use client";
+
+import React, { useEffect, useState } from 'react';
+import { Megaphone, X } from 'lucide-react';
+import { api } from '@/lib/api';
+
+export default function SystemAnnouncement() {
+    const [message, setMessage] = useState('');
+    const [isVisible, setIsVisible] = useState(true);
+
+    useEffect(() => {
+        const fetchSettings = async () => {
+            try {
+                // api.get uses standard fetch. We can use it directly if no token is needed,
+                // but since the endpoint is public, it works flawlessly.
+                const data = await api.get('/settings/public');
+                if (data && data.systemMessage) {
+                    setMessage(data.systemMessage);
+                }
+            } catch (err) {
+                console.error("Failed to fetch system announcement", err);
+            }
+        };
+        fetchSettings();
+    }, []);
+
+    if (!message || !isVisible) return null;
+
+    return (
+        <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white w-full shadow-[0_4px_20px_rgba(37,99,235,0.2)] relative z-[100] animate-in slide-in-from-top-4 fade-in duration-500">
+            <div className="max-w-[1400px] mx-auto px-4 py-2.5 sm:px-6 lg:px-8 flex items-center justify-between">
+                <div className="flex items-center space-x-3 justify-center w-full">
+                    <div className="flex-shrink-0 bg-white/20 p-1.5 rounded-full backdrop-blur-sm shadow-inner">
+                        <Megaphone className="w-4 h-4 text-white" />
+                    </div>
+                    <p className="text-sm font-medium tracking-wide drop-shadow-sm text-center">
+                        <span className="font-bold mr-2 text-blue-200">System Update:</span>
+                        {message}
+                    </p>
+                </div>
+                <div className="flex-shrink-0 ml-4 flex items-center">
+                    <button 
+                        onClick={() => setIsVisible(false)} 
+                        className="p-1 rounded-full hover:bg-white/10 text-blue-100 hover:text-white transition-colors focus:outline-none"
+                    >
+                        <X className="w-5 h-5" />
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}

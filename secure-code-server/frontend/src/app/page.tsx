@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { Terminal, Shield, Server, ChevronRight, Code2, Globe } from 'lucide-react';
 import LandingHeader from '../components/LandingHeader';
+import SystemAnnouncement from '../components/SystemAnnouncement';
 
 export default function LandingPage() {
     return (
@@ -15,6 +16,7 @@ export default function LandingPage() {
                 <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-600/10 blur-[120px] rounded-full mix-blend-screen" />
             </div>
 
+            <SystemAnnouncement />
             <LandingHeader />
 
             {/* Main Content */}

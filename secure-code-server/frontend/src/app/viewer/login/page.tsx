@@ -18,7 +18,7 @@ export default function ViewerLogin() {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [errorMsg, setErrorMsg] = useState('');
-    const [popupInfo, setPopupInfo] = useState<{ type: 'suspended' | 'blocked' | 'ip_blocked', message: string } | null>(null);
+    const [popupInfo, setPopupInfo] = useState<{ type: 'suspended' | 'blocked' | 'ip_blocked' | 'maintenance', message: string } | null>(null);
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -52,13 +52,14 @@ export default function ViewerLogin() {
             }, 2500);
         } catch (err: any) {
             setIsLoading(false);
-            const msg = err.message || '';
             if (msg.includes('suspended')) {
                 setPopupInfo({ type: 'suspended', message: msg });
             } else if (msg.includes('blocked')) {
                 setPopupInfo({ type: 'blocked', message: msg });
             } else if (msg.toLowerCase().includes('ip address')) {
                 setPopupInfo({ type: 'ip_blocked', message: msg });
+            } else if (msg.toLowerCase().includes('maintenance')) {
+                setPopupInfo({ type: 'maintenance', message: msg });
             } else {
                 setErrorMsg(msg || 'Invalid credentials.');
             }
@@ -75,15 +76,15 @@ export default function ViewerLogin() {
                 <div className="fixed inset-0 z-[300] flex items-center justify-center bg-[#050810]/90 backdrop-blur-md p-4 transition-all duration-300">
                     <div className="relative w-full max-w-md bg-[#0a0f1c] border border-slate-800 rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden">
                         {/* Top Bar */}
-                        <div className={`h-1.5 w-full ${popupInfo.type === 'suspended' ? 'bg-amber-500' : popupInfo.type === 'ip_blocked' ? 'bg-blue-500' : 'bg-red-500'}`}></div>
+                        <div className={`h-1.5 w-full ${popupInfo.type === 'suspended' ? 'bg-amber-500' : popupInfo.type === 'ip_blocked' ? 'bg-blue-500' : popupInfo.type === 'maintenance' ? 'bg-orange-500' : 'bg-red-500'}`}></div>
 
                         <div className="p-8 flex flex-col items-center text-center">
-                            <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-6 shadow-2xl border-4 border-[#0a0f1c] ${popupInfo.type === 'suspended' ? 'bg-amber-500/10 text-amber-500 shadow-amber-500/20' : popupInfo.type === 'ip_blocked' ? 'bg-blue-500/10 text-blue-500 shadow-blue-500/20' : 'bg-red-500/10 text-red-500 shadow-red-500/20'}`}>
-                                {popupInfo.type === 'suspended' ? <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg> : popupInfo.type === 'ip_blocked' ? <Globe className="w-10 h-10" /> : <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path></svg>}
+                            <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-6 shadow-2xl border-4 border-[#0a0f1c] ${popupInfo.type === 'suspended' ? 'bg-amber-500/10 text-amber-500 shadow-amber-500/20' : popupInfo.type === 'ip_blocked' ? 'bg-blue-500/10 text-blue-500 shadow-blue-500/20' : popupInfo.type === 'maintenance' ? 'bg-orange-500/10 text-orange-500 shadow-orange-500/20' : 'bg-red-500/10 text-red-500 shadow-red-500/20'}`}>
+                                {popupInfo.type === 'suspended' ? <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg> : popupInfo.type === 'ip_blocked' ? <Globe className="w-10 h-10" /> : popupInfo.type === 'maintenance' ? <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg> : <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path></svg>}
                             </div>
 
                             <h2 className="text-[22px] font-bold text-white mb-2 tracking-wide">
-                                {popupInfo.type === 'suspended' ? 'Account Suspended' : popupInfo.type === 'ip_blocked' ? 'Network Access Denied' : 'Account Blocked'}
+                                {popupInfo.type === 'suspended' ? 'Account Suspended' : popupInfo.type === 'ip_blocked' ? 'Network Access Denied' : popupInfo.type === 'maintenance' ? 'System Maintenance' : 'Account Blocked'}
                             </h2>
 
                             <p className="text-slate-400 text-[15px] leading-relaxed mb-8">
@@ -92,7 +93,7 @@ export default function ViewerLogin() {
 
                             <button
                                 onClick={() => setPopupInfo(null)}
-                                className={`w-full py-3.5 rounded-xl font-medium text-white transition-all shadow-lg active:scale-[0.98] ${popupInfo.type === 'suspended' ? 'bg-amber-600 hover:bg-amber-500 shadow-[0_0_20px_rgba(217,119,6,0.3)]' : popupInfo.type === 'ip_blocked' ? 'bg-blue-600 hover:bg-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.3)]' : 'bg-red-600 hover:bg-red-500 shadow-[0_0_20px_rgba(220,38,38,0.3)]'}`}
+                                className={`w-full py-3.5 rounded-xl font-medium text-white transition-all shadow-lg active:scale-[0.98] ${popupInfo.type === 'suspended' ? 'bg-amber-600 hover:bg-amber-500 shadow-[0_0_20px_rgba(217,119,6,0.3)]' : popupInfo.type === 'ip_blocked' ? 'bg-blue-600 hover:bg-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.3)]' : popupInfo.type === 'maintenance' ? 'bg-orange-600 hover:bg-orange-500 shadow-[0_0_20px_rgba(249,115,22,0.3)]' : 'bg-red-600 hover:bg-red-500 shadow-[0_0_20px_rgba(220,38,38,0.3)]'}`}
                             >
                                 Understood
                             </button>
