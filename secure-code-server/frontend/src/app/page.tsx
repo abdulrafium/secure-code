@@ -23,7 +23,7 @@ export default function LandingPage() {
             <main className="relative z-10">
 
                 {/* Hero Section */}
-                <section className="pt-24 pb-10 px-6 lg:px-12 max-w-[1400px] mx-auto flex flex-col lg:flex-row items-center gap-10 lg:gap-12 min-h-[70vh]">
+                <section className="pt-8 pb-10 px-6 lg:px-12 max-w-[1400px] mx-auto flex flex-col lg:flex-row items-center gap-10 lg:gap-12 min-h-[70vh]">
 
                     {/* Hero Text */}
                     <div className="flex-1 flex flex-col items-start animate-in fade-in slide-in-from-bottom-10 duration-700 delay-100 fill-mode-both w-full">
