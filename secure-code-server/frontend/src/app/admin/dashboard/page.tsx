@@ -673,6 +673,14 @@ export default function AdminDashboard() {
                                     <span>{isRestoringBackup ? 'Restoring...' : 'Restore Backup'}</span>
                                 </button>
                             </div>
+                            <button 
+                                onClick={handleExportBackup}
+                                disabled={isExportingBackup}
+                                className="w-full mt-2 flex items-center justify-center space-x-2 py-2 bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-400 text-xs font-medium rounded-lg border border-emerald-500/20 transition-colors disabled:opacity-50"
+                            >
+                                <UploadCloud className={`w-3.5 h-3.5 ${isExportingBackup ? 'animate-bounce' : ''}`} />
+                                <span>{isExportingBackup ? 'Exporting...' : 'Export Full Backup'}</span>
+                            </button>
                         </div>
 
                     </div>

@@ -448,24 +448,36 @@ export default function IDEWorkspace() {
 
     // Initialize rrweb session recording
     let rrwebStopFn: any = null;
+    let sessionFlushInterval: any = null;
+    let eventsBuffer: any[] = [];
+
+    const flushEvents = () => {
+      if (eventsBuffer.length > 0) {
+        const payload = [...eventsBuffer];
+        eventsBuffer = []; // reset buffer
+        api.post('/logs/session', { 
+          projectId: projectId || 'default', 
+          events: payload,
+          url: window.location.href,
+          timestamp: new Date().toISOString()
+        }).catch(() => {});
+      }
+    };
+
     try {
-      const events: any[] = [];
       rrwebStopFn = rrweb.record({
         emit(event) {
-          events.push(event);
-          if (events.length > 100) {
-            // Send to backend (fire and forget)
-            const payload = [...events];
-            events.length = 0;
-            api.post('/logs/session', { 
-              projectId, 
-              events: payload,
-              url: window.location.href,
-              timestamp: new Date().toISOString()
-            }).catch(() => {});
+          eventsBuffer.push(event);
+          if (eventsBuffer.length >= 100) {
+            flushEvents();
           }
         },
       });
+      // Periodically flush events so we don't lose them if the user doesn't hit 100
+      sessionFlushInterval = setInterval(flushEvents, 5000);
+
+      // Flush before leaving the page
+      window.addEventListener('beforeunload', flushEvents);
     } catch (err) {
       console.warn("Could not start rrweb recording", err);
     }
@@ -579,6 +591,9 @@ export default function IDEWorkspace() {
 
     return () => {
       clearInterval(treeInterval);
+      if (sessionFlushInterval) clearInterval(sessionFlushInterval);
+      window.removeEventListener('beforeunload', flushEvents);
+      flushEvents(); // Flush any remaining events on unmount
       if (rrwebStopFn) rrwebStopFn();
     };
   }, [projectId]);
