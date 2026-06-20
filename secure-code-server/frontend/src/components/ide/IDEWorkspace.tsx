@@ -3,10 +3,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Editor, { DiffEditor } from '@monaco-editor/react';
 import {
-  ChevronDown, ChevronRight, X, Plus, Terminal as TerminalIcon,
+  ChevronDown, ChevronRight, ChevronLeft, X, Plus, Terminal as TerminalIcon,
   Search, Type, Languages, Hash, FilePlus, FolderPlus,
   RefreshCw, ChevronUp, FileText, Code, FileCode, Info,
-  CheckSquare, File as GenericFile, Settings, AlertTriangle
+  CheckSquare, File as GenericFile, Settings, AlertTriangle, Columns
 } from 'lucide-react';
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import dynamic from 'next/dynamic';
@@ -139,6 +139,17 @@ export default function IDEWorkspace() {
   const terminalPanelRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const mainAreaRef = useRef<HTMLDivElement>(null);
+  const tabsContainerRef = useRef<HTMLDivElement>(null);
+
+  const scrollTabs = (direction: 'left' | 'right') => {
+    if (tabsContainerRef.current) {
+      const scrollAmount = 200;
+      tabsContainerRef.current.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth'
+      });
+    }
+  };
 
   // Yjs References
   const editorRef = useRef<any>(null);
@@ -678,7 +689,7 @@ export default function IDEWorkspace() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeFile]);
+  }, [activeFile, isViewer]);
 
   // Global Copy/Paste Interception
   useEffect(() => {
@@ -1319,13 +1330,6 @@ export default function IDEWorkspace() {
           
           {/* Action Buttons */}
           <div className="flex items-center space-x-2 pointer-events-auto mt-1 mr-2">
-            <button 
-              onClick={() => setIsDiffMode(!isDiffMode)}
-              className={`px-4 py-1.5 rounded text-white text-[12px] font-bold shadow-md transition-all ${isDiffMode ? 'bg-[#ff9800] hover:bg-[#ffb74d]' : 'bg-[#4d4d4d] hover:bg-[#5d5d5d]'}`}
-              title="Compare with saved code"
-            >
-              {isDiffMode ? 'Exit Compare' : 'Compare'}
-            </button>
             {!isViewer && (
               <button 
                 onClick={startPipeline}
@@ -1352,32 +1356,68 @@ export default function IDEWorkspace() {
           style={{ height: terminalOpen ? `${100 - terminalHeight}%` : '100%' }}
           className="flex flex-col min-h-0 bg-[#1e1e1e] overflow-hidden"
         >
-          {/* Editor Tabs */}
-          <div className="flex bg-[#2d2d2d] overflow-x-auto overflow-y-hidden h-[35px] border-b border-[#1e1e1e] flex-shrink-0">
-            {openFiles.map((file) => {
-              const isActive = activeFilePath === file.path;
-              return (
-                <div
-                  key={file.path}
-                  onClick={() => {
-                    setActiveFilePath(file.path);
-                    setActiveNodePaths(new Set([file.path]));
-                  }}
-                  className={`flex items-center px-3 h-full cursor-pointer group border-r border-[#1e1e1e] min-w-fit ${activeNodePaths.has(file.path) ? 'bg-[#1e1e1e] text-white border-t border-t-blue-500' : 'bg-[#2d2d2d] text-[#969696] hover:bg-[#2b2b2b]'}`}
-                >
-                  <span className="text-[13px] mr-2">{file.name}</span>
-                  {file.content !== file.originalContent && (
-                    <div className="w-2 h-2 rounded-full bg-white mr-2" title="Unsaved changes" />
-                  )}
+          {/* Editor Tabs & Compare Bar */}
+          <div className="flex bg-[#2d2d2d] h-[35px] border-b border-[#1e1e1e] flex-shrink-0 relative group">
+            {/* Left Scroll Arrow */}
+            <button 
+              onClick={() => scrollTabs('left')}
+              className="px-1 hidden group-hover:flex items-center justify-center bg-[#2d2d2d]/90 hover:bg-[#4d4d4d] border-r border-[#1e1e1e] z-10"
+              title="Scroll Tabs Left"
+            >
+              <ChevronLeft className="w-4 h-4 text-[#cccccc]" />
+            </button>
+
+            {/* Scrollable Tabs */}
+            <div 
+              ref={tabsContainerRef}
+              className="flex-1 flex overflow-x-auto overflow-y-hidden scrollbar-hide no-scrollbar"
+              style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+            >
+              {openFiles.map((file) => {
+                const isActive = activeFilePath === file.path;
+                return (
                   <div
-                    className={`w-5 h-5 flex items-center justify-center rounded-md hover:bg-[#4d4d4d] ${isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
-                    onClick={(e) => closeFile(e, file.path)}
+                    key={file.path}
+                    onClick={() => {
+                      setActiveFilePath(file.path);
+                      setActiveNodePaths(new Set([file.path]));
+                    }}
+                    className={`flex items-center px-3 h-full cursor-pointer group border-r border-[#1e1e1e] flex-shrink-0 min-w-fit ${activeNodePaths.has(file.path) ? 'bg-[#1e1e1e] text-white border-t border-t-blue-500' : 'bg-[#2d2d2d] text-[#969696] hover:bg-[#2b2b2b]'}`}
                   >
-                    <X className="w-3.5 h-3.5" />
+                    <span className="text-[13px] mr-2">{file.name}</span>
+                    {file.content !== file.originalContent && (
+                      <div className="w-2 h-2 rounded-full bg-white mr-2" title="Unsaved changes" />
+                    )}
+                    <div
+                      className={`w-5 h-5 flex items-center justify-center rounded-md hover:bg-[#4d4d4d] group-tab ${isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                      onClick={(e) => closeFile(e, file.path)}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
+
+            {/* Right Scroll Arrow */}
+            <button 
+              onClick={() => scrollTabs('right')}
+              className="px-1 hidden group-hover:flex items-center justify-center bg-[#2d2d2d]/90 hover:bg-[#4d4d4d] border-l border-[#1e1e1e] z-10"
+              title="Scroll Tabs Right"
+            >
+              <ChevronRight className="w-4 h-4 text-[#cccccc]" />
+            </button>
+
+            {/* Compare Icon */}
+            {!isViewer && (
+              <div 
+                className={`flex items-center justify-center px-3 border-l border-[#1e1e1e] cursor-pointer transition-colors flex-shrink-0 ${isDiffMode ? 'bg-[#ff9800] text-white' : 'bg-[#2d2d2d] text-[#969696] hover:bg-[#4d4d4d] hover:text-white'}`}
+                onClick={() => setIsDiffMode(!isDiffMode)}
+                title={isDiffMode ? "Exit Compare Mode" : "Compare with saved code"}
+              >
+                <Columns className="w-4 h-4" />
+              </div>
+            )}
           </div>
 
           {/* Breadcrumbs */}
