@@ -24,7 +24,7 @@ export default function LandingHeader() {
 
     return (
         <header
-            className={`sticky top-0 z-[90] transition-all duration-300 border-b ${isScrolled || forceBackground
+            className={`${pathname === '/' ? 'sticky' : 'fixed'} top-0 left-0 right-0 z-[100] transition-all duration-300 border-b ${isScrolled || forceBackground
                     ? 'bg-[#0a0f1c]/80 backdrop-blur-xl border-slate-800/80 shadow-[0_4px_30px_rgba(0,0,0,0.5)] py-4'
                     : 'bg-transparent border-transparent py-6'
                 }`}
