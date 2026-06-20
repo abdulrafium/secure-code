@@ -55,9 +55,9 @@ export default function LandingPage() {
                                 <span>Get Started as Admin</span>
                                 <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                             </Link>
-                            <button className="flex items-center justify-center w-full sm:w-auto whitespace-nowrap px-8 py-4 bg-[#0f172a] hover:bg-[#1e293b] border border-slate-700 text-slate-300 font-semibold rounded-xl transition-all shadow-inner">
+                            <Link href="/docs" className="flex items-center justify-center w-full sm:w-auto whitespace-nowrap px-8 py-4 bg-[#0f172a] hover:bg-[#1e293b] border border-slate-700 text-slate-300 font-semibold rounded-xl transition-all shadow-inner">
                                 View Documentation
-                            </button>
+                            </Link>
                         </div>
                     </div>
 

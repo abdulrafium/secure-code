@@ -81,9 +81,12 @@ export default function AuditLogsPage() {
             
             let matchesDate = true;
             if (filterDate) {
-                // Ensure timezone matches or just basic prefix match
-                const dateOnly = new Date(l.createdAt).toISOString().split('T')[0];
-                matchesDate = dateOnly === filterDate;
+                const logDate = new Date(l.createdAt);
+                const year = logDate.getFullYear();
+                const month = String(logDate.getMonth() + 1).padStart(2, '0');
+                const day = String(logDate.getDate()).padStart(2, '0');
+                const localDateStr = `${year}-${month}-${day}`;
+                matchesDate = localDateStr === filterDate;
             }
 
             return matchesSearch && matchesAction && matchesDate;

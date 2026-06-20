@@ -131,8 +131,12 @@ export default function AdminDashboard() {
 
                 // Running Services: Unique projects that have a 'Success' deployment
                 const successfulDeps = (deps || []).filter((d: any) => d.status === 'Success');
-                const runningServicesCount = new Set(successfulDeps.map((d: any) => d.projectId)).size || successfulDeps.length;
-                const servicesThisWeek = successfulDeps.filter((d: any) => new Date(d.createdAt) > oneWeekAgo).length;
+                
+                const getIdentifier = (d: any) => d.project?.id || d.projectId || d.project?.name || d.id;
+                
+                const runningServicesCount = new Set(successfulDeps.map(getIdentifier)).size;
+                const depsThisWeek = successfulDeps.filter((d: any) => new Date(d.createdAt) > oneWeekAgo);
+                const servicesThisWeek = new Set(depsThisWeek.map(getIdentifier)).size;
 
                 // Requests Today
                 const requestsToday = (logsData || []).filter((l: any) => new Date(l.createdAt) >= todayStart).length;
