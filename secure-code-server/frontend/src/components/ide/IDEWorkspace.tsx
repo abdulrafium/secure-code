@@ -1337,18 +1337,6 @@ export default function IDEWorkspace() {
                 </div>
                 <span className="text-[9px] text-slate-300 font-medium">Live</span>
               </div>
-              
-              {/* Compare Icon */}
-              <div 
-                className={`flex items-center justify-center ml-2 pl-2 border-l border-[#333] cursor-pointer transition-colors ${isDiffMode ? 'text-[#ff9800]' : 'text-slate-300 hover:text-white'}`}
-                onClick={() => setIsDiffMode(!isDiffMode)}
-                title={isDiffMode ? "Exit Compare Mode" : "Compare with saved code"}
-              >
-                <div className="flex flex-col items-center px-2 hover:bg-white/10 rounded transition-colors py-0.5">
-                  <Columns className="w-4 h-4 mb-0.5" />
-                  <span className="text-[9px] font-medium">Compare</span>
-                </div>
-              </div>
             </div>
           )}
           
@@ -1381,7 +1369,7 @@ export default function IDEWorkspace() {
           className="flex flex-col min-h-0 bg-[#1e1e1e] overflow-hidden"
         >
           {/* Editor Tabs & Compare Bar */}
-          <div className="flex bg-[#2d2d2d] h-[35px] border-b border-[#1e1e1e] flex-shrink-0 relative group">
+          <div className="flex bg-[#2d2d2d] h-[35px] border-b border-[#1e1e1e] flex-shrink-0 relative group pr-[280px]">
             {/* Left Scroll Arrow */}
             <button 
               onClick={() => scrollTabs('left')}
@@ -1423,14 +1411,28 @@ export default function IDEWorkspace() {
               })}
             </div>
 
-            {/* Right Scroll Arrow */}
-            <button 
-              onClick={() => scrollTabs('right')}
-              className="px-1 hidden group-hover:flex items-center justify-center bg-[#2d2d2d]/90 hover:bg-[#4d4d4d] border-l border-[#1e1e1e] z-10"
-              title="Scroll Tabs Right"
-            >
-              <ChevronRight className="w-4 h-4 text-[#cccccc]" />
-            </button>
+            {/* Fixed Right Elements (Scroll Arrow + Compare Icon) */}
+            <div className="flex items-center h-full flex-shrink-0">
+              {/* Right Scroll Arrow */}
+              <button 
+                onClick={() => scrollTabs('right')}
+                className="px-1 hidden group-hover:flex items-center justify-center bg-[#2d2d2d]/90 hover:bg-[#4d4d4d] border-l border-[#1e1e1e] z-10 h-full"
+                title="Scroll Tabs Right"
+              >
+                <ChevronRight className="w-4 h-4 text-[#cccccc]" />
+              </button>
+
+              {/* Compare Icon */}
+              {!isViewer && (
+                <div 
+                  className={`flex items-center justify-center px-3 border-l border-[#1e1e1e] h-full cursor-pointer transition-colors ${isDiffMode ? 'bg-[#ff9800] text-white' : 'bg-[#2d2d2d] text-[#969696] hover:bg-[#4d4d4d] hover:text-white'}`}
+                  onClick={() => setIsDiffMode(!isDiffMode)}
+                  title={isDiffMode ? "Exit Compare Mode" : "Compare"}
+                >
+                  <Columns className="w-4 h-4" />
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Breadcrumbs */}
