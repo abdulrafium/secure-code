@@ -43,18 +43,31 @@ export class BackupsProcessor extends WorkerHost {
       const dbUrl = process.env.DATABASE_URL;
       if (!dbUrl) throw new Error('DATABASE_URL is not set');
 
+      // pg_dump (libpq) does not support the ?schema=public query parameter used by TypeORM/Prisma
+      const cleanDbUrl = dbUrl.replace('?schema=public', '');
+
       await job.updateProgress(10);
 
       // Step 1: Dump database to a temporary file
       const tempDbPath = path.join('/tmp', `db-${timestamp}.sql`);
-      const dumpCommand = `pg_dump --clean "${dbUrl}" > "${tempDbPath}"`;
-      await execAsync(dumpCommand);
+      const dumpCommand = `pg_dump --clean "${cleanDbUrl}" > "${tempDbPath}"`;
+      try {
+        await execAsync(dumpCommand);
+      } catch (err: any) {
+        this.logger.error(`pg_dump failed: ${err.message}`, err.stderr);
+        throw new Error(`pg_dump failed: ${err.message || err}`);
+      }
       
       await job.updateProgress(50);
 
       // Step 2: Tar the DB and the physical workspaces directory
       const tarCommand = `tar -czf "${filePath}" -C /tmp "db-${timestamp}.sql" -C / workspaces`;
-      await execAsync(tarCommand);
+      try {
+        await execAsync(tarCommand);
+      } catch (err: any) {
+        this.logger.error(`tar failed: ${err.message}`, err.stderr);
+        throw new Error(`tar failed: ${err.message || err}`);
+      }
 
       // Cleanup temp db
       fs.unlinkSync(tempDbPath);
@@ -92,6 +105,9 @@ export class BackupsProcessor extends WorkerHost {
 
       const dbUrl = process.env.DATABASE_URL;
       if (!dbUrl) throw new Error('DATABASE_URL is not set');
+      
+      // pg_dump/psql (libpq) does not support the ?schema=public query parameter used by TypeORM/Prisma
+      const cleanDbUrl = dbUrl.replace('?schema=public', '');
 
       await job.updateProgress(10);
 
@@ -100,7 +116,12 @@ export class BackupsProcessor extends WorkerHost {
 
       // Step 1: Extract Tarball
       const extractCommand = `tar -xzf "${filePath}" -C "${extractDir}"`;
-      await execAsync(extractCommand);
+      try {
+        await execAsync(extractCommand);
+      } catch (err: any) {
+        this.logger.error(`tar extraction failed: ${err.message}`, err.stderr);
+        throw new Error(`tar extraction failed: ${err.message || err}`);
+      }
 
       await job.updateProgress(40);
 

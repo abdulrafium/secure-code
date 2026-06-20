@@ -87,6 +87,7 @@ export default function AdminDashboard() {
     const [isRestoringBackup, setIsRestoringBackup] = useState(false);
     const [showJobAlert, setShowJobAlert] = useState<{ id: string, type: string } | null>(null);
     const [activeJobId, setActiveJobId] = useState<string | null>(null);
+    const [isToastVisible, setIsToastVisible] = useState(false);
     const [jobProgress, setJobProgress] = useState<number>(0);
     const [jobStatus, setJobStatus] = useState<string>('RUNNING');
     const [jobType, setJobType] = useState<string>('');
@@ -160,8 +161,12 @@ export default function AdminDashboard() {
                     setJobStatus(res.status);
                     
                     if (res.status === 'completed' || res.status === 'failed') {
-                        // Keep the toast visible but stop polling
                         setJobProgress(res.status === 'completed' ? 100 : 0);
+                        setIsToastVisible(true);
+                        setTimeout(() => {
+                            setIsToastVisible(false);
+                            setActiveJobId(null);
+                        }, 5000);
                         return true; // Stop polling
                     }
                 }
@@ -703,6 +708,7 @@ export default function AdminDashboard() {
                                 onClick={() => {
                                     setJobType(showJobAlert.type);
                                     setActiveJobId(showJobAlert.id);
+                                    setIsToastVisible(true);
                                     setJobStatus('RUNNING');
                                     setJobProgress(0);
                                     setShowJobAlert(null);
@@ -716,7 +722,7 @@ export default function AdminDashboard() {
                 )}
 
                 {/* --- REAL-TIME PROGRESS TOAST --- */}
-                {activeJobId && (
+                {isToastVisible && activeJobId && (
                     <div className="fixed top-24 right-6 z-[110] w-80 bg-[#0b1121] border border-slate-700 shadow-2xl rounded-xl p-4 animate-in slide-in-from-right-8">
                         <div className="flex justify-between items-start mb-2">
                             <div className="flex items-center space-x-2">
@@ -727,13 +733,13 @@ export default function AdminDashboard() {
                                 ) : (
                                     <Activity className="w-4 h-4 text-indigo-400 animate-pulse" />
                                 )}
-                                <span className="text-sm font-medium text-slate-200">{jobType} Job</span>
+                                <span className="text-sm font-medium text-slate-200">
+                                    {jobType === 'EXPORT' ? 'Exporting Backup' : jobType === 'RESTORE' ? 'Restoring Backup' : `${jobType} Job`}
+                                </span>
                             </div>
-                            {jobStatus !== 'RUNNING' && (
-                                <button onClick={() => setActiveJobId(null)} className="text-slate-500 hover:text-slate-300">
-                                    <X className="w-4 h-4" />
-                                </button>
-                            )}
+                            <button onClick={() => setIsToastVisible(false)} className="text-slate-500 hover:text-slate-300">
+                                <X className="w-4 h-4" />
+                            </button>
                         </div>
                         <div className="w-full bg-slate-800 rounded-full h-1.5 mb-1">
                             <div 

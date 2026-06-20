@@ -56,33 +56,36 @@ export default function SessionsPage() {
     const handlePlaySession = async (filename: string) => {
         setActiveSessionFilename(filename);
         
-        const playerEl = document.getElementById('rrweb-player-container');
-        if (playerEl) {
-            playerEl.innerHTML = '<div class="text-slate-500 animate-pulse text-sm">Loading playback...</div>';
-        }
-
-        try {
-            const data = await api.get(`/logs/sessions/${filename}`);
-            if (data && playerEl) {
-                playerEl.innerHTML = ''; // clear loading
-                const rrwebPlayer = (await import('rrweb-player')).default;
-                new rrwebPlayer({
-                    target: playerEl,
-                    props: {
-                        events: data,
-                        width: playerEl.clientWidth,
-                        height: playerEl.clientHeight,
-                        autoPlay: true,
-                        speedOption: [1, 2, 4, 8],
-                    },
-                });
-            }
-        } catch (error) {
-            console.error('Failed to play session', error);
+        setTimeout(async () => {
+            const playerEl = document.getElementById('rrweb-player-container');
             if (playerEl) {
-                playerEl.innerHTML = '<div class="text-red-500 text-sm">Failed to load session data.</div>';
+                playerEl.innerHTML = '<div class="text-slate-500 animate-pulse text-sm w-full h-full flex items-center justify-center">Loading playback...</div>';
             }
-        }
+
+            try {
+                const data = await api.get(`/logs/sessions/${filename}`);
+                if (data && playerEl) {
+                    playerEl.innerHTML = ''; // clear loading
+                    const rrwebPlayer = (await import('rrweb-player')).default;
+                    new rrwebPlayer({
+                        target: playerEl,
+                        props: {
+                            events: data,
+                            width: playerEl.clientWidth,
+                            height: playerEl.clientHeight,
+                            autoPlay: true,
+                            showController: true,
+                            speedOption: [1, 2, 4, 8],
+                        },
+                    });
+                }
+            } catch (error) {
+                console.error('Failed to play session', error);
+                if (playerEl) {
+                    playerEl.innerHTML = '<div class="text-red-500 text-sm w-full h-full flex items-center justify-center">Failed to load session data.</div>';
+                }
+            }
+        }, 100);
     };
 
     const handleDeleteSession = async () => {
@@ -190,8 +193,17 @@ export default function SessionsPage() {
                                     </p>
                                 </div>
                             ) : (
-                                <div id="rrweb-player-container" className="w-full h-full bg-white flex justify-center items-center overflow-hidden">
-                                    {/* Player will mount here */}
+                                <div className="relative w-full h-full bg-white flex justify-center items-center overflow-hidden">
+                                    <button 
+                                        onClick={() => setActiveSessionFilename(null)}
+                                        className="absolute top-4 right-4 z-50 w-8 h-8 bg-slate-900/60 hover:bg-red-500 text-slate-300 hover:text-white rounded-full flex items-center justify-center transition-colors shadow-lg backdrop-blur-sm"
+                                        title="Close Player"
+                                    >
+                                        <X className="w-5 h-5" />
+                                    </button>
+                                    <div id="rrweb-player-container" className="w-full h-full flex justify-center items-center">
+                                        {/* Player will mount here */}
+                                    </div>
                                 </div>
                             )}
                         </div>
