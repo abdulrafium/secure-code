@@ -7,12 +7,15 @@ import { api } from '../../../lib/api';
 
 import 'rrweb-player/dist/style.css';
 
+import { Play, Pause } from 'lucide-react';
+
 const RrwebPlayerWrapper = ({ filename }: { filename: string }) => {
     const containerRef = React.useRef<HTMLDivElement>(null);
+    const replayerRef = React.useRef<any>(null);
     const [status, setStatus] = useState<'loading' | 'error' | 'empty' | 'playing'>('loading');
+    const [isPlaying, setIsPlaying] = useState(true);
 
     useEffect(() => {
-        let playerInstance: any = null;
         let isMounted = true;
 
         const loadSession = async () => {
@@ -25,9 +28,6 @@ const RrwebPlayerWrapper = ({ filename }: { filename: string }) => {
                     return;
                 }
 
-                // A user refreshing the IDE generates a new FullSnapshot (type: 2) appended to the same file.
-                // rrweb-player crashes silently if we feed it multiple disjoint sessions.
-                // We must extract the LAST continuous session to play.
                 let lastSnapshotIndex = 0;
                 for (let i = data.length - 1; i >= 0; i--) {
                     if (data[i].type === 2) {
@@ -42,26 +42,25 @@ const RrwebPlayerWrapper = ({ filename }: { filename: string }) => {
                     return;
                 }
 
-                const rrwebPlayerModule = await import('rrweb-player');
-                const RrwebPlayer = rrwebPlayerModule.default || rrwebPlayerModule as any;
+                // Dynamically import rrweb to avoid SSR issues
+                const rrweb = await import('rrweb');
                 
                 if (containerRef.current && isMounted) {
                     setStatus('playing');
-                    // wait a tick for DOM to update from 'loading' state if needed
+                    
+                    // Allow UI to update to 'playing' state before mounting
                     setTimeout(() => {
                         if (containerRef.current) {
                             containerRef.current.innerHTML = '';
-                            playerInstance = new RrwebPlayer({
-                                target: containerRef.current,
-                                props: {
-                                    events: sessionEvents,
-                                    width: containerRef.current.clientWidth || 1024,
-                                    height: containerRef.current.clientHeight || 600,
-                                    autoPlay: true,
-                                    showController: true,
-                                    speedOption: [1, 2, 4, 8],
-                                },
+                            
+                            const replayer = new rrweb.Replayer(sessionEvents, {
+                                root: containerRef.current,
+                                showWarning: false
                             });
+                            
+                            replayerRef.current = replayer;
+                            replayer.play();
+                            setIsPlaying(true);
                         }
                     }, 50);
                 }
@@ -75,15 +74,27 @@ const RrwebPlayerWrapper = ({ filename }: { filename: string }) => {
 
         return () => {
             isMounted = false;
-            if (playerInstance) {
-                // Cleanup if the library supports it, or just empty the DOM.
-                if (containerRef.current) containerRef.current.innerHTML = '';
+            if (replayerRef.current) {
+                try {
+                    replayerRef.current.pause();
+                } catch (e) {}
             }
         };
     }, [filename]);
 
+    const togglePlay = () => {
+        if (!replayerRef.current) return;
+        if (isPlaying) {
+            replayerRef.current.pause();
+            setIsPlaying(false);
+        } else {
+            replayerRef.current.play();
+            setIsPlaying(true);
+        }
+    };
+
     return (
-        <div className="w-full h-full flex justify-center items-center overflow-hidden">
+        <div className="w-full h-full flex flex-col justify-center items-center overflow-hidden bg-white">
             {status === 'loading' && (
                 <div className="text-slate-500 animate-pulse text-sm">Loading playback...</div>
             )}
@@ -98,10 +109,32 @@ const RrwebPlayerWrapper = ({ filename }: { filename: string }) => {
                     <p>Failed to load session data.</p>
                 </div>
             )}
+            
             <div 
-                ref={containerRef} 
-                className={`w-full h-full flex justify-center items-center ${status === 'playing' ? 'block' : 'hidden'}`}
-            ></div>
+                className={`w-full flex-1 relative overflow-hidden ${status === 'playing' ? 'block' : 'hidden'}`}
+            >
+                {/* rrweb uses an iframe which we scale or center */}
+                <div 
+                    ref={containerRef} 
+                    className="absolute inset-0 flex justify-center items-center rrweb-replayer-container"
+                ></div>
+            </div>
+
+            {/* Custom Control Bar */}
+            {status === 'playing' && (
+                <div className="w-full h-14 bg-slate-900 border-t border-slate-800 flex items-center px-6 shadow-lg z-10 shrink-0">
+                    <button 
+                        onClick={togglePlay}
+                        className="w-10 h-10 rounded-full bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center transition-colors shadow-lg"
+                        title={isPlaying ? "Pause" : "Play"}
+                    >
+                        {isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-1" />}
+                    </button>
+                    <div className="ml-4 text-slate-400 text-sm font-medium">
+                        {isPlaying ? 'Playing Session...' : 'Paused'}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
