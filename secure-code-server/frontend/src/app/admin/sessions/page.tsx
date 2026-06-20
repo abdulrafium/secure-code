@@ -25,6 +25,23 @@ const RrwebPlayerWrapper = ({ filename }: { filename: string }) => {
                     return;
                 }
 
+                // A user refreshing the IDE generates a new FullSnapshot (type: 2) appended to the same file.
+                // rrweb-player crashes silently if we feed it multiple disjoint sessions.
+                // We must extract the LAST continuous session to play.
+                let lastSnapshotIndex = 0;
+                for (let i = data.length - 1; i >= 0; i--) {
+                    if (data[i].type === 2) {
+                        lastSnapshotIndex = i;
+                        break;
+                    }
+                }
+                const sessionEvents = data.slice(lastSnapshotIndex);
+
+                if (sessionEvents.length < 2) {
+                    setStatus('empty');
+                    return;
+                }
+
                 const rrwebPlayerModule = await import('rrweb-player');
                 const RrwebPlayer = rrwebPlayerModule.default || rrwebPlayerModule as any;
                 
@@ -37,7 +54,7 @@ const RrwebPlayerWrapper = ({ filename }: { filename: string }) => {
                             playerInstance = new RrwebPlayer({
                                 target: containerRef.current,
                                 props: {
-                                    events: data,
+                                    events: sessionEvents,
                                     width: containerRef.current.clientWidth || 1024,
                                     height: containerRef.current.clientHeight || 600,
                                     autoPlay: true,
@@ -147,8 +164,6 @@ export default function SessionsPage() {
             setSessionsList(prev => prev.filter(s => s.filename !== sessionToDelete));
             if (activeSessionFilename === sessionToDelete) {
                 setActiveSessionFilename(null);
-                const playerEl = document.getElementById('rrweb-player-container');
-                if (playerEl) playerEl.innerHTML = '';
             }
             setSessionToDelete(null);
         } catch (error) {
