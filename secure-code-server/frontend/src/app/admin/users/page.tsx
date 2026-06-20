@@ -18,7 +18,6 @@ export default function UsersPage() {
     const [createRole, setCreateRole] = useState('');
     const [createStatus, setCreateStatus] = useState('');
     const [createAllowIp, setCreateAllowIp] = useState('');
-    const [createPublicKey, setCreatePublicKey] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const [deleteErrorPopup, setDeleteErrorPopup] = useState<string | null>(null);
@@ -65,8 +64,7 @@ export default function UsersPage() {
                     username: createUsername,
                     role: createRole,
                     status: createStatus,
-                    allowIp: createAllowIp,
-                    publicKey: createPublicKey
+                    allowIp: createAllowIp
                 });
                 showToast('User updated successfully');
                 setShowCreateModal(false);
@@ -91,8 +89,7 @@ export default function UsersPage() {
                 password: createPassword,
                 role: createRole,
                 status: createStatus,
-                allowIp: createAllowIp,
-                publicKey: createPublicKey
+                allowIp: createAllowIp
             });
             showToast('User created successfully');
             setShowCreateModal(false);
@@ -101,7 +98,6 @@ export default function UsersPage() {
             setCreateRole('');
             setCreateStatus('');
             setCreateAllowIp('');
-            setCreatePublicKey('');
             fetchUsers();
         } catch (err: any) {
             showToast(err.message || 'Failed to create user', 'error');
@@ -122,7 +118,6 @@ export default function UsersPage() {
         setCreateRole(user.role || '');
         setCreateStatus(user.status || '');
         setCreateAllowIp(user.allowIp || '');
-        setCreatePublicKey(user.publicKey || '');
         setModalMode('edit');
         setShowCreateModal(true);
     };
@@ -226,7 +221,6 @@ export default function UsersPage() {
                             setCreateRole('');
                             setCreateStatus('');
                             setCreateAllowIp('');
-                            setCreatePublicKey('');
                             setShowCreateModal(true);
                         }}
                         className="flex items-center space-x-2 bg-gradient-to-b from-[#4f46e5] to-[#3730a3] hover:from-[#4338ca] hover:to-[#312e81] text-white px-5 py-2.5 rounded-lg font-medium transition-all shadow-[0_4px_15px_rgba(79,70,229,0.3)] active:scale-[0.98]"
@@ -525,17 +519,6 @@ export default function UsersPage() {
                                     value={createAllowIp}
                                     onChange={(e) => setCreateAllowIp(e.target.value)}
                                     placeholder="Allow IP"
-                                    className="w-full bg-[#050810] border border-slate-800/60 rounded-xl px-4 py-3.5 text-[14px] text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 focus:bg-[#070b14] transition-all shadow-inner"
-                                />
-                            </div>
-
-                            {/* Public Key */}
-                            <div className="flex flex-col">
-                                <input
-                                    type="text"
-                                    value={createPublicKey}
-                                    onChange={(e) => setCreatePublicKey(e.target.value)}
-                                    placeholder="Public Key"
                                     className="w-full bg-[#050810] border border-slate-800/60 rounded-xl px-4 py-3.5 text-[14px] text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 focus:bg-[#070b14] transition-all shadow-inner"
                                 />
                             </div>

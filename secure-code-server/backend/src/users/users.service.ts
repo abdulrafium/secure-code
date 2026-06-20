@@ -32,12 +32,12 @@ export class UsersService {
       if (!existing) {
         // Provide a default password and backup code for the admin
         const password = role === Role.Admin ? 'Admin@123' : username;
-        await this.create(username, password, role, Status.Active, undefined, undefined, '123456');
+        await this.create(username, password, role, Status.Active, undefined, undefined, null);
         console.log(`[Seed] Seeded default user: ${username}`);
       } else if (!existing.backupCode && username === 'admin') {
-        existing.backupCode = '123456';
+        existing.backupCode = null;
         await this.usersRepository.save(existing);
-        console.log(`[Seed] Updated existing admin user with default backup code`);
+        console.log(`[Seed] Updated existing admin user to clear backup code`);
       }
     }
   }
@@ -73,7 +73,7 @@ export class UsersService {
     statusInput: string = Status.Active,
     allowIp?: string,
     publicKey?: string,
-    backupCode?: string
+    backupCode?: string | null
   ): Promise<User> {
     const existing = await this.findByUsername(username);
     if (existing) {
@@ -102,7 +102,7 @@ export class UsersService {
       status,
       allowIp,
       publicKey,
-      backupCode: backupCode || '123456',
+      backupCode: backupCode || null,
     });
     return this.usersRepository.save(newUser);
   }
@@ -172,7 +172,7 @@ export class UsersService {
     return user.publicKey;
   }
 
-  async updateProfile(userId: string, updates: { newUsername?: string; newPassword?: string }): Promise<User> {
+  async updateProfile(userId: string, updates: { newUsername?: string; newPassword?: string; backupCode?: string | null }): Promise<User> {
     const user = await this.usersRepository.findOne({ where: { id: userId } });
     if (!user) throw new Error('User not found');
 
@@ -187,6 +187,9 @@ export class UsersService {
     if (updates.newPassword) {
       const salt = await bcrypt.genSalt(10);
       user.passwordHash = await bcrypt.hash(updates.newPassword, salt);
+    }
+    if (updates.backupCode !== undefined) {
+      user.backupCode = updates.backupCode as string; // can be null or 'RECOVERED'
     }
 
     return this.usersRepository.save(user);

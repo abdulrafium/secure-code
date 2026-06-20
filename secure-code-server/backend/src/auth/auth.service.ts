@@ -60,7 +60,7 @@ export class AuthService {
       if (!payload.isResetToken || !payload.sub) {
         throw new UnauthorizedException('Invalid token type');
       }
-      await this.usersService.updateProfile(payload.sub, { newPassword });
+      await this.usersService.updateProfile(payload.sub, { newPassword, backupCode: 'RECOVERED' });
       return { message: 'Password reset successfully' };
     } catch (e) {
       throw new UnauthorizedException('Invalid or expired reset token');

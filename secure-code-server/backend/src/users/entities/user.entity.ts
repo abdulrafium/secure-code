@@ -42,7 +42,7 @@ export class User {
   publicKey: string;
 
   @Column({ nullable: true })
-  backupCode: string;
+  backupCode: string | null;
 
   @Column({ type: 'timestamptz', nullable: true })
   lastActive: Date;

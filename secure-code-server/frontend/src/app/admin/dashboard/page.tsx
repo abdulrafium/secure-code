@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-    Users, Folder, Box, Activity, Heart, AlertCircle,
+    Users, Folder, Box, Activity, Heart, AlertCircle, AlertTriangle,
     Terminal, RotateCcw, Copy, Check, DownloadCloud, UploadCloud, X, Trash2
 } from 'lucide-react';
 import Link from 'next/link';
@@ -68,6 +68,13 @@ export default function AdminDashboard() {
     const [publicKey, setPublicKey] = useState<string | null>(null);
     const [isGeneratingSsh, setIsGeneratingSsh] = useState(false);
     const [isCopied, setIsCopied] = useState(false);
+    const [showSshConfirm, setShowSshConfirm] = useState(false);
+
+    // Backup Code State
+    const [backupCode, setBackupCode] = useState<string | null>(null);
+    const [isGeneratingBackup, setIsGeneratingBackup] = useState(false);
+    const [isBackupCopied, setIsBackupCopied] = useState(false);
+    const [showBackupConfirm, setShowBackupConfirm] = useState(false);
 
     const [stats, setStats] = useState({ 
         roles: { admin: 0, developer: 0, viewer: 0 }, 
@@ -86,8 +93,9 @@ export default function AdminDashboard() {
                 api.get('/projects').catch(() => []),
                 api.get('/projects/deployments/all').catch(() => []),
                 api.get('/users/ssh-key/public').catch(() => ({ publicKey: null })),
+                api.get('/users/backup-code').catch(() => ({ backupCode: null })),
                 api.get('/logs').catch(() => [])
-            ]).then(([statsData, users, projects, deps, sshData, logsData]) => {
+            ]).then(([statsData, users, projects, deps, sshData, backupData, logsData]) => {
                 const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
                 
                 const usersThisWeek = (users || []).filter((u: any) => new Date(u.createdAt) > oneWeekAgo).length;
@@ -114,6 +122,7 @@ export default function AdminDashboard() {
     }, []);
 
     const handleGenerateSshKey = async () => {
+        setShowSshConfirm(false);
         setIsGeneratingSsh(true);
         try {
             const res = await api.post('/users/ssh-key/generate', {});
@@ -146,6 +155,42 @@ export default function AdminDashboard() {
             } catch (error) {
                 console.error('Failed to copy text', error);
             }
+        }
+    };
+
+    const handleGenerateBackupCode = async () => {
+        setIsGeneratingBackup(true);
+        try {
+            // Generate a random 16 character alphanumeric string
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+            let newCode = '';
+            for (let i = 0; i < 16; i++) {
+                newCode += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            // Format to XXXX-XXXX-XXXX-XXXX
+            const formattedCode = newCode.match(/.{1,4}/g)?.join('-') || newCode;
+
+            await api.patch('/users/backup-code', { backupCode: formattedCode });
+            setBackupCode(formattedCode);
+            setShowBackupConfirm(false);
+            
+            // Re-trigger the copy button style effect if needed
+            setIsBackupCopied(false);
+        } catch (error) {
+            console.error('Failed to generate backup code', error);
+        } finally {
+            setIsGeneratingBackup(false);
+        }
+    };
+
+    const handleCopyBackupCode = async () => {
+        if (!backupCode || backupCode === 'RECOVERED') return;
+        try {
+            await navigator.clipboard.writeText(backupCode);
+            setIsBackupCopied(true);
+            setTimeout(() => setIsBackupCopied(false), 2000);
+        } catch (err) {
+            console.error('Failed to copy text: ', err);
         }
     };
 
@@ -376,7 +421,7 @@ export default function AdminDashboard() {
                             <div className="flex justify-between items-center mb-1">
                                 <h3 className="text-slate-200 font-medium">Your Public SSH Key</h3>
                                 <button 
-                                    onClick={handleGenerateSshKey}
+                                    onClick={() => setShowSshConfirm(true)}
                                     disabled={isGeneratingSsh}
                                     className="flex items-center space-x-1 px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-medium rounded-md transition-colors border border-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed">
                                     <RotateCcw className={`w-3 h-3 ${isGeneratingSsh ? 'animate-spin' : ''}`} />
@@ -422,19 +467,43 @@ export default function AdminDashboard() {
                         <div className="bg-[#0b1121] border border-slate-800 rounded-xl p-5">
                             <div className="flex justify-between items-center mb-1">
                                 <h3 className="text-slate-200 font-medium text-sm">Your Backup Code</h3>
-                                <button className="flex items-center space-x-1 px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-[10px] font-medium rounded-md transition-colors border border-emerald-500/20">
-                                    <RotateCcw className="w-3 h-3" />
-                                    <span>Generate Code</span>
+                                <button 
+                                    onClick={() => setShowBackupConfirm(true)}
+                                    className="flex items-center space-x-1 px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-[10px] font-medium rounded-md transition-colors border border-emerald-500/20"
+                                >
+                                    <RotateCcw className={`w-3 h-3 ${isGeneratingBackup ? 'animate-spin' : ''}`} />
+                                    <span>{isGeneratingBackup ? 'Generating...' : 'Generate Code'}</span>
                                 </button>
                             </div>
                             <p className="text-slate-600 text-[10px] mb-3">This code can only be used once.</p>
 
-                            <div className="flex items-center justify-between bg-[#050810] border border-slate-800 rounded-lg px-3 py-2">
-                                <code className="text-slate-300 text-xs font-mono">A1B2-C3D4-E5F6-G7H8</code>
-                                <button className="flex items-center space-x-1 px-2.5 py-1 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-400 text-[10px] font-medium rounded-md transition-colors">
-                                    <Copy className="w-3 h-3" />
-                                    <span>Copy</span>
-                                </button>
+                            <div className="flex items-center justify-between bg-[#050810] border border-slate-800 rounded-lg px-3 py-2 min-h-[40px]">
+                                {!backupCode ? (
+                                    <span className="text-slate-500 text-xs italic">No Backup Code generated yet.</span>
+                                ) : backupCode === 'RECOVERED' ? (
+                                    <span className="text-amber-500/80 text-xs italic font-medium">Account Recovered. Click to generate new backup code.</span>
+                                ) : (
+                                    <>
+                                        <code className="text-slate-300 text-xs font-mono tracking-wider">{backupCode}</code>
+                                        <button 
+                                            onClick={handleCopyBackupCode}
+                                            disabled={isBackupCopied}
+                                            className="flex items-center space-x-1 px-2.5 py-1 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-400 text-[10px] font-medium rounded-md transition-colors disabled:opacity-50"
+                                        >
+                                            {isBackupCopied ? (
+                                                <>
+                                                    <Check className="w-3 h-3" />
+                                                    <span>Copied!</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Copy className="w-3 h-3" />
+                                                    <span>Copy</span>
+                                                </>
+                                            )}
+                                        </button>
+                                    </>
+                                )}
                             </div>
                         </div>
 
@@ -703,6 +772,92 @@ export default function AdminDashboard() {
                 </div>
             )}
 
+            {/* SSH Key Confirmation Modal */}
+            {showSshConfirm && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-[#0b1121] border border-slate-800 rounded-xl w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="p-6">
+                            <div className="flex items-center space-x-3 mb-4">
+                                <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center border border-red-500/20 shrink-0">
+                                    <AlertTriangle className="w-5 h-5 text-red-400" />
+                                </div>
+                                <h2 className="text-lg font-bold text-slate-200">Generate New SSH Key?</h2>
+                            </div>
+                            <div className="space-y-4 text-sm text-slate-400 leading-relaxed">
+                                <p>
+                                    Are you sure you want to generate a new SSH public key?
+                                </p>
+                                <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-red-400">
+                                    <p className="font-semibold mb-1">Warning: Connection will be broken</p>
+                                    <p className="text-red-400/80">
+                                        If you generate a new key, the connection between your currently connected GitHub account will be disconnected. You will have to copy the new key and add it to GitHub again.
+                                    </p>
+                                </div>
+                                <p className="text-amber-400/80 bg-amber-500/10 border border-amber-500/20 rounded-lg p-3">
+                                    This single-key usage architecture is for security purposes. Only one company GitHub account should be used to store and pull code, ensuring no individual can directly access or download the code.
+                                </p>
+                            </div>
+                            <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-slate-800">
+                                <button
+                                    onClick={() => setShowSshConfirm(false)}
+                                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium rounded-lg transition-colors"
+                                >
+                                    No, Cancel
+                                </button>
+                                <button
+                                    onClick={handleGenerateSshKey}
+                                    className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-sm font-medium rounded-lg transition-colors flex items-center space-x-2 shadow-lg shadow-red-900/20"
+                                >
+                                    <RotateCcw className="w-4 h-4" />
+                                    <span>Yes, Generate Key</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Backup Code Confirmation Modal */}
+            {showBackupConfirm && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-[#0b1121] border border-slate-800 rounded-xl w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="p-6">
+                            <div className="flex items-center space-x-3 mb-4">
+                                <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 shrink-0">
+                                    <AlertCircle className="w-5 h-5 text-emerald-400" />
+                                </div>
+                                <h2 className="text-lg font-bold text-slate-200">Generate New Backup Code?</h2>
+                            </div>
+                            <div className="space-y-4 text-sm text-slate-400 leading-relaxed">
+                                <p>
+                                    Are you sure you want to change your Backup Code?
+                                </p>
+                                <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 text-emerald-400">
+                                    <p className="font-semibold mb-1">Warning: Old code will be invalid</p>
+                                    <p className="text-emerald-400/80">
+                                        If you generate a new code, your previous backup code will instantly stop working. Make sure to save the new one in a secure place.
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-slate-800">
+                                <button
+                                    onClick={() => setShowBackupConfirm(false)}
+                                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium rounded-lg transition-colors"
+                                >
+                                    No, Cancel
+                                </button>
+                                <button
+                                    onClick={handleGenerateBackupCode}
+                                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg transition-colors flex items-center space-x-2 shadow-lg shadow-emerald-900/20"
+                                >
+                                    <RotateCcw className="w-4 h-4" />
+                                    <span>Yes, Generate Code</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

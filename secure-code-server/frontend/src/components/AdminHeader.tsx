@@ -25,12 +25,7 @@ export default function AdminHeader() {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    // Backup Code states
-    const [showBackupModal, setShowBackupModal] = useState(false);
-    const [backupCode, setBackupCode] = useState('');
-    const [isLoadingBackup, setIsLoadingBackup] = useState(false);
-    const [backupSuccessMsg, setBackupSuccessMsg] = useState('');
-    const [backupErrorMsg, setBackupErrorMsg] = useState('');
+
 
     const router = useRouter();
     const pathname = usePathname();
@@ -73,39 +68,6 @@ export default function AdminHeader() {
         setTimeout(() => {
             router.push('/admin/login');
         }, 2500); // 2.5s for bracket animation
-    };
-
-    const handleOpenBackupModal = async () => {
-        setShowBackupModal(true);
-        setBackupSuccessMsg('');
-        setBackupErrorMsg('');
-        setIsLoadingBackup(true);
-        try {
-            const data = await api.get('/users/backup-code');
-            setBackupCode(data.backupCode || '');
-        } catch (err: any) {
-            setBackupErrorMsg('Failed to load backup code');
-        } finally {
-            setIsLoadingBackup(false);
-        }
-    };
-
-    const handleSaveBackupCode = async () => {
-        setBackupSuccessMsg('');
-        setBackupErrorMsg('');
-        if (!backupCode) {
-            setBackupErrorMsg('Backup code cannot be empty');
-            return;
-        }
-        setIsLoadingBackup(true);
-        try {
-            await api.patch('/users/backup-code', { backupCode });
-            setBackupSuccessMsg('Backup code updated successfully!');
-        } catch (err: any) {
-            setBackupErrorMsg(err.message || 'Failed to update backup code');
-        } finally {
-            setIsLoadingBackup(false);
-        }
     };
 
     return (
@@ -175,16 +137,7 @@ export default function AdminHeader() {
                         <div className={`absolute right-0 top-full mt-2 w-48 bg-[#0a0f1c]/95 backdrop-blur-xl border border-slate-800 rounded-xl shadow-2xl transition-all duration-200 transform origin-top-right ${isProfileOpen ? 'opacity-100 visible scale-100' : 'opacity-0 invisible scale-95'}`}>
                             <div className="p-2 space-y-1">
                                 <div className="px-3 py-2 text-xs text-slate-500 border-b border-slate-800 mb-1">Signed in via Console</div>
-                                <button
-                                    onClick={() => {
-                                        setIsProfileOpen(false);
-                                        handleOpenBackupModal();
-                                    }}
-                                    className="flex items-center space-x-2 px-3 py-2 text-slate-300 hover:text-white hover:bg-blue-500/10 rounded-lg transition-colors w-full"
-                                >
-                                    <Key className="w-4 h-4 text-blue-400" />
-                                    <span className="text-sm font-medium">Backup Code</span>
-                                </button>
+
                                 <button
                                     onClick={() => {
                                         setIsProfileOpen(false);
@@ -280,71 +233,6 @@ export default function AdminHeader() {
                 </div>
             )}
 
-            {/* Backup Code Modal */}
-            {showBackupModal && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#050b1a]/60 backdrop-blur-md">
-                    <div className="relative bg-[#0a0f1c] border border-blue-500/30 p-8 rounded-2xl shadow-[0_0_50px_rgba(37,99,235,0.15)] max-w-sm w-full mx-4 transform transition-all">
-                        {/* Close Icon */}
-                        <button
-                            onClick={() => setShowBackupModal(false)}
-                            className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors"
-                        >
-                            <X className="w-5 h-5" />
-                        </button>
-
-                        <div className="flex justify-center mb-4">
-                            <div className="w-14 h-14 rounded-full bg-blue-500/10 flex items-center justify-center border border-blue-500/20 shadow-[0_0_20px_rgba(37,99,235,0.2)]">
-                                <Key className="w-6 h-6 text-blue-400" />
-                            </div>
-                        </div>
-                        <h3 className="text-xl font-bold text-center text-white mb-2">Backup Code</h3>
-                        <p className="text-center text-slate-400 text-sm mb-6">
-                            View or update your account recovery backup code.
-                        </p>
-
-                        {backupErrorMsg && (
-                            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm text-center">
-                                {backupErrorMsg}
-                            </div>
-                        )}
-                        {backupSuccessMsg && (
-                            <div className="mb-4 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 text-sm text-center flex items-center justify-center space-x-2">
-                                <CheckCircle2 className="w-4 h-4" />
-                                <span>{backupSuccessMsg}</span>
-                            </div>
-                        )}
-
-                        <div className="space-y-4">
-                            <div className="relative group">
-                                <div className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none text-slate-500 group-focus-within:text-blue-400 transition-colors">
-                                    <Key className="w-5 h-5" />
-                                </div>
-                                <input
-                                    type="text"
-                                    value={backupCode}
-                                    onChange={(e) => setBackupCode(e.target.value)}
-                                    placeholder="Enter new backup code"
-                                    className="w-full pl-12 pr-4 py-3 bg-[#0d1326]/60 border border-slate-700/60 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all shadow-inner"
-                                />
-                            </div>
-
-                            <button
-                                onClick={handleSaveBackupCode}
-                                disabled={isLoadingBackup}
-                                className={`w-full py-3 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-400 hover:to-indigo-500 text-white font-medium transition-colors shadow-lg shadow-blue-500/20 flex items-center justify-center space-x-2 ${isLoadingBackup ? 'opacity-80 cursor-wait' : ''}`}
-                            >
-                                {isLoadingBackup ? (
-                                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                    </svg>
-                                ) : null}
-                                <span>{isLoadingBackup ? 'Saving...' : 'Save'}</span>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
 
             {/* Custom Keyframes for Brackets */}
             <style dangerouslySetInnerHTML={{

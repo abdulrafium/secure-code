@@ -44,6 +44,18 @@ export default function AdminRecovery() {
         }
     }, [errorMsg]);
 
+    const handleBackupCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        // Strip everything except A-Z and 0-9
+        let value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        // Limit to 16 pure characters
+        if (value.length > 16) {
+            value = value.slice(0, 16);
+        }
+        // Group by 4 and join with hyphen
+        const formatted = value.match(/.{1,4}/g)?.join('-') || value;
+        setBackupCode(formatted);
+    };
+
     const handleNext = async () => {
         setErrorMsg('');
         if (!username || !backupCode) {
@@ -159,9 +171,10 @@ export default function AdminRecovery() {
                             <input
                                 type="text"
                                 value={backupCode}
-                                onChange={(e) => setBackupCode(e.target.value)}
-                                placeholder="Enter your backup code"
-                                className="w-full pl-12 pr-4 py-3.5 bg-[#0d1326]/60 border border-slate-700/60 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all shadow-inner"
+                                onChange={handleBackupCodeChange}
+                                placeholder="XXXX-XXXX-XXXX-XXXX"
+                                maxLength={19}
+                                className="w-full pl-12 pr-4 py-3.5 bg-[#0d1326]/60 border border-slate-700/60 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all shadow-inner tracking-widest font-mono"
                             />
                         </div>
                     </div>
@@ -170,8 +183,8 @@ export default function AdminRecovery() {
                     <div className="w-full block mt-4">
                         <button
                             type="submit"
-                            disabled={isLoading}
-                            className={`w-full py-4 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-400 hover:to-indigo-500 text-white rounded-xl font-medium shadow-[0_4px_14px_0_rgba(37,99,235,0.39)] hover:shadow-[0_6px_20px_rgba(37,99,235,0.23)] transition-all flex items-center justify-center space-x-2 active:scale-[0.98] ${isLoading ? 'opacity-80 cursor-wait' : ''}`}
+                            disabled={isLoading || !username || backupCode.length !== 19}
+                            className={`w-full py-4 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-400 hover:to-indigo-500 text-white rounded-xl font-medium shadow-[0_4px_14px_0_rgba(37,99,235,0.39)] hover:shadow-[0_6px_20px_rgba(37,99,235,0.23)] transition-all flex items-center justify-center space-x-2 active:scale-[0.98] ${isLoading || !username || backupCode.length !== 19 ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                             <span>{isLoading ? 'Verifying...' : 'Next'}</span>
                             {!isLoading && <ArrowRight className="w-5 h-5" />}
