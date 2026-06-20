@@ -21,6 +21,9 @@ export class BackupsProcessor extends WorkerHost {
     if (job.name === 'export-backup') {
       return this.handleExportBackup(job);
     }
+    if (job.name === 'restore-backup') {
+      return this.handleRestoreBackup(job);
+    }
     return { success: false, message: 'Unknown job name' };
   }
 
@@ -34,38 +37,36 @@ export class BackupsProcessor extends WorkerHost {
       }
 
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const filename = `backup-${timestamp}.sql.gz`;
+      const filename = `backup-${timestamp}.tar.gz`;
       const filePath = path.join(backupDir, filename);
 
-      // We extract DB info from DATABASE_URL
-      // format: postgresql://USER:PASSWORD@HOST:PORT/DATABASE
       const dbUrl = process.env.DATABASE_URL;
       if (!dbUrl) throw new Error('DATABASE_URL is not set');
 
-      // Use pg_dump via child_process
-      // Ensure the Docker container running this has pg_dump installed, or we connect remotely if we use a raw host
-      // Since we are inside a node container, we might need to rely on standard pg_dump.
-      // If pg_dump isn't installed in the node image, we'll install it in the Dockerfile.
+      await job.updateProgress(10);
 
-      const command = `pg_dump "${dbUrl}" | gzip > "${filePath}"`;
+      // Step 1: Dump database to a temporary file
+      const tempDbPath = path.join('/tmp', `db-${timestamp}.sql`);
+      const dumpCommand = `pg_dump --clean "${dbUrl}" > "${tempDbPath}"`;
+      await execAsync(dumpCommand);
+      
+      await job.updateProgress(50);
 
-      await job.updateProgress(20);
+      // Step 2: Tar the DB and the physical workspaces directory
+      const tarCommand = `tar -czf "${filePath}" -C /tmp "db-${timestamp}.sql" -C / workspaces`;
+      await execAsync(tarCommand);
 
-      const { stdout, stderr } = await execAsync(command);
-
-      if (stderr) {
-        this.logger.warn(`pg_dump stderr: ${stderr}`);
-      }
+      // Cleanup temp db
+      fs.unlinkSync(tempDbPath);
 
       await job.updateProgress(100);
 
-      // Log to security logs
       if (job.data.userId) {
         await this.logsService.logEvent({
           userId: job.data.userId,
           username: job.data.username || 'System',
           action: 'BACKUP_EXPORT',
-          details: `Exported backup to ${filename}`,
+          details: `Exported full backup to ${filename}`,
           ipAddress: 'Server',
         });
       }
@@ -74,6 +75,78 @@ export class BackupsProcessor extends WorkerHost {
       return { success: true, file: filename };
     } catch (error: any) {
       this.logger.error(`Backup failed: ${error.message}`);
+      throw error;
+    }
+  }
+
+  private async handleRestoreBackup(job: Job): Promise<any> {
+    this.logger.log(`Starting backup restore job ${job.id}`);
+    try {
+      const filename = job.data.filename;
+      if (!filename) throw new Error('No filename provided for restore');
+
+      const backupDir = path.join(process.cwd(), '..', 'backups');
+      const filePath = path.join(backupDir, filename);
+
+      if (!fs.existsSync(filePath)) throw new Error(`Backup file ${filename} not found`);
+
+      const dbUrl = process.env.DATABASE_URL;
+      if (!dbUrl) throw new Error('DATABASE_URL is not set');
+
+      await job.updateProgress(10);
+
+      const extractDir = path.join('/tmp', `restore-${job.id}`);
+      fs.mkdirSync(extractDir, { recursive: true });
+
+      // Step 1: Extract Tarball
+      const extractCommand = `tar -xzf "${filePath}" -C "${extractDir}"`;
+      await execAsync(extractCommand);
+
+      await job.updateProgress(40);
+
+      // Step 2: Restore Database (Full Overwrite using the --clean dump)
+      // The sql file will be named db-TIMESTAMP.sql. We find it dynamically:
+      const extractedFiles = fs.readdirSync(extractDir);
+      const sqlFile = extractedFiles.find(f => f.endsWith('.sql'));
+      
+      if (!sqlFile) throw new Error('No SQL dump found in backup archive');
+
+      const restoreCommand = `psql "${dbUrl}" < "${path.join(extractDir, sqlFile)}"`;
+      await execAsync(restoreCommand);
+
+      await job.updateProgress(70);
+
+      // Step 3: Differential File Restore (No Clobber)
+      // We copy extracted workspace files into the live workspace, but DO NOT overwrite existing files.
+      // -n means no-clobber
+      const workspaceExtractPath = path.join(extractDir, 'workspaces');
+      if (fs.existsSync(workspaceExtractPath)) {
+        const copyCommand = `cp -rn "${workspaceExtractPath}/"* /workspaces/ || true`;
+        await execAsync(copyCommand);
+      }
+
+      await job.updateProgress(90);
+
+      // Cleanup
+      const rmCommand = `rm -rf "${extractDir}"`;
+      await execAsync(rmCommand);
+
+      await job.updateProgress(100);
+
+      if (job.data.userId) {
+        await this.logsService.logEvent({
+          userId: job.data.userId,
+          username: job.data.username || 'System',
+          action: 'BACKUP_RESTORE',
+          details: `Restored full backup from ${filename}`,
+          ipAddress: 'Server',
+        });
+      }
+
+      this.logger.log(`Restore completed: ${filename}`);
+      return { success: true, file: filename };
+    } catch (error: any) {
+      this.logger.error(`Restore failed: ${error.message}`);
       throw error;
     }
   }

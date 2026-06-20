@@ -25,6 +25,7 @@ RUN apt-get update && apt-get install -y \
     make \
     g++ \
     git \
+    postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
 ENV NODE_ENV=production

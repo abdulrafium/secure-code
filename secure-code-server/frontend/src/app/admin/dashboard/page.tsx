@@ -66,7 +66,6 @@ export default function AdminDashboard() {
     const [sessionsList, setSessionsList] = useState<any[]>([]);
     const [isDeploymentsModalOpen, setIsDeploymentsModalOpen] = useState(false);
     const [isAlertsModalOpen, setIsAlertsModalOpen] = useState(false);
-    const [isSessionsModalOpen, setIsSessionsModalOpen] = useState(false);
     const [activeSessionFilename, setActiveSessionFilename] = useState<string | null>(null);
     const [logToDelete, setLogToDelete] = useState<any | null>(null);
     const [projectsList, setProjectsList] = useState<any[]>([]);
@@ -82,6 +81,15 @@ export default function AdminDashboard() {
     const [isExportingBackup, setIsExportingBackup] = useState(false);
     const [isBackupCopied, setIsBackupCopied] = useState(false);
     const [showBackupConfirm, setShowBackupConfirm] = useState(false);
+    const [isBackupsModalOpen, setIsBackupsModalOpen] = useState(false);
+    const [availableBackups, setAvailableBackups] = useState<any[]>([]);
+    const [selectedBackup, setSelectedBackup] = useState<string | null>(null);
+    const [isRestoringBackup, setIsRestoringBackup] = useState(false);
+    const [showJobAlert, setShowJobAlert] = useState<{ id: string, type: string } | null>(null);
+    const [activeJobId, setActiveJobId] = useState<string | null>(null);
+    const [jobProgress, setJobProgress] = useState<number>(0);
+    const [jobStatus, setJobStatus] = useState<string>('RUNNING');
+    const [jobType, setJobType] = useState<string>('');
 
     const [stats, setStats] = useState({ 
         roles: { admin: 0, developer: 0, viewer: 0 }, 
@@ -132,6 +140,44 @@ export default function AdminDashboard() {
         const interval = setInterval(fetchData, 5000);
         return () => clearInterval(interval);
     }, []);
+
+    useEffect(() => {
+        if (isBackupsModalOpen) {
+            api.get('/backups').then(data => {
+                if (data) setAvailableBackups(data);
+            }).catch(console.error);
+        }
+    }, [isBackupsModalOpen]);
+
+    useEffect(() => {
+        if (!activeJobId) return;
+
+        const pollJob = async () => {
+            try {
+                const res = await api.get(`/backups/job/${activeJobId}`);
+                if (res && res.status) {
+                    setJobProgress(res.progress || 0);
+                    setJobStatus(res.status);
+                    
+                    if (res.status === 'completed' || res.status === 'failed') {
+                        // Keep the toast visible but stop polling
+                        setJobProgress(res.status === 'completed' ? 100 : 0);
+                        return true; // Stop polling
+                    }
+                }
+            } catch (err) {
+                console.error(err);
+            }
+            return false;
+        };
+
+        const interval = setInterval(async () => {
+            const shouldStop = await pollJob();
+            if (shouldStop) clearInterval(interval);
+        }, 1000);
+
+        return () => clearInterval(interval);
+    }, [activeJobId]);
 
     const handleGenerateSshKey = async () => {
         setShowSshConfirm(false);
@@ -232,7 +278,7 @@ export default function AdminDashboard() {
         try {
             const res = await api.post('/backups/export', {});
             if (res.success) {
-                alert(`Backup job started (Job ID: ${res.jobId}). It may take a few moments to compress.`);
+                setShowJobAlert({ id: res.jobId, type: 'EXPORT' });
             } else {
                 alert('Failed to start backup export.');
             }
@@ -241,6 +287,25 @@ export default function AdminDashboard() {
             alert('Failed to export backup. Please check your permissions.');
         } finally {
             setIsExportingBackup(false);
+        }
+    };
+
+    const handleRestoreBackup = async () => {
+        if (!selectedBackup) return;
+        setIsRestoringBackup(true);
+        try {
+            const res = await api.post('/backups/restore', { filename: selectedBackup });
+            if (res.success) {
+                setSelectedBackup(null);
+                setShowJobAlert({ id: res.jobId, type: 'RESTORE' });
+            } else {
+                alert('Failed to start backup restore.');
+            }
+        } catch (error) {
+            console.error('Restore backup failed', error);
+            alert('Failed to restore backup.');
+        } finally {
+            setIsRestoringBackup(false);
         }
     };
 
@@ -582,46 +647,153 @@ export default function AdminDashboard() {
                             </div>
                             <p className="text-slate-600 text-[10px] mb-4">Manage and secure your data backups</p>
 
-                            <div className="flex items-center space-x-2">
                                 <button 
-                                    onClick={handleExportBackup}
-                                    disabled={isExportingBackup}
-                                    className="flex-1 flex items-center justify-center space-x-2 py-2 bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-400 text-xs font-medium rounded-lg border border-emerald-500/20 transition-colors disabled:opacity-50"
+                                    onClick={() => selectedBackup ? setSelectedBackup(null) : setIsBackupsModalOpen(true)}
+                                    className="flex-1 flex items-center justify-center space-x-2 py-2 bg-blue-500/5 hover:bg-blue-500/10 text-blue-400 text-xs font-medium rounded-lg border border-blue-500/20 transition-colors group"
                                 >
-                                    <UploadCloud className={`w-3.5 h-3.5 ${isExportingBackup ? 'animate-bounce' : ''}`} />
-                                    <span>{isExportingBackup ? 'Exporting...' : 'Export Backup'}</span>
+                                    {selectedBackup ? (
+                                        <>
+                                            <span className="truncate max-w-[100px] text-[10px]">{selectedBackup}</span>
+                                            <X className="w-3.5 h-3.5 text-red-400 opacity-50 group-hover:opacity-100" />
+                                        </>
+                                    ) : (
+                                        <>
+                                            <DownloadCloud className="w-3.5 h-3.5" />
+                                            <span>Import Backup</span>
+                                        </>
+                                    )}
                                 </button>
-                                <button className="flex-1 flex items-center justify-center space-x-2 py-2 bg-blue-500/5 hover:bg-blue-500/10 text-blue-400 text-xs font-medium rounded-lg border border-blue-500/20 transition-colors">
-                                    <DownloadCloud className="w-3.5 h-3.5" />
-                                    <span>Import Backup</span>
-                                </button>
-                                <button className="flex-1 flex items-center justify-center space-x-2 py-2 bg-purple-500/5 hover:bg-purple-500/10 text-purple-400 text-xs font-medium rounded-lg border border-purple-500/20 transition-colors">
-                                    <RotateCcw className="w-3.5 h-3.5" />
-                                    <span>Restore Backup</span>
+                                <button 
+                                    onClick={handleRestoreBackup}
+                                    disabled={!selectedBackup || isRestoringBackup}
+                                    className="flex-1 flex items-center justify-center space-x-2 py-2 bg-purple-500/5 hover:bg-purple-500/10 text-purple-400 text-xs font-medium rounded-lg border border-purple-500/20 transition-colors disabled:opacity-50"
+                                >
+                                    <RotateCcw className={`w-3.5 h-3.5 ${isRestoringBackup ? 'animate-spin' : ''}`} />
+                                    <span>{isRestoringBackup ? 'Restoring...' : 'Restore Backup'}</span>
                                 </button>
                             </div>
-                        </div>
-
-                        {/* Session Recordings */}
-                        <div className="bg-[#0b1121] border border-slate-800 rounded-xl p-5 flex-1 flex flex-col justify-center">
-                            <div className="flex items-center space-x-2 mb-1">
-                                <Video className="w-4 h-4 text-emerald-400" />
-                                <h3 className="text-slate-200 font-medium text-sm">Session Recordings</h3>
-                            </div>
-                            <p className="text-slate-600 text-[10px] mb-4">View user interaction playbacks in the IDE workspace</p>
-
-                            <button 
-                                onClick={() => setIsSessionsModalOpen(true)}
-                                className="w-full flex items-center justify-center space-x-2 py-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 text-xs font-medium rounded-lg border border-indigo-500/20 transition-colors"
-                            >
-                                <Video className="w-3.5 h-3.5" />
-                                <span>View Replays ({sessionsList.length})</span>
-                            </button>
                         </div>
 
                     </div>
 
                 </div>
+
+                {/* --- JOB ALERT POPUP --- */}
+                {showJobAlert && (
+                    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+                        <div className="absolute inset-0 bg-[#040814]/80 backdrop-blur-sm" />
+                        <div className="relative w-full max-w-sm bg-[#0b1121] border border-slate-800 rounded-2xl shadow-2xl p-6 text-center">
+                            <div className="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center mx-auto mb-4">
+                                <Activity className="w-6 h-6 text-emerald-400" />
+                            </div>
+                            <h3 className="text-lg font-medium text-slate-200 mb-2">Job {showJobAlert.type} Started</h3>
+                            <p className="text-sm text-slate-400 mb-6">
+                                Job ID: <span className="font-mono text-indigo-400">{showJobAlert.id}</span>
+                            </p>
+                            <button
+                                onClick={() => {
+                                    setJobType(showJobAlert.type);
+                                    setActiveJobId(showJobAlert.id);
+                                    setJobStatus('RUNNING');
+                                    setJobProgress(0);
+                                    setShowJobAlert(null);
+                                }}
+                                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-medium transition-colors"
+                            >
+                                OK
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* --- REAL-TIME PROGRESS TOAST --- */}
+                {activeJobId && (
+                    <div className="fixed top-6 right-6 z-[110] w-80 bg-[#0b1121] border border-slate-700 shadow-2xl rounded-xl p-4 animate-in slide-in-from-right-8">
+                        <div className="flex justify-between items-start mb-2">
+                            <div className="flex items-center space-x-2">
+                                {jobStatus === 'completed' ? (
+                                    <Check className="w-4 h-4 text-emerald-400" />
+                                ) : jobStatus === 'failed' ? (
+                                    <AlertTriangle className="w-4 h-4 text-red-400" />
+                                ) : (
+                                    <Activity className="w-4 h-4 text-indigo-400 animate-pulse" />
+                                )}
+                                <span className="text-sm font-medium text-slate-200">{jobType} Job</span>
+                            </div>
+                            {jobStatus !== 'RUNNING' && (
+                                <button onClick={() => setActiveJobId(null)} className="text-slate-500 hover:text-slate-300">
+                                    <X className="w-4 h-4" />
+                                </button>
+                            )}
+                        </div>
+                        <div className="w-full bg-slate-800 rounded-full h-1.5 mb-1">
+                            <div 
+                                className={`h-1.5 rounded-full transition-all duration-500 ${jobStatus === 'failed' ? 'bg-red-500' : 'bg-indigo-500'}`} 
+                                style={{ width: `${jobProgress}%` }}
+                            />
+                        </div>
+                        <div className="flex justify-between items-center text-[10px]">
+                            <span className={jobStatus === 'completed' ? 'text-emerald-400' : jobStatus === 'failed' ? 'text-red-400' : 'text-slate-400'}>
+                                {jobStatus === 'completed' ? 'Success!' : jobStatus === 'failed' ? 'Failed' : 'Processing...'}
+                            </span>
+                            <span className="text-slate-500 font-mono">{jobProgress}%</span>
+                        </div>
+                    </div>
+                )}
+
+                {/* --- BACKUPS MODAL --- */}
+                {isBackupsModalOpen && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+                        <div 
+                            className="absolute inset-0 bg-[#040814]/80 backdrop-blur-sm"
+                            onClick={() => setIsBackupsModalOpen(false)}
+                        />
+                        <div className="relative w-full max-w-2xl bg-[#0b1121] border border-slate-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+                            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-[#080d1a]">
+                                <div className="flex items-center space-x-3">
+                                    <Folder className="w-5 h-5 text-blue-400" />
+                                    <h2 className="text-lg font-medium text-slate-200">Available Backups</h2>
+                                </div>
+                                <button 
+                                    onClick={() => setIsBackupsModalOpen(false)}
+                                    className="p-1 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded transition-colors"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+                            <div className="p-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                                {availableBackups.length === 0 ? (
+                                    <div className="text-center py-10 text-slate-500">
+                                        No backups available. Export one first.
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {availableBackups.map((bkp, i) => (
+                                            <div 
+                                                key={i} 
+                                                onClick={() => {
+                                                    setSelectedBackup(bkp.filename);
+                                                    setIsBackupsModalOpen(false);
+                                                }}
+                                                className="flex items-center justify-between p-3 rounded-xl border border-slate-800/50 bg-[#0b1121] hover:bg-blue-500/10 hover:border-blue-500/30 cursor-pointer transition-all group"
+                                            >
+                                                <div className="flex items-center space-x-3">
+                                                    <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400">
+                                                        <Box className="w-4 h-4" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-sm font-medium text-slate-300 group-hover:text-blue-400">{bkp.filename}</p>
+                                                        <p className="text-xs text-slate-500">{(bkp.size / 1024 / 1024).toFixed(2)} MB • {new Date(bkp.updatedAt).toLocaleString()}</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* --- ALERTS MODAL --- */}
                 {isAlertsModalOpen && (
@@ -717,85 +889,6 @@ export default function AdminDashboard() {
                         </div>
                     </div>
                 )}
-
-                {/* --- SESSIONS MODAL --- */}
-                {isSessionsModalOpen && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
-                        <div 
-                            className="absolute inset-0 bg-[#040814]/80 backdrop-blur-sm"
-                            onClick={() => {
-                                setIsSessionsModalOpen(false);
-                                setActiveSessionFilename(null);
-                            }}
-                        />
-                        <div className="relative w-full max-w-5xl max-h-[85vh] bg-[#0b1121] border border-slate-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden">
-                            {/* Header */}
-                            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-[#080d1a]">
-                                <div className="flex items-center space-x-3">
-                                    <Video className="w-5 h-5 text-emerald-400" />
-                                    <h2 className="text-lg font-medium text-slate-200">Session Replays</h2>
-                                </div>
-                                <button 
-                                    onClick={() => {
-                                        setIsSessionsModalOpen(false);
-                                        setActiveSessionFilename(null);
-                                    }}
-                                    className="p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 rounded-lg transition-colors"
-                                >
-                                    <X className="w-5 h-5" />
-                                </button>
-                            </div>
-
-                            {/* Content */}
-                            <div className="flex-1 overflow-auto p-6 flex flex-col md:flex-row gap-6">
-                                <div className="w-full md:w-1/3 bg-[#050810] rounded-xl border border-slate-800 overflow-hidden flex flex-col">
-                                    <div className="px-4 py-3 border-b border-slate-800 bg-[#080d1a]">
-                                        <h3 className="text-sm font-medium text-slate-300">Available Sessions</h3>
-                                    </div>
-                                    <div className="flex-1 overflow-y-auto p-2 space-y-2">
-                                        {sessionsList.length === 0 ? (
-                                            <div className="py-8 text-center text-slate-500 text-xs">No sessions recorded yet.</div>
-                                        ) : (
-                                            sessionsList.map((session, idx) => (
-                                                <button
-                                                    key={idx}
-                                                    onClick={() => fetchSessionData(session.filename)}
-                                                    className={`w-full text-left px-3 py-2 rounded-lg transition-colors border ${
-                                                        activeSessionFilename === session.filename 
-                                                            ? 'bg-indigo-500/10 border-indigo-500/30' 
-                                                            : 'bg-[#0b1121] border-slate-800 hover:border-slate-700'
-                                                    }`}
-                                                >
-                                                    <div className="flex justify-between items-start mb-1">
-                                                        <span className="text-xs font-medium text-slate-200 truncate">User {session.userId}</span>
-                                                        <span className="text-[10px] text-slate-500">{new Date(session.updatedAt).toLocaleTimeString()}</span>
-                                                    </div>
-                                                    <div className="flex justify-between items-center text-[10px]">
-                                                        <span className="text-slate-400">Project: {session.projectId}</span>
-                                                        <span className="text-slate-500">{(session.size / 1024).toFixed(1)} KB</span>
-                                                    </div>
-                                                </button>
-                                            ))
-                                        )}
-                                    </div>
-                                </div>
-                                <div className="w-full md:w-2/3 bg-black rounded-xl border border-slate-800 flex items-center justify-center min-h-[500px] overflow-hidden">
-                                    {!activeSessionFilename ? (
-                                        <div className="text-slate-500 flex flex-col items-center">
-                                            <Video className="w-12 h-12 mb-3 opacity-20" />
-                                            <span>Select a session to play</span>
-                                        </div>
-                                    ) : (
-                                        <div id="rrweb-player-container" className="w-full h-full bg-white flex justify-center items-center">
-                                            {/* Player will mount here */}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
             </div>
 
             {/* --- DEPLOYMENTS MODAL --- */}

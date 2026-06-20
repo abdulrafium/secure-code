@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import * as fs from 'fs';
+import * as path from 'path';
 
 @Injectable()
 export class BackupsService {
@@ -44,6 +46,42 @@ export class BackupsService {
       progress,
       returnvalue: job.returnvalue,
       failedReason: job.failedReason,
+    };
+  }
+
+  async listBackups() {
+    try {
+      const backupDir = path.join(process.cwd(), '..', 'backups');
+      if (!fs.existsSync(backupDir)) return [];
+      
+      const files = fs.readdirSync(backupDir).filter(f => f.endsWith('.sql.gz') || f.endsWith('.tar.gz'));
+      const backups = files.map(file => {
+        const stats = fs.statSync(path.join(backupDir, file));
+        return {
+          filename: file,
+          size: stats.size,
+          updatedAt: stats.mtime
+        };
+      });
+      return backups.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+    } catch (error) {
+      this.logger.error('Failed to list backups', error);
+      return [];
+    }
+  }
+
+  async triggerRestore(userId: string, username: string, filename: string) {
+    this.logger.log(`Manual restore triggered by ${username} for file ${filename}`);
+    const job = await this.systemJobsQueue.add('restore-backup', {
+      userId,
+      username,
+      filename,
+      triggeredAt: new Date().toISOString(),
+    });
+    return {
+      success: true,
+      jobId: job.id,
+      message: 'Restore job added to queue',
     };
   }
 }
