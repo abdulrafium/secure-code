@@ -46,6 +46,7 @@ services:
       - JWT_SECRET=super-secret-change-this-in-production
     volumes:
       - workspaces_data:/workspaces
+      - sessions_data:/sessions
     networks:
       - secure_code_network
     depends_on:
@@ -83,11 +84,27 @@ services:
     depends_on:
       - frontend
       - backend
+    volumes:
+      - certbot_www:/var/www/certbot
+      - certbot_conf:/etc/nginx/ssl
+
+  certbot:
+    image: certbot/certbot
+    container_name: secure_code_certbot
+    volumes:
+      - certbot_www:/var/www/certbot
+      - certbot_conf:/etc/letsencrypt
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    networks:
+      - secure_code_network
 
 volumes:
   postgres_data:
   redis_data:
   workspaces_data:
+  certbot_www:
+  certbot_conf:
+  sessions_data:
 
 networks:
   secure_code_network:

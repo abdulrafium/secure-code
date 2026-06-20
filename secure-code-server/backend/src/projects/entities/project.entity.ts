@@ -1,4 +1,12 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToMany, JoinTable } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  ManyToMany,
+  JoinTable,
+} from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 
 @Entity('projects')
@@ -31,7 +39,7 @@ export class Project {
   @Column({ type: 'text', array: true, default: [] })
   allowedFiles: string[];
 
-  @ManyToMany(() => User, user => user.projects)
+  @ManyToMany(() => User, (user) => user.projects)
   @JoinTable()
   users: User[];
 }

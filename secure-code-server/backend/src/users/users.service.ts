@@ -18,7 +18,7 @@ export class UsersService {
   constructor(
     @InjectRepository(User)
     private usersRepository: Repository<User>,
-  ) { }
+  ) {}
 
   async onApplicationBootstrap() {
     await this.seedUsers();
@@ -32,7 +32,15 @@ export class UsersService {
       if (!existing) {
         // Provide a default password and backup code for the admin
         const password = role === Role.Admin ? 'Admin@123' : username;
-        await this.create(username, password, role, Status.Active, undefined, undefined, null);
+        await this.create(
+          username,
+          password,
+          role,
+          Status.Active,
+          undefined,
+          undefined,
+          null,
+        );
         console.log(`[Seed] Seeded default user: ${username}`);
       } else if (!existing.backupCode && username === 'admin') {
         existing.backupCode = null;
@@ -53,16 +61,19 @@ export class UsersService {
   async findAll(): Promise<User[]> {
     const users = await this.usersRepository.find({
       relations: { projects: true },
-      order: { createdAt: 'DESC' }
+      order: { createdAt: 'DESC' },
     });
 
-    return users.map(user => {
+    return users.map((user) => {
       const { passwordHash, ...rest } = user;
       return rest as User;
     });
   }
 
-  async updateSessionId(userId: string, sessionId: string | null): Promise<void> {
+  async updateSessionId(
+    userId: string,
+    sessionId: string | null,
+  ): Promise<void> {
     await this.usersRepository.update(userId, { sessionId });
   }
 
@@ -73,7 +84,7 @@ export class UsersService {
     statusInput: string = Status.Active,
     allowIp?: string,
     publicKey?: string,
-    backupCode?: string | null
+    backupCode?: string | null,
   ): Promise<User> {
     const existing = await this.findByUsername(username);
     if (existing) {
@@ -83,13 +94,17 @@ export class UsersService {
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(passwordPlain, salt);
 
-    const roleString = roleInput.trim().charAt(0).toUpperCase() + roleInput.trim().slice(1).toLowerCase();
+    const roleString =
+      roleInput.trim().charAt(0).toUpperCase() +
+      roleInput.trim().slice(1).toLowerCase();
     let role = Role.Viewer;
     if (Object.values(Role).includes(roleString as Role)) {
       role = roleString as Role;
     }
 
-    const statusString = statusInput.trim().charAt(0).toUpperCase() + statusInput.trim().slice(1).toLowerCase();
+    const statusString =
+      statusInput.trim().charAt(0).toUpperCase() +
+      statusInput.trim().slice(1).toLowerCase();
     let status = Status.Active;
     if (Object.values(Status).includes(statusString as Status)) {
       status = statusString as Status;
@@ -119,8 +134,13 @@ export class UsersService {
         throw new Error('User not found');
       }
     } catch (err: any) {
-      if (err.code === '23503' || err.message.includes('foreign key constraint')) {
-        throw new ConflictException('This user is currently assigned to one or more projects. Please unassign them from all projects before deleting.');
+      if (
+        err.code === '23503' ||
+        err.message.includes('foreign key constraint')
+      ) {
+        throw new ConflictException(
+          'This user is currently assigned to one or more projects. Please unassign them from all projects before deleting.',
+        );
       }
       throw err;
     }
@@ -136,7 +156,9 @@ export class UsersService {
     const user = await this.findById(id);
     if (!user) throw new Error('User not found');
 
-    const workspacesDir = process.env.WORKSPACES_DIR || path.resolve(process.cwd(), '..', 'workspaces');
+    const workspacesDir =
+      process.env.WORKSPACES_DIR ||
+      path.resolve(process.cwd(), '..', 'workspaces');
     const sshDir = path.join(workspacesDir, '.ssh');
     const privateKeyPath = path.join(sshDir, 'id_ed25519');
     const publicKeyPath = path.join(sshDir, 'id_ed25519.pub');
@@ -152,12 +174,16 @@ export class UsersService {
     if (fs.existsSync(publicKeyPath)) await fs.promises.unlink(publicKeyPath);
 
     // Generate extremely short, highly secure Ed25519 SSH key without a passphrase
-    await execAsync(`ssh-keygen -t ed25519 -f "${privateKeyPath}" -N "" -q -C "${user.username}@securecode.local"`);
+    await execAsync(
+      `ssh-keygen -t ed25519 -f "${privateKeyPath}" -N "" -q -C "${user.username}@securecode.local"`,
+    );
 
     // Fetch popular host keys to prevent strict host key checking from blocking git pulls/pushes
     // Fetch popular host keys to prevent strict host key checking from blocking git pulls/pushes
     try {
-      await execAsync(`ssh-keyscan -t rsa github.com gitlab.com bitbucket.org >> "${knownHostsPath}"`);
+      await execAsync(
+        `ssh-keyscan -t rsa github.com gitlab.com bitbucket.org >> "${knownHostsPath}"`,
+      );
     } catch (e) {
       console.error('Failed to update known_hosts', e);
     }
@@ -172,7 +198,14 @@ export class UsersService {
     return user.publicKey;
   }
 
-  async updateProfile(userId: string, updates: { newUsername?: string; newPassword?: string; backupCode?: string | null }): Promise<User> {
+  async updateProfile(
+    userId: string,
+    updates: {
+      newUsername?: string;
+      newPassword?: string;
+      backupCode?: string | null;
+    },
+  ): Promise<User> {
     const user = await this.usersRepository.findOne({ where: { id: userId } });
     if (!user) throw new Error('User not found');
 
@@ -189,7 +222,7 @@ export class UsersService {
       user.passwordHash = await bcrypt.hash(updates.newPassword, salt);
     }
     if (updates.backupCode !== undefined) {
-      user.backupCode = updates.backupCode as string; // can be null or 'RECOVERED'
+      user.backupCode = updates.backupCode; // can be null or 'RECOVERED'
     }
 
     return this.usersRepository.save(user);
@@ -202,7 +235,16 @@ export class UsersService {
     return this.usersRepository.save(user);
   }
 
-  async adminUpdateUser(id: string, updates: { username?: string, role?: string, status?: string, allowIp?: string, publicKey?: string }): Promise<User> {
+  async adminUpdateUser(
+    id: string,
+    updates: {
+      username?: string;
+      role?: string;
+      status?: string;
+      allowIp?: string;
+      publicKey?: string;
+    },
+  ): Promise<User> {
     const user = await this.usersRepository.findOne({ where: { id } });
     if (!user) throw new Error('User not found');
 
@@ -215,14 +257,18 @@ export class UsersService {
     }
 
     if (updates.role) {
-      const roleString = updates.role.charAt(0).toUpperCase() + updates.role.slice(1).toLowerCase();
+      const roleString =
+        updates.role.charAt(0).toUpperCase() +
+        updates.role.slice(1).toLowerCase();
       if (Object.values(Role).includes(roleString as Role)) {
         user.role = roleString as Role;
       }
     }
 
     if (updates.status) {
-      const statusString = updates.status.charAt(0).toUpperCase() + updates.status.slice(1).toLowerCase();
+      const statusString =
+        updates.status.charAt(0).toUpperCase() +
+        updates.status.slice(1).toLowerCase();
       if (Object.values(Status).includes(statusString as Status)) {
         user.status = statusString as Status;
       }
@@ -252,13 +298,18 @@ export class UsersService {
     const results = await qb.getRawMany();
 
     // Reduce array into an object: { admin: 1, developer: 1, viewer: 1 }
-    const roleCounts = results.reduce((acc, curr) => {
-      const normalizedRole = curr.role ? curr.role.toLowerCase() : '';
-      if (normalizedRole) acc[normalizedRole] = parseInt(curr.count, 10);
-      return acc;
-    }, { admin: 0, developer: 0, viewer: 0 });
+    const roleCounts = results.reduce(
+      (acc, curr) => {
+        const normalizedRole = curr.role ? curr.role.toLowerCase() : '';
+        if (normalizedRole) acc[normalizedRole] = parseInt(curr.count, 10);
+        return acc;
+      },
+      { admin: 0, developer: 0, viewer: 0 },
+    );
 
-    const onlineCount = await this.usersRepository.count({ where: { isOnline: true } });
+    const onlineCount = await this.usersRepository.count({
+      where: { isOnline: true },
+    });
 
     return {
       roles: roleCounts,

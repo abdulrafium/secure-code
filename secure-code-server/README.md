@@ -33,3 +33,8 @@
 ### Admin Dashboard Enhancements (Completed)
 - **Admin System Settings:** Built a dedicated UI (`/admin/system-settings`) backed by a new `SystemSetting` database table to dynamically control global configurations (e.g., Maintenance Mode, Blocked Terminal Regex).
 - **Admin Logs & Reports:** Upgraded the security log into a full-scale `AuditLog` trailing system (`/admin/logs`) that precisely tracks who logged in, who created projects, and who updated settings with exact timestamps and IP addresses.
+- **Cache:** Redis Cluster (currently relying on memory/Postgres).
+- **Queue:** BullMQ (required for background tasks, backups, and heavy executions).
+- **Backup System:** Daily automated snapshots and point-in-time recovery mechanisms.
+- **SSL & Firewall:** UFW configuration and Nginx certbot routing.
+- **Session Recording:** Visual or keystroke recording of active sessions is not implemented.

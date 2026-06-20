@@ -1,4 +1,18 @@
-import { Controller, Get, Post, Body, Param, Delete, UseInterceptors, UploadedFile, BadRequestException, UseGuards, Request, Patch, Res } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Delete,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
+  UseGuards,
+  Request,
+  Patch,
+  Res,
+} from '@nestjs/common';
 import type { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ProjectsService } from './projects.service';
@@ -9,7 +23,7 @@ import { LogsService } from '../logs/logs.service';
 export class ProjectsController {
   constructor(
     private readonly projectsService: ProjectsService,
-    private readonly logsService: LogsService
+    private readonly logsService: LogsService,
   ) {}
 
   @UseGuards(JwtAuthGuard)
@@ -36,7 +50,10 @@ export class ProjectsController {
   }
 
   @Post(':id/users/username')
-  async assignUserByUsername(@Param('id') id: string, @Body('username') username: string) {
+  async assignUserByUsername(
+    @Param('id') id: string,
+    @Body('username') username: string,
+  ) {
     if (!username) throw new BadRequestException('username is required');
     return this.projectsService.assignUserByUsername(id, username);
   }
@@ -51,24 +68,29 @@ export class ProjectsController {
   async create(@Body('name') name: string, @Request() req: any) {
     if (!name) throw new BadRequestException('Project name is required');
     const project = await this.projectsService.create(name);
-    
-    this.logsService.logEvent({
-      userId: req.user.id,
-      username: req.user.username,
-      action: 'CREATE_PROJECT',
-      details: `Created new project: ${name}`,
-      ipAddress: req.headers['x-forwarded-for'] || req.connection?.remoteAddress || req.socket?.remoteAddress,
-    }).catch(e => console.error(e));
+
+    this.logsService
+      .logEvent({
+        userId: req.user.id,
+        username: req.user.username,
+        action: 'CREATE_PROJECT',
+        details: `Created new project: ${name}`,
+        ipAddress:
+          req.headers['x-forwarded-for'] ||
+          req.connection?.remoteAddress ||
+          req.socket?.remoteAddress,
+      })
+      .catch((e) => console.error(e));
 
     return project;
   }
 
   @Patch(':id')
   async update(
-    @Param('id') id: string, 
+    @Param('id') id: string,
     @Body('name') name?: string,
     @Body('allowedCommands') allowedCommands?: string[],
-    @Body('allowedFiles') allowedFiles?: string[]
+    @Body('allowedFiles') allowedFiles?: string[],
   ) {
     return this.projectsService.update(id, name, allowedCommands, allowedFiles);
   }
@@ -89,7 +111,7 @@ export class ProjectsController {
     @Param('id') id: string,
     @Body('url') url: string,
     @Body('branch') branch: string | undefined,
-    @Res() res: Response
+    @Res() res: Response,
   ) {
     if (!url) throw new BadRequestException('Git URL is required');
 
@@ -117,14 +139,19 @@ export class ProjectsController {
   @Delete(':id')
   async remove(@Param('id') id: string, @Request() req: any) {
     await this.projectsService.remove(id);
-    
-    this.logsService.logEvent({
-      userId: req.user.id,
-      username: req.user.username,
-      action: 'DELETE_PROJECT',
-      details: `Deleted project ID: ${id}`,
-      ipAddress: req.headers['x-forwarded-for'] || req.connection?.remoteAddress || req.socket?.remoteAddress,
-    }).catch(e => console.error(e));
+
+    this.logsService
+      .logEvent({
+        userId: req.user.id,
+        username: req.user.username,
+        action: 'DELETE_PROJECT',
+        details: `Deleted project ID: ${id}`,
+        ipAddress:
+          req.headers['x-forwarded-for'] ||
+          req.connection?.remoteAddress ||
+          req.socket?.remoteAddress,
+      })
+      .catch((e) => console.error(e));
 
     return { success: true };
   }

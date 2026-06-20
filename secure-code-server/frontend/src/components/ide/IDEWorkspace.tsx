@@ -12,6 +12,7 @@ import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'reac
 import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
+import * as rrweb from 'rrweb';
 import FileTree, { FileNode } from './FileTree';
 import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
@@ -445,6 +446,30 @@ export default function IDEWorkspace() {
     fetchFullTree();
     const treeInterval = setInterval(fetchFullTree, 5000);
 
+    // Initialize rrweb session recording
+    let rrwebStopFn: any = null;
+    try {
+      const events: any[] = [];
+      rrwebStopFn = rrweb.record({
+        emit(event) {
+          events.push(event);
+          if (events.length > 100) {
+            // Send to backend (fire and forget)
+            const payload = [...events];
+            events.length = 0;
+            api.post('/logs/session', { 
+              projectId, 
+              events: payload,
+              url: window.location.href,
+              timestamp: new Date().toISOString()
+            }).catch(() => {});
+          }
+        },
+      });
+    } catch (err) {
+      console.warn("Could not start rrweb recording", err);
+    }
+
     // Listen to custom terminal pipeline events
     const handlePipelineEvent = (e: any) => {
       if (isViewer) return;
@@ -552,7 +577,10 @@ export default function IDEWorkspace() {
       hasRestoredState.current = true;
     });
 
-    return () => clearInterval(treeInterval);
+    return () => {
+      clearInterval(treeInterval);
+      if (rrwebStopFn) rrwebStopFn();
+    };
   }, [projectId]);
 
 

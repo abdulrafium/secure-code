@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Project } from '../projects/entities/project.entity';
@@ -21,25 +25,36 @@ export class EditorService {
   constructor(
     @InjectRepository(Project)
     private projectsRepository: Repository<Project>,
-  ) { }
+  ) {}
 
   private sanitizeProjectName(name: string): string {
     return name.replace(/[^a-zA-Z0-9-_\.]/g, '_');
   }
 
-  async checkFileAccess(projectId: string | undefined, targetPath: string, user: any): Promise<void> {
+  async checkFileAccess(
+    projectId: string | undefined,
+    targetPath: string,
+    user: any,
+  ): Promise<void> {
     if (!projectId || !user || !targetPath) return;
     if (user.role === 'Admin') return; // Admins bypass restrictions
 
-    const project = await this.projectsRepository.findOne({ where: { id: projectId } });
+    const project = await this.projectsRepository.findOne({
+      where: { id: projectId },
+    });
     if (!project) return;
 
     if (project.allowedFiles && project.allowedFiles.length > 0) {
       // It's a blacklist
       for (const restrictedPath of project.allowedFiles) {
-        if (targetPath === restrictedPath || targetPath.startsWith(restrictedPath + '/')) {
+        if (
+          targetPath === restrictedPath ||
+          targetPath.startsWith(restrictedPath + '/')
+        ) {
           const itemName = targetPath.split('/').pop() || targetPath;
-          throw new BadRequestException(`Not Allowed: "${itemName}" is restricted by the admin.`);
+          throw new BadRequestException(
+            `Not Allowed: "${itemName}" is restricted by the admin.`,
+          );
         }
       }
     }
@@ -47,14 +62,20 @@ export class EditorService {
 
   async getRootPath(projectId?: string): Promise<string> {
     if (!projectId) {
-      throw new BadRequestException('Project ID is required to access workspace.');
+      throw new BadRequestException(
+        'Project ID is required to access workspace.',
+      );
     }
-    const project = await this.projectsRepository.findOne({ where: { id: projectId } });
+    const project = await this.projectsRepository.findOne({
+      where: { id: projectId },
+    });
     if (!project) {
       throw new BadRequestException('Project not found');
     }
     const safeName = this.sanitizeProjectName(project.name);
-    const workspacesDir = process.env.WORKSPACES_DIR || path.resolve(process.cwd(), '..', 'workspaces');
+    const workspacesDir =
+      process.env.WORKSPACES_DIR ||
+      path.resolve(process.cwd(), '..', 'workspaces');
     const newPath = path.join(workspacesDir, safeName);
     const oldPath = path.join(workspacesDir, projectId);
 
@@ -62,7 +83,10 @@ export class EditorService {
       try {
         await fs.promises.rename(oldPath, newPath);
       } catch (e) {
-        console.error(`Failed to migrate workspace from ${oldPath} to ${newPath}`, e);
+        console.error(
+          `Failed to migrate workspace from ${oldPath} to ${newPath}`,
+          e,
+        );
       }
     }
 
@@ -80,7 +104,11 @@ export class EditorService {
     return fs.existsSync(targetPath);
   }
 
-  async getTree(dirPath: string = '', projectId?: string, recursive: boolean = false): Promise<any[]> {
+  async getTree(
+    dirPath: string = '',
+    projectId?: string,
+    recursive: boolean = false,
+  ): Promise<any[]> {
     const rootPath = await this.getRootPath(projectId);
     const targetPath = path.join(rootPath, dirPath);
 
@@ -91,21 +119,30 @@ export class EditorService {
     try {
       if (!fs.existsSync(targetPath)) {
         if (projectId && !dirPath) {
-          const project = await this.projectsRepository.findOne({ where: { id: projectId } });
+          const project = await this.projectsRepository.findOne({
+            where: { id: projectId },
+          });
           const projectName = project ? project.name : path.basename(rootPath);
-          return [{
-            name: projectName,
-            path: '',
-            isDirectory: true,
-            children: [],
-            isRootNode: true,
-          }];
+          return [
+            {
+              name: projectName,
+              path: '',
+              isDirectory: true,
+              children: [],
+              isRootNode: true,
+            },
+          ];
         }
         return [];
       }
 
-      const readDirRecursive = async (currentPath: string, relativeDir: string) => {
-        const items = await fs.promises.readdir(currentPath, { withFileTypes: true });
+      const readDirRecursive = async (
+        currentPath: string,
+        relativeDir: string,
+      ) => {
+        const items = await fs.promises.readdir(currentPath, {
+          withFileTypes: true,
+        });
         const nodes: any[] = [];
 
         for (const item of items) {
@@ -141,15 +178,19 @@ export class EditorService {
       // If this is a project root request (no sub-path), wrap in a root folder node
       // so the project folder name appears at the top of the tree (like VS Code)
       if (projectId && !dirPath) {
-        const project = await this.projectsRepository.findOne({ where: { id: projectId } });
+        const project = await this.projectsRepository.findOne({
+          where: { id: projectId },
+        });
         const projectName = project ? project.name : path.basename(rootPath);
-        return [{
-          name: projectName,
-          path: '',
-          isDirectory: true,
-          children,
-          isRootNode: true,
-        }];
+        return [
+          {
+            name: projectName,
+            path: '',
+            isDirectory: true,
+            children,
+            isRootNode: true,
+          },
+        ];
       }
 
       return children;
@@ -177,7 +218,11 @@ export class EditorService {
     }
   }
 
-  async writeFile(filePath: string, content: string, projectId?: string): Promise<void> {
+  async writeFile(
+    filePath: string,
+    content: string,
+    projectId?: string,
+  ): Promise<void> {
     const rootPath = await this.getRootPath(projectId);
     const targetPath = path.join(rootPath, filePath);
 
@@ -251,12 +296,19 @@ export class EditorService {
     }
   }
 
-  async renameItem(oldPath: string, newPath: string, projectId?: string): Promise<void> {
+  async renameItem(
+    oldPath: string,
+    newPath: string,
+    projectId?: string,
+  ): Promise<void> {
     const rootPath = await this.getRootPath(projectId);
     const targetOldPath = path.join(rootPath, oldPath);
     const targetNewPath = path.join(rootPath, newPath);
 
-    if (!targetOldPath.startsWith(rootPath) || !targetNewPath.startsWith(rootPath)) {
+    if (
+      !targetOldPath.startsWith(rootPath) ||
+      !targetNewPath.startsWith(rootPath)
+    ) {
       throw new BadRequestException('Invalid path');
     }
 
@@ -265,7 +317,9 @@ export class EditorService {
     }
 
     if (fs.existsSync(targetNewPath)) {
-      throw new BadRequestException('An item with this name already exists at the destination.');
+      throw new BadRequestException(
+        'An item with this name already exists at the destination.',
+      );
     }
 
     try {
@@ -276,7 +330,11 @@ export class EditorService {
     }
   }
 
-  async copyItem(srcPath: string, destPath: string, projectId?: string): Promise<void> {
+  async copyItem(
+    srcPath: string,
+    destPath: string,
+    projectId?: string,
+  ): Promise<void> {
     const rootPath = await this.getRootPath(projectId);
     const sourcePath = path.join(rootPath, srcPath);
     const targetPath = path.join(rootPath, destPath);
@@ -291,7 +349,9 @@ export class EditorService {
 
     // Existence check already handled by controller, but just to be safe:
     if (fs.existsSync(targetPath)) {
-      throw new BadRequestException('An item with this name already exists at the destination.');
+      throw new BadRequestException(
+        'An item with this name already exists at the destination.',
+      );
     }
 
     try {
@@ -301,10 +361,16 @@ export class EditorService {
     }
   }
 
-  async gitPush(projectId: string, commitMessage: string, user?: any): Promise<void> {
+  async gitPush(
+    projectId: string,
+    commitMessage: string,
+    user?: any,
+  ): Promise<void> {
     const rootPath = await this.getRootPath(projectId);
 
-    const workspacesDir = process.env.WORKSPACES_DIR || path.resolve(process.cwd(), '..', 'workspaces');
+    const workspacesDir =
+      process.env.WORKSPACES_DIR ||
+      path.resolve(process.cwd(), '..', 'workspaces');
     const sshKeyPath = path.join(workspacesDir, '.ssh', 'id_ed25519');
     const env = { ...process.env };
     if (fs.existsSync(sshKeyPath)) {
@@ -316,7 +382,9 @@ export class EditorService {
       // and interacting with the backend's own parent repository.
       const gitFolderPath = path.join(rootPath, '.git');
       if (!fs.existsSync(gitFolderPath)) {
-        throw new BadRequestException('Project is Imported Locally, Github/Gitlab not linked');
+        throw new BadRequestException(
+          'Project is Imported Locally, Github/Gitlab not linked',
+        );
       }
 
       // Check if project is a git repo by trying to get remote URL
@@ -330,7 +398,9 @@ export class EditorService {
       }
 
       if (!remotes.trim()) {
-        throw new BadRequestException('Project is Imported Locally Github/Gitlab not linked');
+        throw new BadRequestException(
+          'Project is Imported Locally Github/Gitlab not linked',
+        );
       }
 
       // Execute git add, commit, and push sequentially
@@ -338,13 +408,19 @@ export class EditorService {
 
       // Escape commit message to prevent shell injection (rudimentary)
       const safeCommitMessage = commitMessage.replace(/"/g, '\\"');
-      
+
       // If we have a user object, dynamically set the author for this commit
       if (user && user.username) {
         const safeUsername = user.username.replace(/"/g, '\\"');
-        await execAsync(`git -c user.name="${safeUsername}" -c user.email="${safeUsername}@securecode.local" commit -m "${safeCommitMessage}"`, { cwd: rootPath, env });
+        await execAsync(
+          `git -c user.name="${safeUsername}" -c user.email="${safeUsername}@securecode.local" commit -m "${safeCommitMessage}"`,
+          { cwd: rootPath, env },
+        );
       } else {
-        await execAsync(`git commit -m "${safeCommitMessage}"`, { cwd: rootPath, env });
+        await execAsync(`git commit -m "${safeCommitMessage}"`, {
+          cwd: rootPath,
+          env,
+        });
       }
 
       // Attempt to push
@@ -352,7 +428,7 @@ export class EditorService {
     } catch (err: any) {
       // If there are no changes to commit, it throws an error but that's not really a failure we want to bubble up as a crash
       if (err.stdout && err.stdout.includes('nothing to commit')) {
-        await execAsync('git push', { cwd: rootPath, env }).catch(e => {
+        await execAsync('git push', { cwd: rootPath, env }).catch((e) => {
           throw new BadRequestException(`Git push failed: ${e.message}`);
         });
         return;

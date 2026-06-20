@@ -8,9 +8,13 @@ import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { EditorModule } from './editor/editor.module';
 import { ProjectsModule } from './projects/projects.module';
-
 import { LogsModule } from './logs/logs.module';
 import { SettingsModule } from './settings/settings.module';
+import { CacheModule } from '@nestjs/cache-manager';
+import { BullModule } from '@nestjs/bullmq';
+import { ScheduleModule } from '@nestjs/schedule';
+import { redisStore } from 'cache-manager-redis-yet';
+import { BackupsModule } from './backups/backups.module';
 
 @Module({
   imports: [
@@ -29,21 +33,38 @@ import { SettingsModule } from './settings/settings.module';
     ProjectsModule,
     LogsModule,
     SettingsModule,
+    BackupsModule,
+    CacheModule.registerAsync({
+      isGlobal: true,
+      useFactory: async () => ({
+        store: await redisStore({
+          socket: {
+            host: process.env.REDIS_HOST || 'localhost',
+            port: parseInt(process.env.REDIS_PORT || '6379', 10),
+          },
+        }),
+      }),
+    }),
+    BullModule.forRoot({
+      connection: {
+        host: process.env.REDIS_HOST || 'localhost',
+        port: parseInt(process.env.REDIS_PORT || '6379', 10),
+      },
+    }),
+    ScheduleModule.forRoot(),
   ],
   controllers: [AppController],
   providers: [
     AppService,
-    /* --- COMMENTED OUT FOR TESTING ---
     {
       provide: 'REDIS_CLIENT',
       useFactory: () => {
         return new Redis({
-          host: process.env.REDIS_HOST,
+          host: process.env.REDIS_HOST || 'localhost',
           port: parseInt(process.env.REDIS_PORT || '6379', 10),
         });
       },
     },
-    --------------------------------- */
   ],
 })
 export class AppModule {}

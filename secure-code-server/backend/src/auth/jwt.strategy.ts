@@ -11,7 +11,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
     private configService: ConfigService,
     private usersService: UsersService,
-    private settingsService: SettingsService
+    private settingsService: SettingsService,
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
@@ -37,12 +37,20 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     // Enforce Maintenance Mode for active sessions
     if (user.role !== Role.Admin) {
-      const maintenanceMode = await this.settingsService.getSetting('maintenanceMode', false);
+      const maintenanceMode = await this.settingsService.getSetting(
+        'maintenanceMode',
+        false,
+      );
       if (maintenanceMode) {
         throw new UnauthorizedException('SYSTEM_UNDER_MAINTENANCE');
       }
     }
 
-    return { id: payload.sub, username: payload.username, role: payload.role, status: payload.status };
+    return {
+      id: payload.sub,
+      username: payload.username,
+      role: payload.role,
+      status: payload.status,
+    };
   }
 }

@@ -1,4 +1,14 @@
-import { Controller, Get, UseGuards, Request, UnauthorizedException, Delete, Param } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  UseGuards,
+  Request,
+  UnauthorizedException,
+  Delete,
+  Param,
+  Post,
+  Body,
+} from '@nestjs/common';
 import { LogsService } from './logs.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
@@ -22,5 +32,31 @@ export class LogsController {
     }
     return this.logsService.deleteLog(id);
   }
-}
 
+  @Post('session')
+  async saveSessionEvents(@Request() req: any, @Body() body: any) {
+    // Just pass the payload to the service to save it somewhere (e.g. redis or postgres)
+    return this.logsService.saveSessionEvents(
+      req.user.id,
+      req.user.username,
+      body.projectId,
+      body.events,
+    );
+  }
+
+  @Get('sessions')
+  async getSessionsList(@Request() req: any) {
+    if (req.user?.role !== 'Admin') {
+      throw new UnauthorizedException('Only admins can view sessions.');
+    }
+    return this.logsService.getSessionsList();
+  }
+
+  @Get('sessions/:filename')
+  async getSessionData(@Request() req: any, @Param('filename') filename: string) {
+    if (req.user?.role !== 'Admin') {
+      throw new UnauthorizedException('Only admins can view sessions.');
+    }
+    return this.logsService.getSessionData(filename);
+  }
+}

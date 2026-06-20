@@ -3,11 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import {
     Users, Folder, Box, Activity, Heart, AlertCircle, AlertTriangle,
-    Terminal, RotateCcw, Copy, Check, DownloadCloud, UploadCloud, X, Trash2
+    Terminal, RotateCcw, Copy, Check, DownloadCloud, UploadCloud, X, Trash2, Video
 } from 'lucide-react';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import AdminHeader from '../../../components/AdminHeader';
 import { api } from '../../../lib/api';
+
+import 'rrweb-player/dist/style.css';
 
 // Reusable SVG Graph Component
 const GraphCard = ({
@@ -60,8 +63,11 @@ const GraphCard = ({
 export default function AdminDashboard() {
     const [deployments, setDeployments] = useState<any[]>([]);
     const [securityLogs, setSecurityLogs] = useState<any[]>([]);
+    const [sessionsList, setSessionsList] = useState<any[]>([]);
     const [isDeploymentsModalOpen, setIsDeploymentsModalOpen] = useState(false);
     const [isAlertsModalOpen, setIsAlertsModalOpen] = useState(false);
+    const [isSessionsModalOpen, setIsSessionsModalOpen] = useState(false);
+    const [activeSessionFilename, setActiveSessionFilename] = useState<string | null>(null);
     const [logToDelete, setLogToDelete] = useState<any | null>(null);
     const [projectsList, setProjectsList] = useState<any[]>([]);
     const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
@@ -73,6 +79,7 @@ export default function AdminDashboard() {
     // Backup Code State
     const [backupCode, setBackupCode] = useState<string | null>(null);
     const [isGeneratingBackup, setIsGeneratingBackup] = useState(false);
+    const [isExportingBackup, setIsExportingBackup] = useState(false);
     const [isBackupCopied, setIsBackupCopied] = useState(false);
     const [showBackupConfirm, setShowBackupConfirm] = useState(false);
 
@@ -94,8 +101,9 @@ export default function AdminDashboard() {
                 api.get('/projects/deployments/all').catch(() => []),
                 api.get('/users/ssh-key/public').catch(() => ({ publicKey: null })),
                 api.get('/users/backup-code').catch(() => ({ backupCode: null })),
-                api.get('/logs').catch(() => [])
-            ]).then(([statsData, users, projects, deps, sshData, backupData, logsData]) => {
+                api.get('/logs').catch(() => []),
+                api.get('/logs/sessions').catch(() => [])
+            ]).then(([statsData, users, projects, deps, sshData, backupData, logsData, sessionsData]) => {
                 const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
                 
                 const usersThisWeek = (users || []).filter((u: any) => new Date(u.createdAt) > oneWeekAgo).length;
@@ -112,6 +120,7 @@ export default function AdminDashboard() {
                 setDeployments(deps || []);
                 setProjectsList(projects || []);
                 setSecurityLogs(logsData || []);
+                setSessionsList(sessionsData || []);
                 if (sshData?.publicKey) setPublicKey(sshData.publicKey);
                 if (backupData?.backupCode !== undefined && backupData?.backupCode !== null) {
                     setBackupCode(backupData.backupCode || null);
@@ -218,12 +227,57 @@ export default function AdminDashboard() {
         }
     };
 
+    const handleExportBackup = async () => {
+        setIsExportingBackup(true);
+        try {
+            const res = await api.post('/backups/export', {});
+            if (res.success) {
+                alert(`Backup job started (Job ID: ${res.jobId}). It may take a few moments to compress.`);
+            } else {
+                alert('Failed to start backup export.');
+            }
+        } catch (error) {
+            console.error('Export backup failed', error);
+            alert('Failed to export backup. Please check your permissions.');
+        } finally {
+            setIsExportingBackup(false);
+        }
+    };
+
     const formatRelativeTime = (dateStr: string) => {
         const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
         if (diff < 60) return 'just now';
         if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
         if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
         return `${Math.floor(diff / 86400)}d ago`;
+    };
+
+    const fetchSessionData = async (filename: string) => {
+        try {
+            const data = await api.get(`/logs/sessions/${filename}`);
+            if (data && data.length > 0) {
+                setActiveSessionFilename(filename);
+                setTimeout(async () => {
+                    const playerEl = document.getElementById('rrweb-player-container');
+                    if (playerEl) {
+                        playerEl.innerHTML = ''; // clear previous
+                        const rrwebPlayerModule = await import('rrweb-player');
+                        const RrwebPlayer = rrwebPlayerModule.default || rrwebPlayerModule;
+                        
+                        new RrwebPlayer({
+                            target: playerEl,
+                            props: {
+                                events: data,
+                                width: 800,
+                                height: 500,
+                            },
+                        });
+                    }
+                }, 500);
+            }
+        } catch (e) {
+            console.error("Failed to load session", e);
+        }
     };
 
     return (
@@ -529,9 +583,13 @@ export default function AdminDashboard() {
                             <p className="text-slate-600 text-[10px] mb-4">Manage and secure your data backups</p>
 
                             <div className="flex items-center space-x-2">
-                                <button className="flex-1 flex items-center justify-center space-x-2 py-2 bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-400 text-xs font-medium rounded-lg border border-emerald-500/20 transition-colors">
-                                    <UploadCloud className="w-3.5 h-3.5" />
-                                    <span>Export Backup</span>
+                                <button 
+                                    onClick={handleExportBackup}
+                                    disabled={isExportingBackup}
+                                    className="flex-1 flex items-center justify-center space-x-2 py-2 bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-400 text-xs font-medium rounded-lg border border-emerald-500/20 transition-colors disabled:opacity-50"
+                                >
+                                    <UploadCloud className={`w-3.5 h-3.5 ${isExportingBackup ? 'animate-bounce' : ''}`} />
+                                    <span>{isExportingBackup ? 'Exporting...' : 'Export Backup'}</span>
                                 </button>
                                 <button className="flex-1 flex items-center justify-center space-x-2 py-2 bg-blue-500/5 hover:bg-blue-500/10 text-blue-400 text-xs font-medium rounded-lg border border-blue-500/20 transition-colors">
                                     <DownloadCloud className="w-3.5 h-3.5" />
@@ -542,6 +600,23 @@ export default function AdminDashboard() {
                                     <span>Restore Backup</span>
                                 </button>
                             </div>
+                        </div>
+
+                        {/* Session Recordings */}
+                        <div className="bg-[#0b1121] border border-slate-800 rounded-xl p-5 flex-1 flex flex-col justify-center">
+                            <div className="flex items-center space-x-2 mb-1">
+                                <Video className="w-4 h-4 text-emerald-400" />
+                                <h3 className="text-slate-200 font-medium text-sm">Session Recordings</h3>
+                            </div>
+                            <p className="text-slate-600 text-[10px] mb-4">View user interaction playbacks in the IDE workspace</p>
+
+                            <button 
+                                onClick={() => setIsSessionsModalOpen(true)}
+                                className="w-full flex items-center justify-center space-x-2 py-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 text-xs font-medium rounded-lg border border-indigo-500/20 transition-colors"
+                            >
+                                <Video className="w-3.5 h-3.5" />
+                                <span>View Replays ({sessionsList.length})</span>
+                            </button>
                         </div>
 
                     </div>
@@ -638,6 +713,84 @@ export default function AdminDashboard() {
                                         )}
                                     </tbody>
                                 </table>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* --- SESSIONS MODAL --- */}
+                {isSessionsModalOpen && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+                        <div 
+                            className="absolute inset-0 bg-[#040814]/80 backdrop-blur-sm"
+                            onClick={() => {
+                                setIsSessionsModalOpen(false);
+                                setActiveSessionFilename(null);
+                            }}
+                        />
+                        <div className="relative w-full max-w-5xl max-h-[85vh] bg-[#0b1121] border border-slate-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+                            {/* Header */}
+                            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-[#080d1a]">
+                                <div className="flex items-center space-x-3">
+                                    <Video className="w-5 h-5 text-emerald-400" />
+                                    <h2 className="text-lg font-medium text-slate-200">Session Replays</h2>
+                                </div>
+                                <button 
+                                    onClick={() => {
+                                        setIsSessionsModalOpen(false);
+                                        setActiveSessionFilename(null);
+                                    }}
+                                    className="p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 rounded-lg transition-colors"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+
+                            {/* Content */}
+                            <div className="flex-1 overflow-auto p-6 flex flex-col md:flex-row gap-6">
+                                <div className="w-full md:w-1/3 bg-[#050810] rounded-xl border border-slate-800 overflow-hidden flex flex-col">
+                                    <div className="px-4 py-3 border-b border-slate-800 bg-[#080d1a]">
+                                        <h3 className="text-sm font-medium text-slate-300">Available Sessions</h3>
+                                    </div>
+                                    <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                                        {sessionsList.length === 0 ? (
+                                            <div className="py-8 text-center text-slate-500 text-xs">No sessions recorded yet.</div>
+                                        ) : (
+                                            sessionsList.map((session, idx) => (
+                                                <button
+                                                    key={idx}
+                                                    onClick={() => fetchSessionData(session.filename)}
+                                                    className={`w-full text-left px-3 py-2 rounded-lg transition-colors border ${
+                                                        activeSessionFilename === session.filename 
+                                                            ? 'bg-indigo-500/10 border-indigo-500/30' 
+                                                            : 'bg-[#0b1121] border-slate-800 hover:border-slate-700'
+                                                    }`}
+                                                >
+                                                    <div className="flex justify-between items-start mb-1">
+                                                        <span className="text-xs font-medium text-slate-200 truncate">User {session.userId}</span>
+                                                        <span className="text-[10px] text-slate-500">{new Date(session.updatedAt).toLocaleTimeString()}</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center text-[10px]">
+                                                        <span className="text-slate-400">Project: {session.projectId}</span>
+                                                        <span className="text-slate-500">{(session.size / 1024).toFixed(1)} KB</span>
+                                                    </div>
+                                                </button>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="w-full md:w-2/3 bg-black rounded-xl border border-slate-800 flex items-center justify-center min-h-[500px] overflow-hidden">
+                                    {!activeSessionFilename ? (
+                                        <div className="text-slate-500 flex flex-col items-center">
+                                            <Video className="w-12 h-12 mb-3 opacity-20" />
+                                            <span>Select a session to play</span>
+                                        </div>
+                                    ) : (
+                                        <div id="rrweb-player-container" className="w-full h-full bg-white flex justify-center items-center">
+                                            {/* Player will mount here */}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>

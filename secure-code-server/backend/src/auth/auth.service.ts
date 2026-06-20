@@ -14,7 +14,7 @@ export class AuthService {
 
   async validateUser(username: string, pass: string): Promise<any> {
     const user = await this.usersService.findByUsername(username);
-    if (user && await bcrypt.compare(pass, user.passwordHash)) {
+    if (user && (await bcrypt.compare(pass, user.passwordHash))) {
       const { passwordHash, ...result } = user;
       return result;
     }
@@ -30,10 +30,16 @@ export class AuthService {
     await this.usersService.setOnlineStatus(user.id, true);
     const sessionId = randomUUID();
     await this.usersService.updateSessionId(user.id, sessionId);
-    const payload = { username: user.username, sub: user.id, role: user.role, status: user.status, sessionId };
+    const payload = {
+      username: user.username,
+      sub: user.id,
+      role: user.role,
+      status: user.status,
+      sessionId,
+    };
     return {
       access_token: this.jwtService.sign(payload),
-      role: user.role
+      role: user.role,
     };
   }
 
@@ -50,7 +56,7 @@ export class AuthService {
     // Return a temporary token for resetting password
     const payload = { sub: user.id, isResetToken: true };
     return {
-      resetToken: this.jwtService.sign(payload, { expiresIn: '15m' })
+      resetToken: this.jwtService.sign(payload, { expiresIn: '15m' }),
     };
   }
 
@@ -60,7 +66,10 @@ export class AuthService {
       if (!payload.isResetToken || !payload.sub) {
         throw new UnauthorizedException('Invalid token type');
       }
-      await this.usersService.updateProfile(payload.sub, { newPassword, backupCode: 'RECOVERED' });
+      await this.usersService.updateProfile(payload.sub, {
+        newPassword,
+        backupCode: 'RECOVERED',
+      });
       return { message: 'Password reset successfully' };
     } catch (e) {
       throw new UnauthorizedException('Invalid or expired reset token');

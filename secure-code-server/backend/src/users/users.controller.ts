@@ -1,4 +1,17 @@
-import { Controller, Patch, Get, Post, Delete, Param, Body, UseGuards, Request, UnauthorizedException } from '@nestjs/common';
+import {
+  Controller,
+  Patch,
+  Get,
+  Post,
+  Delete,
+  Param,
+  Body,
+  UseGuards,
+  Request,
+  UnauthorizedException,
+  UseInterceptors,
+} from '@nestjs/common';
+import { CacheInterceptor, CacheKey, CacheTTL } from '@nestjs/cache-manager';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import * as bcrypt from 'bcrypt';
@@ -9,7 +22,7 @@ import { LogsService } from '../logs/logs.service';
 export class UsersController {
   constructor(
     private readonly usersService: UsersService,
-    private readonly logsService: LogsService
+    private readonly logsService: LogsService,
   ) {}
 
   @UseGuards(JwtAuthGuard)
@@ -28,15 +41,23 @@ export class UsersController {
     }
 
     // Update profile
-    const updatedUser = await this.usersService.updateProfile(userId, { newUsername, newPassword });
-    
-    this.logsService.logEvent({
-      userId: req.user.id,
-      username: req.user.username,
-      action: 'UPDATE_PROFILE',
-      details: `User updated their own profile (Username/Password)`,
-      ipAddress: req.headers['x-forwarded-for'] || req.connection?.remoteAddress || req.socket?.remoteAddress,
-    }).catch(e => console.error(e));
+    const updatedUser = await this.usersService.updateProfile(userId, {
+      newUsername,
+      newPassword,
+    });
+
+    this.logsService
+      .logEvent({
+        userId: req.user.id,
+        username: req.user.username,
+        action: 'UPDATE_PROFILE',
+        details: `User updated their own profile (Username/Password)`,
+        ipAddress:
+          req.headers['x-forwarded-for'] ||
+          req.connection?.remoteAddress ||
+          req.socket?.remoteAddress,
+      })
+      .catch((e) => console.error(e));
 
     // Omit password hash from response
     const { passwordHash, ...result } = updatedUser;
@@ -68,16 +89,19 @@ export class UsersController {
     const { password } = body;
     const user = await this.usersService.findByUsername(req.user.username);
     if (!user) throw new UnauthorizedException('User not found');
-    
+
     const isMatch = await bcrypt.compare(password, user.passwordHash);
     if (!isMatch) {
       throw new UnauthorizedException('Incorrect password');
     }
-    
+
     return { success: true };
   }
 
   @UseGuards(JwtAuthGuard)
+  @UseInterceptors(CacheInterceptor)
+  @CacheKey('users_stats')
+  @CacheTTL(5000) // 5 seconds (cache-manager v6 uses milliseconds for TTL, NestJS might vary, 5000ms is safe)
   @Get('stats')
   async getStats() {
     return this.usersService.getStats();
@@ -98,17 +122,33 @@ export class UsersController {
   @Post()
   async createUser(@Body() body: any, @Request() req: any) {
     const { username, password, role, status, allowIp, publicKey } = body;
-    const formattedRole = role ? (role.charAt(0).toUpperCase() + role.slice(1).toLowerCase()) : undefined;
-    const formattedStatus = status ? (status.charAt(0).toUpperCase() + status.slice(1).toLowerCase()) : undefined;
-    const newUser = await this.usersService.create(username, password, formattedRole, formattedStatus, allowIp, publicKey);
-    
-    this.logsService.logEvent({
-      userId: req.user.id,
-      username: req.user.username,
-      action: 'CREATE_USER',
-      details: `Created new user: ${username} with role ${formattedRole}`,
-      ipAddress: req.headers['x-forwarded-for'] || req.connection?.remoteAddress || req.socket?.remoteAddress,
-    }).catch(e => console.error(e));
+    const formattedRole = role
+      ? role.charAt(0).toUpperCase() + role.slice(1).toLowerCase()
+      : undefined;
+    const formattedStatus = status
+      ? status.charAt(0).toUpperCase() + status.slice(1).toLowerCase()
+      : undefined;
+    const newUser = await this.usersService.create(
+      username,
+      password,
+      formattedRole,
+      formattedStatus,
+      allowIp,
+      publicKey,
+    );
+
+    this.logsService
+      .logEvent({
+        userId: req.user.id,
+        username: req.user.username,
+        action: 'CREATE_USER',
+        details: `Created new user: ${username} with role ${formattedRole}`,
+        ipAddress:
+          req.headers['x-forwarded-for'] ||
+          req.connection?.remoteAddress ||
+          req.socket?.remoteAddress,
+      })
+      .catch((e) => console.error(e));
 
     const { passwordHash, ...result } = newUser;
     return result;
@@ -119,13 +159,18 @@ export class UsersController {
   async deleteUser(@Param('id') id: string, @Request() req: any) {
     await this.usersService.delete(id);
 
-    this.logsService.logEvent({
-      userId: req.user.id,
-      username: req.user.username,
-      action: 'DELETE_USER',
-      details: `Deleted user ID: ${id}`,
-      ipAddress: req.headers['x-forwarded-for'] || req.connection?.remoteAddress || req.socket?.remoteAddress,
-    }).catch(e => console.error(e));
+    this.logsService
+      .logEvent({
+        userId: req.user.id,
+        username: req.user.username,
+        action: 'DELETE_USER',
+        details: `Deleted user ID: ${id}`,
+        ipAddress:
+          req.headers['x-forwarded-for'] ||
+          req.connection?.remoteAddress ||
+          req.socket?.remoteAddress,
+      })
+      .catch((e) => console.error(e));
 
     return { success: true };
   }
@@ -146,17 +191,32 @@ export class UsersController {
 
   @UseGuards(JwtAuthGuard)
   @Patch(':id')
-  async adminUpdateUser(@Param('id') id: string, @Body() body: any, @Request() req: any) {
+  async adminUpdateUser(
+    @Param('id') id: string,
+    @Body() body: any,
+    @Request() req: any,
+  ) {
     const { username, role, status, allowIp, publicKey } = body;
-    const updatedUser = await this.usersService.adminUpdateUser(id, { username, role, status, allowIp, publicKey });
-    
-    this.logsService.logEvent({
-      userId: req.user.id,
-      username: req.user.username,
-      action: 'UPDATE_USER',
-      details: `Updated user ID: ${id}`,
-      ipAddress: req.headers['x-forwarded-for'] || req.connection?.remoteAddress || req.socket?.remoteAddress,
-    }).catch(e => console.error(e));
+    const updatedUser = await this.usersService.adminUpdateUser(id, {
+      username,
+      role,
+      status,
+      allowIp,
+      publicKey,
+    });
+
+    this.logsService
+      .logEvent({
+        userId: req.user.id,
+        username: req.user.username,
+        action: 'UPDATE_USER',
+        details: `Updated user ID: ${id}`,
+        ipAddress:
+          req.headers['x-forwarded-for'] ||
+          req.connection?.remoteAddress ||
+          req.socket?.remoteAddress,
+      })
+      .catch((e) => console.error(e));
 
     const { passwordHash, ...result } = updatedUser;
     return result;

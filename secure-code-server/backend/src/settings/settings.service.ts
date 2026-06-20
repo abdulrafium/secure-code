@@ -14,7 +14,7 @@ export class SettingsService {
     const settings = await this.settingsRepository.find();
     // Convert to a simple object
     const result: Record<string, any> = {};
-    settings.forEach(s => {
+    settings.forEach((s) => {
       result[s.key] = s.value;
     });
     return result;

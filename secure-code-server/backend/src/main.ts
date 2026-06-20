@@ -8,7 +8,7 @@ import { setupWSConnection } from 'y-websocket/bin/utils';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.enableCors(); // Allow frontend to communicate with backend
-  
+
   // Increase payload limit to allow saving large files up to 50MB
   app.use(json({ limit: '50mb' }));
   app.use(urlencoded({ extended: true, limit: '50mb' }));

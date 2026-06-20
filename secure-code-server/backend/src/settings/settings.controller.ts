@@ -1,4 +1,12 @@
-import { Controller, Get, Patch, Body, UseGuards, Request, UnauthorizedException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Patch,
+  Body,
+  UseGuards,
+  Request,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { SettingsService } from './settings.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LogsService } from '../logs/logs.service';
@@ -8,14 +16,23 @@ import { Role } from '../users/enums/role.enum';
 export class SettingsController {
   constructor(
     private readonly settingsService: SettingsService,
-    private readonly logsService: LogsService
+    private readonly logsService: LogsService,
   ) {}
 
   @Get('public')
   async getPublicSettings() {
-    const maintenanceMode = await this.settingsService.getSetting('maintenanceMode', false);
-    const systemMessage = await this.settingsService.getSetting('systemMessage', '');
-    const showSystemMessage = await this.settingsService.getSetting('showSystemMessage', false);
+    const maintenanceMode = await this.settingsService.getSetting(
+      'maintenanceMode',
+      false,
+    );
+    const systemMessage = await this.settingsService.getSetting(
+      'systemMessage',
+      '',
+    );
+    const showSystemMessage = await this.settingsService.getSetting(
+      'showSystemMessage',
+      false,
+    );
     return { maintenanceMode, systemMessage, showSystemMessage };
   }
 
@@ -38,13 +55,18 @@ export class SettingsController {
 
     const updated = await this.settingsService.updateMultiple(body);
 
-    this.logsService.logEvent({
-      userId: req.user.id,
-      username: req.user.username,
-      action: 'UPDATE_SETTINGS',
-      details: `Updated system settings: ${Object.keys(body).join(', ')}`,
-      ipAddress: req.headers['x-forwarded-for'] || req.connection?.remoteAddress || req.socket?.remoteAddress,
-    }).catch(e => console.error(e));
+    this.logsService
+      .logEvent({
+        userId: req.user.id,
+        username: req.user.username,
+        action: 'UPDATE_SETTINGS',
+        details: `Updated system settings: ${Object.keys(body).join(', ')}`,
+        ipAddress:
+          req.headers['x-forwarded-for'] ||
+          req.connection?.remoteAddress ||
+          req.socket?.remoteAddress,
+      })
+      .catch((e) => console.error(e));
 
     return updated;
   }

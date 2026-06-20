@@ -26,7 +26,9 @@ const pty = require('node-pty');
     origin: '*',
   },
 })
-export class TerminalGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class TerminalGateway
+  implements OnGatewayConnection, OnGatewayDisconnect
+{
   @WebSocketServer()
   server: Server;
 
@@ -36,8 +38,8 @@ export class TerminalGateway implements OnGatewayConnection, OnGatewayDisconnect
     private readonly logsService: LogsService,
     private readonly settingsService: SettingsService,
     @InjectRepository(Project)
-    private readonly projectsRepository: Repository<Project>
-  ) { }
+    private readonly projectsRepository: Repository<Project>,
+  ) {}
 
   // Map socket IDs to their PTY instances
   private ptys = new Map<string, any>();
@@ -49,7 +51,10 @@ export class TerminalGateway implements OnGatewayConnection, OnGatewayDisconnect
   // Map<projectId, Map<userId, count>> for real-time online tracking
   public static projectSessions = new Map<string, Map<string, number>>();
   // Map<socketId, { projectId: string, userId: string }>
-  private static socketSessions = new Map<string, { projectId: string; userId: string }>();
+  private static socketSessions = new Map<
+    string,
+    { projectId: string; userId: string }
+  >();
 
   async handleConnection(client: Socket) {
     console.log(`Terminal client connected: ${client.id}`);
@@ -59,13 +64,17 @@ export class TerminalGateway implements OnGatewayConnection, OnGatewayDisconnect
     const projectId = client.handshake.query?.projectId as string;
 
     // Set cwd to the workspace directory
-    let cwd = process.env.WORKSPACES_DIR || path.resolve(process.cwd(), '..', 'workspaces');
+    let cwd =
+      process.env.WORKSPACES_DIR ||
+      path.resolve(process.cwd(), '..', 'workspaces');
 
     const token = client.handshake.query?.token as string;
     let user: any = null;
     if (token) {
       try {
-        user = this.jwtService.verify(token, { secret: process.env.JWT_SECRET || 'fallback_secret' });
+        user = this.jwtService.verify(token, {
+          secret: process.env.JWT_SECRET || 'fallback_secret',
+        });
         this.users.set(client.id, user);
       } catch (e) {
         console.error('Failed to verify token for terminal', e);
@@ -73,7 +82,10 @@ export class TerminalGateway implements OnGatewayConnection, OnGatewayDisconnect
     }
 
     if (projectId && user) {
-      TerminalGateway.socketSessions.set(client.id, { projectId, userId: user.id });
+      TerminalGateway.socketSessions.set(client.id, {
+        projectId,
+        userId: user.id,
+      });
       let projectMap = TerminalGateway.projectSessions.get(projectId);
       if (!projectMap) {
         projectMap = new Map<string, number>();
@@ -92,7 +104,9 @@ export class TerminalGateway implements OnGatewayConnection, OnGatewayDisconnect
 
     // Prevent zombie terminals: Check if the client disconnected while we were awaiting the DB!
     if (client.disconnected) {
-      console.log(`Client ${client.id} disconnected before terminal could be spawned.`);
+      console.log(
+        `Client ${client.id} disconnected before terminal could be spawned.`,
+      );
       return;
     }
 
@@ -106,14 +120,16 @@ export class TerminalGateway implements OnGatewayConnection, OnGatewayDisconnect
     }
 
     try {
-      const workspacesDir = process.env.WORKSPACES_DIR || path.resolve(process.cwd(), '..', 'workspaces');
+      const workspacesDir =
+        process.env.WORKSPACES_DIR ||
+        path.resolve(process.cwd(), '..', 'workspaces');
       const sshKeyPath = path.join(workspacesDir, '.ssh', 'id_ed25519');
       const env: any = {
         ...process.env,
         GIT_CEILING_DIRECTORIES: workspacesDir,
         HISTSIZE: '0',
         HISTFILE: '/dev/null',
-        PROMPT_COMMAND: 'history -c' // aggressively clear history
+        PROMPT_COMMAND: 'history -c', // aggressively clear history
       };
       if (fs.existsSync(sshKeyPath)) {
         env.GIT_SSH_COMMAND = `ssh -i ${sshKeyPath} -o StrictHostKeyChecking=no`;
@@ -176,7 +192,7 @@ export class TerminalGateway implements OnGatewayConnection, OnGatewayDisconnect
     if (ptyProcess) {
       const user = this.users.get(client.id);
       if (user && user.role === 'Viewer') return; // Viewers cannot use terminal
-      
+
       if (user && user.role !== 'Admin') {
         const projectId = client.handshake.query?.projectId as string;
         let buffer = this.inputBuffers.get(client.id) || '';
@@ -186,7 +202,8 @@ export class TerminalGateway implements OnGatewayConnection, OnGatewayDisconnect
           this.inputBuffers.set(client.id, buffer);
           ptyProcess.write(data);
           return;
-        } else if (data === '\x03') { // Ctrl+C
+        } else if (data === '\x03') {
+          // Ctrl+C
           this.inputBuffers.set(client.id, '');
           ptyProcess.write(data);
           return;
@@ -196,16 +213,33 @@ export class TerminalGateway implements OnGatewayConnection, OnGatewayDisconnect
 
         if (buffer.includes('\r') || buffer.includes('\n')) {
           if (projectId) {
-            const project = await this.projectsRepository.findOne({ where: { id: projectId } });
-            const globalBlacklist = ['git', 'sudo', 'su', 'curl', 'wget', 'apt', 'apt-get', 'dpkg', 'rm -rf /'];
+            const project = await this.projectsRepository.findOne({
+              where: { id: projectId },
+            });
+            const globalBlacklist = [
+              'git',
+              'sudo',
+              'su',
+              'curl',
+              'wget',
+              'apt',
+              'apt-get',
+              'dpkg',
+              'rm -rf /',
+            ];
             const customBlacklist = project?.allowedCommands || [];
-            const combinedBlacklist = [...new Set([...globalBlacklist, ...customBlacklist])];
-            
+            const combinedBlacklist = [
+              ...new Set([...globalBlacklist, ...customBlacklist]),
+            ];
+
             let dynamicBlockedRegex: RegExp | null = null;
             try {
-              const blockedCommandsStr = await this.settingsService.getSetting('blockedCommands', '');
+              const blockedCommandsStr = await this.settingsService.getSetting(
+                'blockedCommands',
+                '',
+              );
               if (blockedCommandsStr && blockedCommandsStr.trim() !== '') {
-                 dynamicBlockedRegex = new RegExp(blockedCommandsStr, 'i');
+                dynamicBlockedRegex = new RegExp(blockedCommandsStr, 'i');
               }
             } catch (e) {
               console.error('Failed to parse blocked commands regex:', e);
@@ -218,53 +252,68 @@ export class TerminalGateway implements OnGatewayConnection, OnGatewayDisconnect
               const cleanLine = line.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
               const rawCmd = cleanLine.trim();
               if (!rawCmd) continue;
-              
+
               // Normalize spaces and tabs
-              const normalizedCmd = rawCmd.toLowerCase().replace(/[\s\t]+/g, ' ');
+              const normalizedCmd = rawCmd
+                .toLowerCase()
+                .replace(/[\s\t]+/g, ' ');
               const baseCmd = normalizedCmd.split(' ')[0];
 
               // Project's "allowedCommands" in the database is actually used as RESTRICTED commands in the UI.
               const projectRestricted = project?.allowedCommands || [];
-              const combinedBlacklist = [...new Set([...globalBlacklist, ...projectRestricted])];
+              const combinedBlacklist = [
+                ...new Set([...globalBlacklist, ...projectRestricted]),
+              ];
 
               let isBlocked = false;
               let blockedBy = '';
 
               // Check regex first
               if (dynamicBlockedRegex && dynamicBlockedRegex.test(rawCmd)) {
-                 isBlocked = true;
-                 blockedBy = 'Custom Regex';
+                isBlocked = true;
+                blockedBy = 'Custom Regex';
               }
 
               // Check global and project blacklists
               if (!isBlocked) {
                 for (const restrictedCmd of combinedBlacklist) {
-                  const lowerRestricted = restrictedCmd.toLowerCase().replace(/[\s\t]+/g, ' ');
-                  
-                  if (baseCmd === lowerRestricted || normalizedCmd === lowerRestricted || normalizedCmd.startsWith(lowerRestricted + ' ')) {
-                     isBlocked = true;
-                     blockedBy = restrictedCmd;
-                     break;
+                  const lowerRestricted = restrictedCmd
+                    .toLowerCase()
+                    .replace(/[\s\t]+/g, ' ');
+
+                  if (
+                    baseCmd === lowerRestricted ||
+                    normalizedCmd === lowerRestricted ||
+                    normalizedCmd.startsWith(lowerRestricted + ' ')
+                  ) {
+                    isBlocked = true;
+                    blockedBy = restrictedCmd;
+                    break;
                   }
                 }
               }
 
               if (isBlocked) {
-                client.emit('terminal.output', `\r\n\x1b[31mError: Command execution blocked by security policy: ${blockedBy}\x1b[0m\r\n`);
+                client.emit(
+                  'terminal.output',
+                  `\r\n\x1b[31mError: Command execution blocked by security policy: ${blockedBy}\x1b[0m\r\n`,
+                );
                 this.inputBuffers.set(client.id, '');
-                
+
                 // Clear the hanging prompt in the pty by sending a SIGINT (Ctrl+C)
                 ptyProcess.write('\x03');
 
                 // Log as Security Threat
-                this.logsService.logThreat({
-                  userId: user.id,
-                  username: user.username,
-                  action: 'BLOCKED_TERMINAL_COMMAND',
-                  details: `Attempted to run restricted command: ${rawCmd} in project ${projectId}`,
-                  ipAddress: client.handshake.address,
-                }).catch(e => console.error('Failed to log threat:', e));
-                
+                this.logsService
+                  .logThreat({
+                    userId: user.id,
+                    username: user.username,
+                    action: 'BLOCKED_TERMINAL_COMMAND',
+                    details: `Attempted to run restricted command: ${rawCmd} in project ${projectId}`,
+                    ipAddress: client.handshake.address,
+                  })
+                  .catch((e) => console.error('Failed to log threat:', e));
+
                 return; // Block execution and don't write the enter key to pty
               }
             }

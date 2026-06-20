@@ -8,7 +8,11 @@ import { UsersModule } from '../users/users.module';
 import { LogsModule } from '../logs/logs.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Project, Deployment]), UsersModule, LogsModule],
+  imports: [
+    TypeOrmModule.forFeature([Project, Deployment]),
+    UsersModule,
+    LogsModule,
+  ],
   controllers: [ProjectsController],
   providers: [ProjectsService],
   exports: [ProjectsService],

@@ -10,7 +10,13 @@ import { LogsModule } from '../logs/logs.module';
 import { SettingsModule } from '../settings/settings.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Project]), JwtModule.register({}), forwardRef(() => ProjectsModule), LogsModule, SettingsModule],
+  imports: [
+    TypeOrmModule.forFeature([Project]),
+    JwtModule.register({}),
+    forwardRef(() => ProjectsModule),
+    LogsModule,
+    SettingsModule,
+  ],
   controllers: [EditorController],
   providers: [EditorService, TerminalGateway],
   exports: [EditorService],

@@ -4,7 +4,7 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
-  ManyToMany
+  ManyToMany,
 } from 'typeorm';
 import { Role } from '../enums/role.enum';
 import { Status } from '../enums/status.enum';
@@ -59,6 +59,6 @@ export class User {
   @UpdateDateColumn({ type: 'timestamptz' })
   updatedAt: Date;
 
-  @ManyToMany(() => Project, project => project.users)
+  @ManyToMany(() => Project, (project) => project.users)
   projects: Project[];
 }

@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Project } from './entities/project.entity';
@@ -28,31 +32,39 @@ export class ProjectsService {
       relations: { users: true },
       order: { createdAt: 'DESC' },
     });
-    
-    return Promise.all(projects.map(async p => {
-      const pMap = TerminalGateway.projectSessions.get(p.id);
-      
-      const latestDeployment = await this.deploymentsRepository.findOne({
-        where: { projectId: p.id },
-        order: { createdAt: 'DESC' }
-      });
 
-      return {
-        ...p,
-        status: 'Running',
-        onlineUsers: pMap ? pMap.size : 0,
-        lastDeploy: latestDeployment ? latestDeployment.createdAt : null,
-      };
-    }));
+    return Promise.all(
+      projects.map(async (p) => {
+        const pMap = TerminalGateway.projectSessions.get(p.id);
+
+        const latestDeployment = await this.deploymentsRepository.findOne({
+          where: { projectId: p.id },
+          order: { createdAt: 'DESC' },
+        });
+
+        return {
+          ...p,
+          status: 'Running',
+          onlineUsers: pMap ? pMap.size : 0,
+          lastDeploy: latestDeployment ? latestDeployment.createdAt : null,
+        };
+      }),
+    );
   }
 
-  async createDeployment(projectId: string, userId: string, commitMessage: string, env: string = 'Production', status: string = 'Success') {
+  async createDeployment(
+    projectId: string,
+    userId: string,
+    commitMessage: string,
+    env: string = 'Production',
+    status: string = 'Success',
+  ) {
     const deployment = this.deploymentsRepository.create({
       projectId,
       userId,
       commitMessage,
       environment: env,
-      status
+      status,
     });
     return await this.deploymentsRepository.save(deployment);
   }
@@ -60,7 +72,7 @@ export class ProjectsService {
   async getAllDeployments(): Promise<Deployment[]> {
     return await this.deploymentsRepository.find({
       relations: { project: true, user: true },
-      order: { createdAt: 'DESC' }
+      order: { createdAt: 'DESC' },
     });
   }
 
@@ -70,7 +82,12 @@ export class ProjectsService {
     return project;
   }
 
-  async update(id: string, newName?: string, allowedCommands?: string[], allowedFiles?: string[]): Promise<Project> {
+  async update(
+    id: string,
+    newName?: string,
+    allowedCommands?: string[],
+    allowedFiles?: string[],
+  ): Promise<Project> {
     const project = await this.projectsRepository.findOne({ where: { id } });
     if (!project) throw new NotFoundException('Project not found');
 
@@ -79,27 +96,33 @@ export class ProjectsService {
       const newSafeName = newName.replace(/[^a-zA-Z0-9-_\.]/g, '_');
 
       if (oldSafeName !== newSafeName) {
-      const workspacesDir = process.env.WORKSPACES_DIR || path.resolve(process.cwd(), '..', 'workspaces');
-      const oldPath = path.join(workspacesDir, oldSafeName);
-      const newPath = path.join(workspacesDir, newSafeName);
+        const workspacesDir =
+          process.env.WORKSPACES_DIR ||
+          path.resolve(process.cwd(), '..', 'workspaces');
+        const oldPath = path.join(workspacesDir, oldSafeName);
+        const newPath = path.join(workspacesDir, newSafeName);
 
-      try {
-        if (fs.existsSync(oldPath)) {
-          // If the target already exists, we might need to handle it, but for now just rename
-          if (!fs.existsSync(newPath)) {
-            await fs.promises.rename(oldPath, newPath);
+        try {
+          if (fs.existsSync(oldPath)) {
+            // If the target already exists, we might need to handle it, but for now just rename
+            if (!fs.existsSync(newPath)) {
+              await fs.promises.rename(oldPath, newPath);
+            }
           }
+        } catch (e) {
+          console.error(
+            `Failed to rename workspace folder from ${oldSafeName} to ${newSafeName}`,
+            e,
+          );
+          // We will proceed to update DB anyway even if folder rename fails (e.g. folder didn't exist)
         }
-      } catch (e) {
-        console.error(`Failed to rename workspace folder from ${oldSafeName} to ${newSafeName}`, e);
-        // We will proceed to update DB anyway even if folder rename fails (e.g. folder didn't exist)
       }
-    }
 
       project.name = newName;
     }
 
-    if (allowedCommands !== undefined) project.allowedCommands = allowedCommands;
+    if (allowedCommands !== undefined)
+      project.allowedCommands = allowedCommands;
     if (allowedFiles !== undefined) project.allowedFiles = allowedFiles;
 
     await this.projectsRepository.save(project);
@@ -111,22 +134,29 @@ export class ProjectsService {
     if (!project) throw new NotFoundException('Project not found');
 
     const safeName = project.name.replace(/[^a-zA-Z0-9-_\.]/g, '_');
-    
+
     // Remove from DB
     await this.projectsRepository.remove(project);
 
     // Optionally remove from filesystem
-    const workspacesDir = process.env.WORKSPACES_DIR || path.resolve(process.cwd(), '..', 'workspaces');
+    const workspacesDir =
+      process.env.WORKSPACES_DIR ||
+      path.resolve(process.cwd(), '..', 'workspaces');
     const workspacePath = path.join(workspacesDir, safeName);
     try {
       if (fs.existsSync(workspacePath)) {
         await fs.promises.rm(workspacePath, { recursive: true, force: true });
       }
       // Also clean up old UUID path if it wasn't migrated
-      const workspacesDir = process.env.WORKSPACES_DIR || path.resolve(process.cwd(), '..', 'workspaces');
+      const workspacesDir =
+        process.env.WORKSPACES_DIR ||
+        path.resolve(process.cwd(), '..', 'workspaces');
       const oldWorkspacePath = path.join(workspacesDir, id);
       if (fs.existsSync(oldWorkspacePath)) {
-        await fs.promises.rm(oldWorkspacePath, { recursive: true, force: true });
+        await fs.promises.rm(oldWorkspacePath, {
+          recursive: true,
+          force: true,
+        });
       }
     } catch (e) {
       console.error(`Failed to delete workspace files for ${id}`, e);
@@ -139,7 +169,9 @@ export class ProjectsService {
 
     const safeName = project.name.replace(/[^a-zA-Z0-9-_\.]/g, '_');
 
-    const workspacesDir = process.env.WORKSPACES_DIR || path.resolve(process.cwd(), '..', 'workspaces');
+    const workspacesDir =
+      process.env.WORKSPACES_DIR ||
+      path.resolve(process.cwd(), '..', 'workspaces');
     if (!fs.existsSync(workspacesDir)) {
       await fs.promises.mkdir(workspacesDir, { recursive: true });
     }
@@ -185,22 +217,36 @@ export class ProjectsService {
     return project;
   }
 
-  async pullGitRepository(id: string, url: string, branch?: string, onProgress?: (pct: number) => void): Promise<Project> {
+  async pullGitRepository(
+    id: string,
+    url: string,
+    branch?: string,
+    onProgress?: (pct: number) => void,
+  ): Promise<Project> {
     const project = await this.projectsRepository.findOne({ where: { id } });
     if (!project) throw new NotFoundException('Project not found');
 
     if (!url) throw new BadRequestException('Repository URL is required');
 
     // Strict validation for github/gitlab URLs (ssh only)
-    const isValidUrl = /^git@(github\.com|gitlab\.com):[^\/]+\/[^\/]+/.test(url);
+    const isValidUrl = /^git@(github\.com|gitlab\.com):[^\/]+\/[^\/]+/.test(
+      url,
+    );
     if (!isValidUrl) {
-      throw new BadRequestException('Invalid GitHub/GitLab URL format. Must be a valid SSH URL (e.g. git@github.com:user/repo.git).');
+      throw new BadRequestException(
+        'Invalid GitHub/GitLab URL format. Must be a valid SSH URL (e.g. git@github.com:user/repo.git).',
+      );
     }
 
     const safeName = project.name.replace(/[^a-zA-Z0-9-_\.]/g, '_');
-    const workspacesDir = process.env.WORKSPACES_DIR || path.resolve(process.cwd(), '..', 'workspaces');
+    const workspacesDir =
+      process.env.WORKSPACES_DIR ||
+      path.resolve(process.cwd(), '..', 'workspaces');
     const projectDir = path.join(workspacesDir, safeName);
-    const tempDir = path.join(workspacesDir, safeName + '_git_tmp_' + Date.now());
+    const tempDir = path.join(
+      workspacesDir,
+      safeName + '_git_tmp_' + Date.now(),
+    );
 
     // Ensure target directory exists
     if (!fs.existsSync(projectDir)) {
@@ -238,21 +284,33 @@ export class ProjectsService {
           try {
             // Merge cloned files into the existing project directory
             await fs.promises.cp(tempDir, projectDir, { recursive: true });
-            await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+            await fs.promises
+              .rm(tempDir, { recursive: true, force: true })
+              .catch(() => {});
 
             const sizeBytes = await this.calculateDirectorySize(projectDir);
             project.storageBytes = sizeBytes;
             await this.projectsRepository.save(project);
             resolve(project);
           } catch (err) {
-            await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => {});
-            reject(new BadRequestException('Failed to merge git repository into project'));
+            await fs.promises
+              .rm(tempDir, { recursive: true, force: true })
+              .catch(() => {});
+            reject(
+              new BadRequestException(
+                'Failed to merge git repository into project',
+              ),
+            );
           }
         } else {
-          await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+          await fs.promises
+            .rm(tempDir, { recursive: true, force: true })
+            .catch(() => {});
           // Use the captured stderr, extract the 'fatal:' part if possible
           const fatalMatch = errorLog.match(/fatal:.*(\n.*)?/);
-          const errorMsg = fatalMatch ? fatalMatch[0].trim() : `Git clone failed with exit code ${code}`;
+          const errorMsg = fatalMatch
+            ? fatalMatch[0].trim()
+            : `Git clone failed with exit code ${code}`;
           reject(new BadRequestException(errorMsg));
         }
       });
@@ -287,7 +345,9 @@ export class ProjectsService {
     if (!project) throw new NotFoundException('Project not found');
 
     const safeName = project.name.replace(/[^a-zA-Z0-9-_\.]/g, '_');
-    const workspacesDir = process.env.WORKSPACES_DIR || path.resolve(process.cwd(), '..', 'workspaces');
+    const workspacesDir =
+      process.env.WORKSPACES_DIR ||
+      path.resolve(process.cwd(), '..', 'workspaces');
     let projectDir = path.join(workspacesDir, safeName);
 
     // Fallback to ID directory if name directory doesn't exist (older format)
@@ -306,7 +366,7 @@ export class ProjectsService {
     });
 
     const archive = new ZipArchive({
-      zlib: { level: 9 } // Maximum compression level
+      zlib: { level: 9 }, // Maximum compression level
     });
 
     archive.on('error', (err: any) => {
@@ -324,23 +384,25 @@ export class ProjectsService {
       relations: { users: true },
       order: { createdAt: 'DESC' },
     });
-    
+
     // Filter out only projects where this user is assigned
-    const assigned = projects.filter(p => p.users && p.users.some(u => u.id === userId));
-    return assigned.map(p => {
+    const assigned = projects.filter(
+      (p) => p.users && p.users.some((u) => u.id === userId),
+    );
+    return assigned.map((p) => {
       const pMap = TerminalGateway.projectSessions.get(p.id);
       return {
         ...p,
         status: 'Running',
-        onlineUsers: pMap ? pMap.size : 0
+        onlineUsers: pMap ? pMap.size : 0,
       };
     });
   }
 
   async assignUser(projectId: string, userId: string): Promise<Project> {
-    const project = await this.projectsRepository.findOne({ 
+    const project = await this.projectsRepository.findOne({
       where: { id: projectId },
-      relations: { users: true }
+      relations: { users: true },
     });
     if (!project) throw new NotFoundException('Project not found');
 
@@ -348,25 +410,29 @@ export class ProjectsService {
     if (!user) throw new NotFoundException('User not found');
 
     if (!project.users) project.users = [];
-    if (!project.users.some(u => u.id === user.id)) {
+    if (!project.users.some((u) => u.id === user.id)) {
       project.users.push(user);
       await this.projectsRepository.save(project);
     }
     return project;
   }
 
-  async assignUserByUsername(projectId: string, username: string): Promise<Project> {
-    const project = await this.projectsRepository.findOne({ 
+  async assignUserByUsername(
+    projectId: string,
+    username: string,
+  ): Promise<Project> {
+    const project = await this.projectsRepository.findOne({
       where: { id: projectId },
-      relations: { users: true }
+      relations: { users: true },
     });
     if (!project) throw new NotFoundException('Project not found');
 
     const user = await this.usersService.findByUsername(username.toLowerCase());
-    if (!user) throw new NotFoundException(`User with username ${username} not found`);
+    if (!user)
+      throw new NotFoundException(`User with username ${username} not found`);
 
     if (!project.users) project.users = [];
-    if (!project.users.some(u => u.id === user.id)) {
+    if (!project.users.some((u) => u.id === user.id)) {
       project.users.push(user);
       await this.projectsRepository.save(project);
     }
@@ -374,14 +440,14 @@ export class ProjectsService {
   }
 
   async unassignUser(projectId: string, userId: string): Promise<Project> {
-    const project = await this.projectsRepository.findOne({ 
+    const project = await this.projectsRepository.findOne({
       where: { id: projectId },
-      relations: { users: true }
+      relations: { users: true },
     });
     if (!project) throw new NotFoundException('Project not found');
 
     if (project.users) {
-      project.users = project.users.filter(u => u.id !== userId);
+      project.users = project.users.filter((u) => u.id !== userId);
       await this.projectsRepository.save(project);
     }
     return project;
