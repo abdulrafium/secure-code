@@ -263,16 +263,7 @@ export default function DocumentationPage() {
                             ))}
                         </nav>
 
-                        <div className="mt-8 pt-8 border-t border-slate-800/80 px-3">
-                            <div className="relative group">
-                                <Search className="w-4 h-4 text-slate-500 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-blue-400 transition-colors" />
-                                <input 
-                                    type="text" 
-                                    placeholder="Search docs..." 
-                                    className="w-full bg-[#050810] border border-slate-700/80 rounded-xl py-3 pl-11 pr-4 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all shadow-inner"
-                                />
-                            </div>
-                        </div>
+
                     </div>
                 </div>
 
@@ -285,12 +276,14 @@ export default function DocumentationPage() {
                         <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-500/5 blur-[150px] rounded-full pointer-events-none" />
 
                         {docsSections.map((section) => (
-                            <div 
-                                key={section.id} 
-                                className={`${activeSection === section.id ? 'block' : 'hidden'} relative z-10`}
-                            >
-                                {section.content}
-                            </div>
+                            activeSection === section.id && (
+                                <div 
+                                    key={section.id} 
+                                    className="relative z-10"
+                                >
+                                    {section.content}
+                                </div>
+                            )
                         ))}
 
                     </div>
