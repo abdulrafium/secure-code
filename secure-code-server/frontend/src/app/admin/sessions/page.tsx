@@ -28,14 +28,7 @@ const RrwebPlayerWrapper = ({ filename }: { filename: string }) => {
                     return;
                 }
 
-                let lastSnapshotIndex = 0;
-                for (let i = data.length - 1; i >= 0; i--) {
-                    if (data[i].type === 2) {
-                        lastSnapshotIndex = i;
-                        break;
-                    }
-                }
-                const sessionEvents = data.slice(lastSnapshotIndex);
+                const sessionEvents = data;
 
                 if (sessionEvents.length < 2) {
                     setStatus('empty');
