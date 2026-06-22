@@ -41,11 +41,10 @@ RUN npm ci --only=production
 # Copy compiled build from builder
 COPY --from=builder /app/dist ./dist
 
-# Create a user to run the app securely and setup workspaces directory permissions
+# Create a user for general security, but we must run as root to access /var/run/docker.sock cleanly
 RUN groupadd -r nestjs && useradd -r -g nestjs nestjs
-RUN groupadd -f docker && usermod -aG docker nestjs
 RUN mkdir -p /workspaces /sessions /backups && chown nestjs:nestjs /workspaces /sessions /backups
-USER nestjs
+USER root
 
 EXPOSE 3001
 
