@@ -407,8 +407,10 @@ const RrwebPlayerWrapper: React.FC<RrwebPlayerWrapperProps> = ({ filename, onNex
 export default function SessionsPage() {
     const [sessionsList, setSessionsList] = useState<any[]>([]);
     const [usersMap, setUsersMap] = useState<Record<string, any>>({});
+    const [projectsMap, setProjectsMap] = useState<Record<string, any>>({});
     const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
     const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
+    const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
     const [activeSessionFilename, setActiveSessionFilename] = useState<string | null>(null);
     const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
@@ -425,6 +427,14 @@ export default function SessionsPage() {
                     uMap[u.id] = u;
                 });
                 setUsersMap(uMap);
+
+                // Fetch projects to map IDs to project names
+                const projects = await api.get('/projects').catch(() => []);
+                const pMap: Record<string, any> = {};
+                projects.forEach((p: any) => {
+                    pMap[p.id] = p;
+                });
+                setProjectsMap(pMap);
 
                 // Fetch sessions
                 const sessions = await api.get('/logs/sessions').catch(() => []);
@@ -489,16 +499,20 @@ export default function SessionsPage() {
 
     // Calculate next/prev session availability
     const currentUserSessions = selectedUserId ? sessionsByUser[selectedUserId] || [] : [];
-    const activeIndex = currentUserSessions.findIndex((s: any) => s.filename === activeSessionFilename);
-    const hasNext = activeIndex !== -1 && activeIndex < currentUserSessions.length - 1;
+    const displayedSessions = selectedProjectId 
+        ? currentUserSessions.filter((s: any) => s.projectId === selectedProjectId)
+        : currentUserSessions;
+        
+    const activeIndex = displayedSessions.findIndex((s: any) => s.filename === activeSessionFilename);
+    const hasNext = activeIndex !== -1 && activeIndex < displayedSessions.length - 1;
     const hasPrev = activeIndex > 0;
 
     const onNextSession = () => {
-        if (hasNext) setActiveSessionFilename(currentUserSessions[activeIndex + 1].filename);
+        if (hasNext) setActiveSessionFilename(displayedSessions[activeIndex + 1].filename);
     };
 
     const onPrevSession = () => {
-        if (hasPrev) setActiveSessionFilename(currentUserSessions[activeIndex - 1].filename);
+        if (hasPrev) setActiveSessionFilename(displayedSessions[activeIndex - 1].filename);
     };
 
     const scrollLeft = () => {
@@ -561,6 +575,7 @@ export default function SessionsPage() {
                                                 onClick={() => {
                                                     setSelectedUserId(userId);
                                                     setExpandedUserId(isExpanded ? null : userId);
+                                                    setSelectedProjectId(null); // Clear selected project when toggling developer
                                                 }}
                                                 className={`w-full text-left p-3 flex items-center justify-between hover:bg-slate-800/50 transition-colors`}
                                             >
@@ -590,17 +605,40 @@ export default function SessionsPage() {
                                                 style={{ maxHeight: isExpanded ? `${projects.length * 50 + 20}px` : '0' }}
                                             >
                                                 <div className="p-2 space-y-1">
-                                                    {projects.map((p, idx) => (
-                                                        <div key={idx} className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-800/50 group cursor-default">
-                                                            <div className="flex items-center space-x-2 min-w-0">
-                                                                <Folder className="w-3.5 h-3.5 text-slate-500 group-hover:text-emerald-400 transition-colors shrink-0" />
-                                                                <span className="text-xs text-slate-400 group-hover:text-slate-300 truncate">{p.projectId}</span>
-                                                            </div>
-                                                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-500 shrink-0">
-                                                                {String(p.count)} sessions
-                                                            </span>
-                                                        </div>
-                                                    ))}
+                                                    {projects.map((p, idx) => {
+                                                        const isProjectSelected = selectedProjectId === p.projectId && isSelected;
+                                                        const projectName = projectsMap[p.projectId]?.name || p.projectId;
+                                                        
+                                                        return (
+                                                            <button 
+                                                                key={idx} 
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setSelectedUserId(userId);
+                                                                    setSelectedProjectId(p.projectId);
+                                                                }}
+                                                                className={`w-full text-left flex items-center justify-between p-2 rounded-lg transition-colors group cursor-pointer ${
+                                                                    isProjectSelected ? 'bg-emerald-500/10' : 'hover:bg-slate-800/50'
+                                                                }`}
+                                                            >
+                                                                <div className="flex items-center space-x-2 min-w-0">
+                                                                    <Folder className={`w-3.5 h-3.5 shrink-0 transition-colors ${
+                                                                        isProjectSelected ? 'text-emerald-400' : 'text-slate-500 group-hover:text-emerald-400'
+                                                                    }`} />
+                                                                    <span className={`text-xs truncate transition-colors ${
+                                                                        isProjectSelected ? 'text-emerald-400 font-medium' : 'text-slate-400 group-hover:text-slate-300'
+                                                                    }`}>
+                                                                        {projectName}
+                                                                    </span>
+                                                                </div>
+                                                                <span className={`text-[10px] px-2 py-0.5 rounded-full shrink-0 transition-colors ${
+                                                                    isProjectSelected ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-500 group-hover:text-slate-400'
+                                                                }`}>
+                                                                    {String(p.count)} sessions
+                                                                </span>
+                                                            </button>
+                                                        );
+                                                    })}
                                                 </div>
                                             </div>
                                         </div>
@@ -646,12 +684,15 @@ export default function SessionsPage() {
                         </div>
 
                         {/* User's Sessions List (Bottom Strip) */}
-                        {selectedUserId && currentUserSessions.length > 0 && (
+                        {selectedUserId && displayedSessions.length > 0 && (
                             <div className="h-48 bg-[#0b1121] border border-slate-800 rounded-xl overflow-hidden flex flex-col shrink-0 relative group">
                                 <div className="p-3 border-b border-slate-800 bg-[#080d1a] flex justify-between items-center z-10">
                                     <h3 className="text-xs font-medium text-slate-300 flex items-center space-x-2">
                                         <Calendar className="w-3.5 h-3.5 text-emerald-400" />
-                                        <span>Recent Sessions for {usersMap[selectedUserId]?.username || 'User'}</span>
+                                        <span>
+                                            Recent Sessions for {usersMap[selectedUserId]?.username || 'User'}
+                                            {selectedProjectId && ` in ${projectsMap[selectedProjectId]?.name || selectedProjectId}`}
+                                        </span>
                                     </h3>
                                     <span className="text-[10px] text-slate-500 bg-slate-800 px-2 py-0.5 rounded-full">
                                         Newest First
@@ -659,7 +700,7 @@ export default function SessionsPage() {
                                 </div>
                                 
                                 {/* Left Scroll Button */}
-                                {currentUserSessions.length > 3 && (
+                                {displayedSessions.length > 3 && (
                                     <button 
                                         onClick={scrollLeft}
                                         className="absolute left-2 top-1/2 mt-2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-slate-900/80 border border-slate-700 text-slate-300 hover:text-white hover:bg-blue-600 flex items-center justify-center backdrop-blur-sm shadow-xl opacity-0 group-hover:opacity-100 transition-all transform -translate-x-2 group-hover:translate-x-0"
@@ -673,8 +714,9 @@ export default function SessionsPage() {
                                     className="flex-1 overflow-x-auto p-4 flex gap-4 scrollbar-hide items-center scroll-smooth"
                                     style={{ msOverflowStyle: 'none', scrollbarWidth: 'none' }}
                                 >
-                                    {currentUserSessions.map((session: any, idx: number) => {
+                                    {displayedSessions.map((session: any, idx: number) => {
                                         const isPlaying = activeSessionFilename === session.filename;
+                                        const projectName = projectsMap[session.projectId]?.name || session.projectId;
                                         
                                         return (
                                             <button
@@ -710,7 +752,7 @@ export default function SessionsPage() {
                                                     </div>
                                                     <div className="flex items-center space-x-1.5 text-slate-400 mt-3">
                                                         <Folder className="w-3.5 h-3.5" />
-                                                        <span className="text-xs truncate">{session.projectId}</span>
+                                                        <span className="text-xs truncate" title={projectName}>{projectName}</span>
                                                     </div>
                                                 </div>
                                                 
@@ -736,7 +778,7 @@ export default function SessionsPage() {
                                 </div>
 
                                 {/* Right Scroll Button */}
-                                {currentUserSessions.length > 3 && (
+                                {displayedSessions.length > 3 && (
                                     <button 
                                         onClick={scrollRight}
                                         className="absolute right-2 top-1/2 mt-2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-slate-900/80 border border-slate-700 text-slate-300 hover:text-white hover:bg-blue-600 flex items-center justify-center backdrop-blur-sm shadow-xl opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0"
