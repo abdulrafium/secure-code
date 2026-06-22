@@ -30,8 +30,9 @@ const RrwebPlayerWrapper: React.FC<RrwebPlayerWrapperProps> = ({ filename, onNex
     
     const [status, setStatus] = useState<'loading' | 'error' | 'empty' | 'playing'>('loading');
     const [isPlaying, setIsPlaying] = useState(true);
-    const [currentTime, setCurrentTime] = useState(0);
     const [totalTime, setTotalTime] = useState(0);
+    const [currentTime, setCurrentTime] = useState(0);
+    const [debugText, setDebugText] = useState("");
     const [speed, setSpeed] = useState(1);
     const [showOverlayIcon, setShowOverlayIcon] = useState<'play' | 'pause' | null>(null);
 
@@ -48,7 +49,8 @@ const RrwebPlayerWrapper: React.FC<RrwebPlayerWrapperProps> = ({ filename, onNex
                     return;
                 }
 
-                const sessionEvents = data;
+                // Ensure events are perfectly chronological, otherwise playback will halt early or skip
+                const sessionEvents = [...data].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
 
                 if (sessionEvents.length < 2) {
                     setStatus('empty');
@@ -68,7 +70,8 @@ const RrwebPlayerWrapper: React.FC<RrwebPlayerWrapperProps> = ({ filename, onNex
                             
                             const replayer = new rrweb.Replayer(sessionEvents, {
                                 root: containerRef.current,
-                                showWarning: false
+                                showWarning: false,
+                                skipInactive: false,
                             });
                             
                             replayerRef.current = replayer;
@@ -168,30 +171,29 @@ const RrwebPlayerWrapper: React.FC<RrwebPlayerWrapperProps> = ({ filename, onNex
     };
 
     const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
+        e.stopPropagation();
         if (!replayerRef.current || totalTime === 0) return;
         const rect = e.currentTarget.getBoundingClientRect();
         const percent = (e.clientX - rect.left) / rect.width;
         const targetTime = Math.floor(Math.max(0, Math.min(percent * totalTime, totalTime)));
         
-        replayerRef.current.pause();
-        // Give rrweb a tiny tick to register the pause state before seeking
-        setTimeout(() => {
-            if (replayerRef.current) {
-                replayerRef.current.play(targetTime);
-                setCurrentTime(targetTime);
-                setIsPlaying(true);
-            }
-        }, 10);
+        setDebugText(`Seek! px:${Math.round(e.clientX - rect.left)} width:${Math.round(rect.width)} %:${percent.toFixed(3)} tgt:${targetTime}ms tot:${totalTime}ms`);
+
+        replayerRef.current.play(targetTime);
+        setCurrentTime(targetTime);
+        setIsPlaying(true);
     };
 
-    const handleSpeedChange = () => {
+    const handleSpeedChange = (e: React.MouseEvent<HTMLButtonElement>) => {
+        e.stopPropagation();
         if (!replayerRef.current) return;
         const nextSpeed = speed === 1 ? 2 : speed === 2 ? 4 : speed === 4 ? 8 : 1;
         replayerRef.current.setConfig({ speed: nextSpeed });
         setSpeed(nextSpeed);
     };
 
-    const handleNextClick = () => {
+    const handleNextClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+        e.stopPropagation();
         if (hasNext) {
             onNext();
         } else {
@@ -204,7 +206,8 @@ const RrwebPlayerWrapper: React.FC<RrwebPlayerWrapperProps> = ({ filename, onNex
         }
     };
 
-    const handlePrevClick = () => {
+    const handlePrevClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+        e.stopPropagation();
         if (hasPrev) {
             onPrev();
         } else {
@@ -234,6 +237,13 @@ const RrwebPlayerWrapper: React.FC<RrwebPlayerWrapperProps> = ({ filename, onNex
                     Secure Code Server
                 </span>
             </div>
+
+            {/* Debug Info */}
+            {debugText && (
+                <div className="absolute top-0 left-0 w-full bg-red-600/90 text-white text-xs p-1 z-50 font-mono text-center">
+                    {debugText}
+                </div>
+            )}
 
             {status === 'loading' && (
                 <div className="z-10 flex flex-col items-center justify-center bg-[#0a0f1c]/80 backdrop-blur-xl px-10 py-8 rounded-3xl border border-slate-700/50 shadow-2xl">
