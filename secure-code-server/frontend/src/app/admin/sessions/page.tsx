@@ -33,6 +33,7 @@ const RrwebPlayerWrapper: React.FC<RrwebPlayerWrapperProps> = ({ filename, onNex
     const [currentTime, setCurrentTime] = useState(0);
     const [totalTime, setTotalTime] = useState(0);
     const [speed, setSpeed] = useState(1);
+    const [showOverlayIcon, setShowOverlayIcon] = useState<'play' | 'pause' | null>(null);
 
     useEffect(() => {
         let isMounted = true;
@@ -113,10 +114,13 @@ const RrwebPlayerWrapper: React.FC<RrwebPlayerWrapperProps> = ({ filename, onNex
         if (isPlaying) {
             replayerRef.current.pause();
             setIsPlaying(false);
+            setShowOverlayIcon('pause');
         } else {
             replayerRef.current.play(currentTime);
             setIsPlaying(true);
+            setShowOverlayIcon('play');
         }
+        setTimeout(() => setShowOverlayIcon(null), 800);
     };
 
     const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -165,7 +169,13 @@ const RrwebPlayerWrapper: React.FC<RrwebPlayerWrapperProps> = ({ filename, onNex
     const progressPercent = totalTime > 0 ? (currentTime / totalTime) * 100 : 0;
 
     return (
-        <div className="w-full h-full flex flex-col justify-center items-center overflow-hidden bg-[#050810] relative">
+        <div className="w-full h-full flex flex-col justify-center items-center overflow-hidden bg-[#050810] relative group">
+            
+            <style dangerouslySetInnerHTML={{__html: `
+                .rrweb-replayer-container > div {
+                    margin: 0 auto !important;
+                }
+            `}} />
             
             {/* Watermark Background */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0 overflow-hidden">
@@ -198,17 +208,31 @@ const RrwebPlayerWrapper: React.FC<RrwebPlayerWrapperProps> = ({ filename, onNex
             )}
             
             <div 
-                className={`w-full flex-1 relative overflow-hidden ${status === 'playing' ? 'block' : 'hidden'}`}
+                className={`w-full h-full relative overflow-hidden ${status === 'playing' ? 'block' : 'hidden'}`}
+                onClick={togglePlay}
             >
                 <div 
                     ref={containerRef} 
                     className="absolute inset-0 flex justify-center items-center rrweb-replayer-container"
                 ></div>
+
+                {/* Big Center Overlay Icon */}
+                {showOverlayIcon && (
+                    <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
+                        <div className="w-24 h-24 bg-black/40 backdrop-blur-sm rounded-full flex items-center justify-center animate-out fade-out zoom-out duration-700">
+                            {showOverlayIcon === 'play' ? (
+                                <Play className="w-12 h-12 text-white fill-white ml-2" />
+                            ) : (
+                                <Pause className="w-12 h-12 text-white fill-white" />
+                            )}
+                        </div>
+                    </div>
+                )}
             </div>
 
-            {/* Custom Control Bar */}
+            {/* Custom Control Bar (Auto-hide) */}
             {status === 'playing' && (
-                <div className="w-full bg-slate-900 border-t border-slate-800 flex flex-col shadow-lg z-10 shrink-0">
+                <div className="absolute bottom-0 w-full bg-slate-900/90 backdrop-blur-md border-t border-slate-800 flex flex-col shadow-[0_-10px_40px_rgba(0,0,0,0.5)] z-30 transform translate-y-full opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 ease-out pb-2">
                     {/* Progress Bar Area */}
                     <div className="w-full h-4 bg-slate-800 cursor-pointer relative group" onClick={handleSeek}>
                         {/* Hover/Background bar */}
