@@ -118,22 +118,18 @@ const RrwebPlayerWrapper: React.FC<RrwebPlayerWrapperProps> = ({ filename, onNex
                             setIsPlaying(true);
                             setSpeed(1); // Reset speed on new session
 
-                            const first = sessionEvents[0];
-                            const last = sessionEvents[sessionEvents.length - 1];
-                            const calculatedTotalTime = (last && first && last.timestamp && first.timestamp) 
-                                ? (last.timestamp - first.timestamp) 
-                                : 0;
-                            setTotalTime(calculatedTotalTime);
+                            const meta = replayer.getMetaData();
+                            setTotalTime(meta.totalTime || 0);
 
-                            // Setup requestAnimationFrame for progress bar and constant resize checks
-                            const updateLoop = () => {
+                            // Setup interval for progress bar updates (100ms is smooth enough and saves performance)
+                            const intervalId = setInterval(() => {
                                 if (replayerRef.current && replayerRef.current.timer) {
                                     setCurrentTime(replayerRef.current.timer.timeOffset);
                                 }
-                                resizePlayer(); // Keep perfect scaling
-                                rafRef.current = requestAnimationFrame(updateLoop);
-                            };
-                            rafRef.current = requestAnimationFrame(updateLoop);
+                            }, 100);
+                            
+                            // Save interval ID to rafRef so it gets cleared on unmount
+                            (rafRef as any).current = intervalId;
                         }
                     }, 50);
                 }
@@ -147,7 +143,7 @@ const RrwebPlayerWrapper: React.FC<RrwebPlayerWrapperProps> = ({ filename, onNex
 
         return () => {
             isMounted = false;
-            if (rafRef.current) cancelAnimationFrame(rafRef.current);
+            if (rafRef.current) clearInterval(rafRef.current as any);
             if (replayerRef.current) {
                 try {
                     if (replayerRef.current._cleanupResize) replayerRef.current._cleanupResize();
