@@ -25,6 +25,22 @@ export class LogsController {
     return this.logsService.getLogs();
   }
 
+  @Delete('all')
+  async deleteAllLogs(@Request() req: any) {
+    if (req.user?.role !== 'Admin') {
+      throw new UnauthorizedException('Only admins can delete security logs.');
+    }
+    return this.logsService.deleteAllLogs();
+  }
+
+  @Delete('sessions/project/:projectId')
+  async deleteAllProjectSessions(@Request() req: any, @Param('projectId') projectId: string) {
+    if (req.user?.role !== 'Admin') {
+      throw new UnauthorizedException('Only admins can delete sessions.');
+    }
+    return this.logsService.deleteAllSessionsForProject(projectId);
+  }
+
   @Delete(':id')
   async deleteLog(@Request() req: any, @Param('id') id: string) {
     if (req.user?.role !== 'Admin') {

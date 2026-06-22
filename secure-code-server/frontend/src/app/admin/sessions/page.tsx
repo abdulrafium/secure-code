@@ -497,6 +497,24 @@ export default function SessionsPage() {
         }
     };
 
+    const handleDeleteAllSessions = async () => {
+        if (!selectedProjectId) return;
+        if (!confirm(`Are you sure you want to delete ALL sessions for project ${projectsMap[selectedProjectId]?.name || selectedProjectId}? This cannot be undone.`)) {
+            return;
+        }
+        
+        try {
+            await api.delete(`/logs/sessions/project/${selectedProjectId}`);
+            setSessionsList(prev => prev.filter(s => s.projectId !== selectedProjectId));
+            if (activeSessionFilename && displayedSessions.some((s: any) => s.filename === activeSessionFilename)) {
+                setActiveSessionFilename(null);
+            }
+        } catch (error) {
+            console.error('Failed to delete all sessions', error);
+            alert('Failed to delete all sessions');
+        }
+    };
+
     // Calculate next/prev session availability
     const currentUserSessions = selectedUserId ? sessionsByUser[selectedUserId] || [] : [];
     const displayedSessions = selectedProjectId 
@@ -694,9 +712,19 @@ export default function SessionsPage() {
                                             {selectedProjectId && ` in ${projectsMap[selectedProjectId]?.name || selectedProjectId}`}
                                         </span>
                                     </h3>
-                                    <span className="text-[10px] text-slate-500 bg-slate-800 px-2 py-0.5 rounded-full">
-                                        Newest First
-                                    </span>
+                                    <div className="flex items-center space-x-3">
+                                        <button 
+                                            onClick={handleDeleteAllSessions}
+                                            className="flex items-center space-x-1.5 text-xs text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 px-2.5 py-1 rounded-md transition-colors border border-red-500/20"
+                                            title="Delete all sessions for this project"
+                                        >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                            <span>Delete All</span>
+                                        </button>
+                                        <span className="text-[10px] text-slate-500 bg-slate-800 px-2 py-0.5 rounded-full">
+                                            Newest First
+                                        </span>
+                                    </div>
                                 </div>
                                 
                                 {/* Left Scroll Button */}

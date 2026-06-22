@@ -506,18 +506,15 @@ export default function IDEWorkspace() {
       
       const reason = e?.detail?.reason || 'Manual Trigger';
       
-      // Immediate flush of pre-incident context!
-      executeFlush(`[PRE-INCIDENT] ${reason}`);
-      
       if (flushTimeout) {
         pendingReason = pendingReason ? `${pendingReason} | ${reason}` : reason;
         return; 
       }
       pendingReason = reason;
 
-      // Wait 10 seconds to capture the aftermath of the event
+      // Wait 10 seconds to capture the aftermath of the event, then flush once
       flushTimeout = setTimeout(() => {
-        executeFlush(`[AFTERMATH] ${pendingReason || 'Manual Trigger'}`);
+        executeFlush(pendingReason || 'Manual Trigger');
         flushTimeout = null;
         pendingReason = null;
       }, 10000);

@@ -50,6 +50,20 @@ export default function AuditLogsPage() {
         }
     };
 
+    const handleDeleteAllLogs = async () => {
+        if (!confirm('Are you sure you want to delete ALL audit logs? This action cannot be undone and will wipe the entire log database.')) {
+            return;
+        }
+        
+        try {
+            await api.delete('/logs/all');
+            setLogs([]);
+        } catch (error) {
+            console.error('Failed to delete all logs', error);
+            alert('Failed to delete all logs');
+        }
+    };
+
     const formatRelativeTime = (dateStr: string) => {
         const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
         if (diff < 60) return 'just now';
@@ -210,13 +224,22 @@ export default function AuditLogsPage() {
                         <p className="text-slate-400 text-sm mt-1">Full system-wide audit trailing (who did what, when).</p>
                     </div>
                     
-                    <button 
-                        onClick={fetchLogs}
-                        className="flex items-center space-x-2 px-4 py-2 bg-[#0b1121] hover:bg-[#111a30] border border-slate-800 text-slate-300 text-sm font-medium rounded-lg transition-colors shadow-lg"
-                    >
-                        <RefreshCcw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-                        <span>Refresh Logs</span>
-                    </button>
+                    <div className="flex items-center space-x-3">
+                        <button 
+                            onClick={handleDeleteAllLogs}
+                            className="flex items-center space-x-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 text-sm font-medium rounded-lg transition-colors shadow-lg"
+                        >
+                            <Trash2 className="w-4 h-4" />
+                            <span>Delete All Logs</span>
+                        </button>
+                        <button 
+                            onClick={fetchLogs}
+                            className="flex items-center space-x-2 px-4 py-2 bg-[#0b1121] hover:bg-[#111a30] border border-slate-800 text-slate-300 text-sm font-medium rounded-lg transition-colors shadow-lg"
+                        >
+                            <RefreshCcw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+                            <span>Refresh Logs</span>
+                        </button>
+                    </div>
                 </div>
 
                 {/* Filters Section */}

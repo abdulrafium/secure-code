@@ -46,6 +46,26 @@ export class LogsService {
     return await this.logsRepository.delete(id);
   }
 
+  async deleteAllLogs() {
+    return await this.logsRepository.clear();
+  }
+
+  async deleteAllSessionsForProject(projectId: string) {
+    try {
+      const sessionDir = path.join(process.cwd(), '..', 'sessions');
+      if (!fs.existsSync(sessionDir)) return { success: true };
+      
+      const files = fs.readdirSync(sessionDir).filter(f => f.endsWith('.json') && f.startsWith(`session_${projectId}_`));
+      for (const file of files) {
+        fs.unlinkSync(path.join(sessionDir, file));
+      }
+      return { success: true, count: files.length };
+    } catch (error) {
+      console.error('Failed to delete sessions for project', error);
+      return { success: false };
+    }
+  }
+
   async saveSessionEvents(
     userId: string,
     username: string,
