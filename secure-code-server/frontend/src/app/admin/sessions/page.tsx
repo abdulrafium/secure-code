@@ -32,7 +32,6 @@ const RrwebPlayerWrapper: React.FC<RrwebPlayerWrapperProps> = ({ filename, onNex
     const [isPlaying, setIsPlaying] = useState(true);
     const [totalTime, setTotalTime] = useState(0);
     const [currentTime, setCurrentTime] = useState(0);
-    const [debugText, setDebugText] = useState("");
     const [speed, setSpeed] = useState(1);
     const [showOverlayIcon, setShowOverlayIcon] = useState<'play' | 'pause' | null>(null);
 
@@ -126,8 +125,8 @@ const RrwebPlayerWrapper: React.FC<RrwebPlayerWrapperProps> = ({ filename, onNex
 
                             // Setup interval for progress bar updates (100ms is smooth enough and saves performance)
                             const intervalId = setInterval(() => {
-                                if (replayerRef.current && replayerRef.current.timer) {
-                                    setCurrentTime(replayerRef.current.timer.timeOffset);
+                                if (replayerRef.current) {
+                                    setCurrentTime(replayerRef.current.getCurrentTime());
                                 }
                             }, 100);
                             
@@ -177,8 +176,6 @@ const RrwebPlayerWrapper: React.FC<RrwebPlayerWrapperProps> = ({ filename, onNex
         const percent = (e.clientX - rect.left) / rect.width;
         const targetTime = Math.floor(Math.max(0, Math.min(percent * totalTime, totalTime)));
         
-        setDebugText(`Seek! px:${Math.round(e.clientX - rect.left)} width:${Math.round(rect.width)} %:${percent.toFixed(3)} tgt:${targetTime}ms tot:${totalTime}ms`);
-
         replayerRef.current.play(targetTime);
         setCurrentTime(targetTime);
         setIsPlaying(true);
@@ -237,13 +234,6 @@ const RrwebPlayerWrapper: React.FC<RrwebPlayerWrapperProps> = ({ filename, onNex
                     Secure Code Server
                 </span>
             </div>
-
-            {/* Debug Info */}
-            {debugText && (
-                <div className="absolute top-0 left-0 w-full bg-red-600/90 text-white text-xs p-1 z-50 font-mono text-center">
-                    {debugText}
-                </div>
-            )}
 
             {status === 'loading' && (
                 <div className="z-10 flex flex-col items-center justify-center bg-[#0a0f1c]/80 backdrop-blur-xl px-10 py-8 rounded-3xl border border-slate-700/50 shadow-2xl">
