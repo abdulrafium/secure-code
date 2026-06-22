@@ -171,10 +171,17 @@ const RrwebPlayerWrapper: React.FC<RrwebPlayerWrapperProps> = ({ filename, onNex
         if (!replayerRef.current || totalTime === 0) return;
         const rect = e.currentTarget.getBoundingClientRect();
         const percent = (e.clientX - rect.left) / rect.width;
-        const targetTime = Math.max(0, Math.min(percent * totalTime, totalTime));
-        replayerRef.current.play(targetTime);
-        setCurrentTime(targetTime);
-        setIsPlaying(true);
+        const targetTime = Math.floor(Math.max(0, Math.min(percent * totalTime, totalTime)));
+        
+        replayerRef.current.pause();
+        // Give rrweb a tiny tick to register the pause state before seeking
+        setTimeout(() => {
+            if (replayerRef.current) {
+                replayerRef.current.play(targetTime);
+                setCurrentTime(targetTime);
+                setIsPlaying(true);
+            }
+        }, 10);
     };
 
     const handleSpeedChange = () => {
