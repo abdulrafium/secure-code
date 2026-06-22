@@ -734,16 +734,16 @@ export default function SessionsPage() {
 
                         {/* User's Sessions List (Bottom Strip) */}
                         {selectedUserId && selectedProjectId && displayedSessions.length > 0 && (
-                            <div className="h-48 bg-[#0b1121] border border-slate-800 rounded-xl overflow-hidden flex flex-col shrink-0 relative group">
-                                <div className="p-3 border-b border-slate-800 bg-[#080d1a] flex justify-between items-center z-10">
+                            <div className="h-auto min-h-[12rem] bg-[#0b1121] border border-slate-800 rounded-xl overflow-hidden flex flex-col shrink-0 relative group">
+                                <div className="p-3 border-b border-slate-800 bg-[#080d1a] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 z-10">
                                     <h3 className="text-xs font-medium text-slate-300 flex items-center space-x-2">
-                                        <Calendar className="w-3.5 h-3.5 text-emerald-400" />
-                                        <span>
+                                        <Calendar className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                        <span className="line-clamp-2">
                                             Recent Sessions for {usersMap[selectedUserId]?.username || 'User'}
                                             {selectedProjectId && ` in ${projectsMap[selectedProjectId]?.name || selectedProjectId}`}
                                         </span>
                                     </h3>
-                                    <div className="flex items-center space-x-3">
+                                    <div className="flex items-center space-x-3 w-full sm:w-auto justify-end">
                                         <button 
                                             onClick={() => setShowDeleteAllConfirm(true)}
                                             className="flex items-center space-x-1.5 text-xs text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 px-2.5 py-1 rounded-md transition-colors border border-red-500/20"
