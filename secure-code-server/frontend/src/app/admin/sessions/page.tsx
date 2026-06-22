@@ -76,13 +76,21 @@ const RrwebPlayerWrapper: React.FC<RrwebPlayerWrapperProps> = ({ filename, onNex
                             const resizePlayer = () => {
                                 if (!containerRef.current || !replayer.wrapper) return;
                                 const wrapper = replayer.wrapper as HTMLElement;
-                                const recordWidth = parseInt(wrapper.style.width || '1920', 10);
-                                const recordHeight = parseInt(wrapper.style.height || '1080', 10);
+                                
+                                const metaEvent = sessionEvents.find((e: any) => e.type === 4);
+                                let recordWidth = metaEvent?.data?.width;
+                                let recordHeight = metaEvent?.data?.height;
+                                
+                                if (!recordWidth || !recordHeight) {
+                                    recordWidth = parseInt(wrapper.style.width || '1920', 10);
+                                    recordHeight = parseInt(wrapper.style.height || '1080', 10);
+                                }
                                 
                                 const containerWidth = containerRef.current.clientWidth;
                                 const containerHeight = containerRef.current.clientHeight;
 
-                                if (containerWidth > 0 && containerHeight > 0) {
+                                if (containerWidth > 0 && containerHeight > 0 && recordWidth > 0 && recordHeight > 0) {
+                                    // Scale to perfectly fit
                                     const scale = Math.min(containerWidth / recordWidth, containerHeight / recordHeight);
                                     
                                     wrapper.style.transform = `scale(${scale})`;
@@ -110,17 +118,22 @@ const RrwebPlayerWrapper: React.FC<RrwebPlayerWrapperProps> = ({ filename, onNex
                             setIsPlaying(true);
                             setSpeed(1); // Reset speed on new session
 
-                            const meta = replayer.getMetaData();
-                            setTotalTime(meta.totalTime || 0);
+                            const first = sessionEvents[0];
+                            const last = sessionEvents[sessionEvents.length - 1];
+                            const calculatedTotalTime = (last && first && last.timestamp && first.timestamp) 
+                                ? (last.timestamp - first.timestamp) 
+                                : 0;
+                            setTotalTime(calculatedTotalTime);
 
-                            // Setup requestAnimationFrame for progress bar
-                            const updateTime = () => {
+                            // Setup requestAnimationFrame for progress bar and constant resize checks
+                            const updateLoop = () => {
                                 if (replayerRef.current && replayerRef.current.timer) {
                                     setCurrentTime(replayerRef.current.timer.timeOffset);
                                 }
-                                rafRef.current = requestAnimationFrame(updateTime);
+                                resizePlayer(); // Keep perfect scaling
+                                rafRef.current = requestAnimationFrame(updateLoop);
                             };
-                            rafRef.current = requestAnimationFrame(updateTime);
+                            rafRef.current = requestAnimationFrame(updateLoop);
                         }
                     }, 50);
                 }
