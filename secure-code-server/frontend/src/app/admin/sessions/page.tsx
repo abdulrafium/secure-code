@@ -580,7 +580,7 @@ export default function SessionsPage() {
 
             <AdminHeader />
 
-            <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col h-[calc(100vh-60px)]">
+            <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col min-h-[calc(100vh-60px)] md:h-[calc(100vh-60px)]">
                 
                 <div className="mb-6">
                     <h1 className="text-2xl font-semibold text-slate-100 flex items-center space-x-3">
@@ -593,10 +593,10 @@ export default function SessionsPage() {
                 </div>
 
                 {/* 2-Column Studio Layout */}
-                <div className="flex-1 flex flex-col md:flex-row gap-6 overflow-hidden">
+                <div className="flex-1 flex flex-col md:flex-row gap-6 md:overflow-hidden min-h-[800px] md:min-h-0">
                     
                     {/* Left Sidebar: Developers List */}
-                    <div className="w-full md:w-1/3 lg:w-1/4 bg-[#0b1121] border border-slate-800 rounded-xl flex flex-col overflow-hidden shadow-xl">
+                    <div className="w-full md:w-1/3 lg:w-1/4 bg-[#0b1121] border border-slate-800 rounded-xl flex flex-col overflow-hidden shadow-xl shrink-0 h-[300px] md:h-auto">
                         <div className="p-4 border-b border-slate-800 bg-[#080d1a]">
                             <h3 className="text-sm font-medium text-slate-300 flex items-center space-x-2">
                                 <User className="w-4 h-4 text-blue-400" />
@@ -698,7 +698,7 @@ export default function SessionsPage() {
                     </div>
 
                     {/* Right Main Area: Sessions & Player */}
-                    <div className="w-full md:w-2/3 lg:w-3/4 flex flex-col gap-6 overflow-hidden">
+                    <div className="w-full md:w-2/3 lg:w-3/4 flex flex-col gap-6 md:overflow-hidden h-[500px] md:h-auto">
                         
                         {/* Player Container */}
                         <div className="flex-1 bg-[#050810] border border-slate-800 rounded-xl overflow-hidden flex items-center justify-center shadow-2xl relative min-h-[400px]">

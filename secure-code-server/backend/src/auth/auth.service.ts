@@ -70,7 +70,7 @@ export class AuthService {
         newPassword,
         backupCode: 'RECOVERED',
       });
-      return { message: 'Password reset successfully' };
+      return { message: 'Password reset successfully', userId: payload.sub };
     } catch (e) {
       throw new UnauthorizedException('Invalid or expired reset token');
     }

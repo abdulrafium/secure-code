@@ -440,7 +440,7 @@ export default function ProjectsPage() {
                 <div className="bg-[#0b1220] border border-slate-800/60 rounded-xl shadow-2xl">
 
                     {/* Table Toolbar */}
-                    <div className="flex items-center justify-between p-5 border-b border-slate-800/80">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-5 border-b border-slate-800/80 gap-4">
                         <div className="flex items-center space-x-3 bg-[#242646] px-5 py-2.5 rounded-lg border border-[#30335e]">
                             <Folder className="w-5 h-5 text-slate-300" strokeWidth={2} />
                             <span className="text-white font-medium text-[14px]">Projects</span>
@@ -460,8 +460,8 @@ export default function ProjectsPage() {
                         </button>
                     </div>
 
-                    <div className="w-full relative">
-                        <table className="w-full text-left border-collapse">
+                    <div className="w-full relative overflow-x-auto">
+                        <table className="w-full text-left border-collapse whitespace-nowrap">
                             <thead>
                                 <tr className="border-b border-slate-800/80 text-[14px] text-slate-300 bg-[#070b14]">
                                     <th className="px-8 py-5 font-semibold tracking-wide">Project Name</th>

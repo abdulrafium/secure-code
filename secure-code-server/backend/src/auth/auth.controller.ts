@@ -141,13 +141,36 @@ export class AuthController {
   }
 
   @Post('reset-password')
-  async resetPassword(@Body() body: any) {
+  async resetPassword(@Body() body: any, @Request() req: any) {
     const { resetToken, newPassword } = body;
     if (!resetToken || !newPassword) {
       throw new UnauthorizedException(
         'Reset token and new password are required',
       );
     }
-    return this.authService.resetPassword(resetToken, newPassword);
+    const result = await this.authService.resetPassword(resetToken, newPassword);
+
+    let clientIp =
+      req.headers['x-forwarded-for'] ||
+      req.connection?.remoteAddress ||
+      req.socket?.remoteAddress ||
+      'unknown';
+    if (typeof clientIp === 'string') {
+      clientIp = clientIp.split(',')[0].trim();
+    }
+
+    if (result.userId) {
+      this.logsService
+        .logEvent({
+          userId: result.userId,
+          username: 'System (Recovery)',
+          action: 'PASSWORD_RESET',
+          details: 'User successfully reset their password using a backup code.',
+          ipAddress: clientIp,
+        })
+        .catch((e) => console.error('Failed to log event:', e));
+    }
+
+    return { message: result.message };
   }
 }
