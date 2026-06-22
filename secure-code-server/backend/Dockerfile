@@ -26,8 +26,10 @@ RUN apt-get update && apt-get install -y \
     g++ \
     git \
     postgresql-client \
-    docker.io \
     && rm -rf /var/lib/apt/lists/*
+
+# Install latest Docker CLI to prevent "client version is too old" errors from the host daemon
+COPY --from=docker:latest /usr/local/bin/docker /usr/bin/docker
 
 ENV NODE_ENV=production
 
