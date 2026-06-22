@@ -26,6 +26,7 @@ RUN apt-get update && apt-get install -y \
     g++ \
     git \
     postgresql-client \
+    docker.io \
     && rm -rf /var/lib/apt/lists/*
 
 ENV NODE_ENV=production
@@ -42,6 +43,7 @@ COPY --from=builder /app/dist ./dist
 
 # Create a user to run the app securely and setup workspaces directory permissions
 RUN groupadd -r nestjs && useradd -r -g nestjs nestjs
+RUN groupadd -f docker && usermod -aG docker nestjs
 RUN mkdir -p /workspaces /sessions /backups && chown nestjs:nestjs /workspaces /sessions /backups
 USER nestjs
 

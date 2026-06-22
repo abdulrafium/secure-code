@@ -161,6 +161,13 @@ export class ProjectsService {
     } catch (e) {
       console.error(`Failed to delete workspace files for ${id}`, e);
     }
+
+    // Stop and remove the Docker container if it's currently running
+    try {
+      await execAsync(`docker stop scs-project-${id}`);
+    } catch (e) {
+      // Container might not be running, which is completely fine
+    }
   }
 
   async importZip(id: string, fileBuffer: Buffer): Promise<Project> {

@@ -44,7 +44,9 @@ services:
       - PORT=3001
       - NODE_ENV=production
       - JWT_SECRET=super-secret-change-this-in-production
+      - HOST_WORKSPACES_PATH=${HOST_WORKSPACES_PATH:-}
     volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
       - workspaces_data:/workspaces
       - sessions_data:/sessions
       - backups_data:/backups

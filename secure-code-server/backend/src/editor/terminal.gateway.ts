@@ -11,6 +11,8 @@ import { Server, Socket } from 'socket.io';
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 import { EditorService } from './editor.service';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -20,6 +22,7 @@ import { LogsService } from '../logs/logs.service';
 import { SettingsService } from '../settings/settings.service';
 // We use require for node-pty as its types can sometimes be problematic in strict mode
 const pty = require('node-pty');
+const execAsync = promisify(exec);
 
 @WebSocketGateway({
   cors: {
@@ -135,13 +138,48 @@ export class TerminalGateway
         env.GIT_SSH_COMMAND = `ssh -i ${sshKeyPath} -o StrictHostKeyChecking=no`;
       }
 
-      const ptyProcess = pty.spawn(shell, [], {
-        name: 'xterm-color',
-        cols: 80,
-        rows: 24,
-        cwd,
-        env,
-      });
+      let ptyProcess;
+      
+      if (projectId) {
+        const containerName = `scs-project-${projectId}`;
+        
+        try {
+          // Check if container is running
+          await execAsync(`docker inspect ${containerName}`);
+        } catch (err) {
+          // If not running or doesn't exist, spin it up using Shared Runtime Pool cached image
+          console.log(`Spinning up Docker container for project ${projectId}...`);
+          // If the backend itself is running in Docker (e.g. Azure), it needs to know the absolute HOST path to mount.
+          // Otherwise, it falls back to the backend's own cwd (which works perfectly on localhost)
+          const hostWorkspacesDir = process.env.HOST_WORKSPACES_PATH || workspacesDir;
+          const relativeProjectDir = path.basename(cwd); // e.g. "my_project_name"
+          const finalHostMountPath = path.join(hostWorkspacesDir, relativeProjectDir);
+
+          try {
+            await execAsync(`docker run -d --rm --name ${containerName} -v "${finalHostMountPath}:/workspace" -w /workspace node:18 tail -f /dev/null`);
+          } catch (e) {
+            console.error('Failed to start docker container:', e);
+            client.emit('terminal.output', `\\r\\n\\x1b[31mError: Failed to start isolated container.\\x1b[0m\\r\\n`);
+            return;
+          }
+        }
+
+        // Attach node-pty to the running container
+        ptyProcess = pty.spawn('docker', ['exec', '-it', containerName, 'bash'], {
+          name: 'xterm-color',
+          cols: 80,
+          rows: 24,
+        });
+      } else {
+        // Fallback to host if no projectId (e.g. global viewer/admin)
+        ptyProcess = pty.spawn(shell, [], {
+          name: 'xterm-color',
+          cols: 80,
+          rows: 24,
+          cwd,
+          env,
+        });
+      }
 
       // Stream terminal output back to the specific client
       ptyProcess.onData((data: string) => {
@@ -168,6 +206,11 @@ export class TerminalGateway
           projectMap.delete(userId);
           if (projectMap.size === 0) {
             TerminalGateway.projectSessions.delete(projectId);
+            // Garbage Collection: Kill the container since no one is using it anymore
+            console.log(`Last user disconnected from project ${projectId}, stopping container...`);
+            exec(`docker stop scs-project-${projectId}`, (error) => {
+              if (error) console.error(`Failed to stop container scs-project-${projectId}`, error);
+            });
           }
         }
       }
