@@ -660,7 +660,7 @@ export default function SessionsPage() {
                                     </div>
                                     <h3 className="text-lg font-medium text-slate-300">No Session Selected</h3>
                                     <p className="text-sm text-slate-500 mt-2 max-w-sm">
-                                        Select a developer on the left, then click one of their recent sessions below to watch the playback.
+                                        Select a developer on the left, choose a project from the dropdown, then click a session to watch the playback.
                                     </p>
                                 </div>
                             ) : (
@@ -684,7 +684,7 @@ export default function SessionsPage() {
                         </div>
 
                         {/* User's Sessions List (Bottom Strip) */}
-                        {selectedUserId && displayedSessions.length > 0 && (
+                        {selectedUserId && selectedProjectId && displayedSessions.length > 0 && (
                             <div className="h-48 bg-[#0b1121] border border-slate-800 rounded-xl overflow-hidden flex flex-col shrink-0 relative group">
                                 <div className="p-3 border-b border-slate-800 bg-[#080d1a] flex justify-between items-center z-10">
                                     <h3 className="text-xs font-medium text-slate-300 flex items-center space-x-2">
