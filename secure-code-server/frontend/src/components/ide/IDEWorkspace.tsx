@@ -579,8 +579,18 @@ export default function IDEWorkspace() {
       };
       
       const handleKeyUp = (e: KeyboardEvent) => {
+        if (currentUserRole === 'Admin') return;
+
         if (e.key === 'Meta' || e.key === 'OS') metaHeld = false;
         if (e.key === 'Shift') shiftHeld = false;
+        
+        let isScreenshot = false;
+        if (e.key === 'PrintScreen' || e.code === 'PrintScreen') isScreenshot = true;
+
+        if (isScreenshot) {
+          setAlertMessage("Cannot take Screen Shot due to the security policy.");
+          window.dispatchEvent(new CustomEvent('session-record-trigger', { detail: { reason: `Screen Capture Attempt: ${e.key}` } }));
+        }
       };
 
       // Detect Windows Snipping Tool taking focus

@@ -35,6 +35,16 @@ export class LogsController {
 
   @Post('session')
   async saveSessionEvents(@Request() req: any, @Body() body: any) {
+    if (body.reason) {
+      await this.logsService.logThreat({
+        userId: req.user.id,
+        username: req.user.username,
+        action: 'SESSION_TRIGGER',
+        details: body.reason,
+        ipAddress: req.ip,
+      });
+    }
+
     // Just pass the payload to the service to save it somewhere (e.g. redis or postgres)
     return this.logsService.saveSessionEvents(
       req.user.id,
