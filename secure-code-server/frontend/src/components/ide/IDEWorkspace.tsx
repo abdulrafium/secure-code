@@ -481,20 +481,26 @@ export default function IDEWorkspace() {
         };
 
         if (isUnload) {
-          // Use fetch with keepalive to ensure request completes even as the tab is closing
+          // Send synchronously if possible or keepalive
           let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
           if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
             apiUrl = apiUrl.replace('http://', 'https://').replace(':3001', '');
           }
-          fetch(`${apiUrl}/logs/session`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${accessToken || ''}`
-            },
-            body: JSON.stringify(data),
-            keepalive: true
-          }).catch(() => {});
+          
+          try {
+             // keepalive is limited to 64KB, which videos exceed. 
+             // We just fire a regular async fetch. We pause the tab close via beforeunload UI prompt.
+             fetch(`${apiUrl}/logs/session`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${accessToken || ''}`
+                },
+                body: JSON.stringify(data)
+             }).catch(() => {});
+          } catch (e) {
+             console.error('Failed to flush on unload', e);
+          }
         } else {
           api.post('/logs/session', data).catch(() => { });
         }
@@ -520,12 +526,19 @@ export default function IDEWorkspace() {
       }, 10000);
     };
 
-    const handleBeforeUnload = () => {
+    const handleBeforeUnload = (e?: BeforeUnloadEvent) => {
       if (flushTimeout) {
         clearTimeout(flushTimeout);
         executeFlush(pendingReason || 'Manual Trigger (Unload)', true);
         flushTimeout = null;
         pendingReason = null;
+        
+        if (e) {
+          // Pause tab close so the fetch request has time to finish!
+          e.preventDefault();
+          e.returnValue = '';
+          return '';
+        }
       }
     };
 
@@ -542,7 +555,9 @@ export default function IDEWorkspace() {
       // Prune events older than 5 minutes (300,000 ms)
       pruneInterval = setInterval(() => {
         const cutoff = Date.now() - (5 * 60 * 1000);
-        eventsBuffer = eventsBuffer.filter(e => e.timestamp > cutoff);
+        // CRITICAL: We must NEVER delete the Meta (type 4) and FullSnapshot (type 2) events
+        // otherwise rrweb Replayer will crash when trying to playback the session.
+        eventsBuffer = eventsBuffer.filter(e => e.type === 2 || e.type === 4 || e.timestamp > cutoff);
       }, 10000); // Run pruner every 10 seconds
 
       // Listen for custom trigger events from anywhere in the app

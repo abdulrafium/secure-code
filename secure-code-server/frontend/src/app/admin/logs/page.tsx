@@ -110,7 +110,7 @@ export default function AuditLogsPage() {
     const currentLogs = filteredLogs.slice((currentPage - 1) * logsPerPage, currentPage * logsPerPage);
 
     const getActionColor = (action: string) => {
-        if (action.includes('THREAT') || action.includes('BLOCKED')) return 'red';
+        if (action.includes('THREAT') || action.includes('BLOCKED') || action.includes('LOGOUT')) return 'red';
         if (action.includes('CREATE') || action.includes('LOGIN')) return 'emerald';
         if (action.includes('UPDATE')) return 'blue';
         if (action.includes('DELETE')) return 'orange';

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Shield, User, Lock, Eye, EyeOff, ArrowRight, Globe } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -13,12 +13,25 @@ export default function AdminLogin() {
 
     // Interactive States
     const [showPassword, setShowPassword] = useState(false);
-    const [rememberMe, setRememberMe] = useState(true);
+    const [rememberMe, setRememberMe] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [errorMsg, setErrorMsg] = useState('');
     const [popupInfo, setPopupInfo] = useState<{ type: 'suspended' | 'blocked' | 'ip_blocked', message: string } | null>(null);
+
+    useEffect(() => {
+        const cookies = document.cookie.split('; ').reduce((acc, row) => {
+            const parts = row.split('=');
+            if (parts.length === 2) acc[parts[0]] = parts[1];
+            return acc;
+        }, {} as Record<string, string>);
+        
+        const token = cookies['admin_accessToken'] || sessionStorage.getItem('admin_accessToken');
+        if (token) {
+            router.push('/admin/dashboard');
+        }
+    }, [router]);
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -41,8 +54,14 @@ export default function AdminLogin() {
                 return;
             }
 
-            document.cookie = `admin_accessToken=${response.access_token}; path=/; max-age=86400`;
-            document.cookie = `admin_userRole=${response.role}; path=/; max-age=86400`;
+            if (rememberMe) {
+                document.cookie = `admin_accessToken=${response.access_token}; path=/; max-age=86400`;
+                document.cookie = `admin_userRole=${response.role}; path=/; max-age=86400`;
+            } else {
+                // Session cookie, expires on browser close
+                document.cookie = `admin_accessToken=${response.access_token}; path=/`;
+                document.cookie = `admin_userRole=${response.role}; path=/`;
+            }
             sessionStorage.setItem('admin_accessToken', response.access_token);
             sessionStorage.setItem('admin_userRole', response.role);
 
