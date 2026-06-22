@@ -425,7 +425,7 @@ export default function AdminDashboard() {
             <div className="relative z-10 max-w-[1600px] mx-auto p-6 space-y-4">
 
                 {/* --- TOP ROW: METRICS --- */}
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
 
                     {/* Active Users */}
                     <div className="bg-[#0b1121] border border-slate-800 rounded-xl p-4">
@@ -522,7 +522,7 @@ export default function AdminDashboard() {
                 {/* --- MIDDLE ROW: GRAPHS AND TEAM --- */}
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
 
-                    <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                         <GraphCard
                             title="CPU Usage" subtitle="24 Cores" value="68%" valueColor="purple"
                             strokeColor="#a855f7" fillFrom="#a855f7"

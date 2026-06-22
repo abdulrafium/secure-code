@@ -85,7 +85,7 @@ export default function AdminLogin() {
     };
 
     return (
-        <div className="relative h-screen flex items-center justify-center overflow-hidden bg-slate-950 text-slate-200 font-sans">
+        <div className="relative min-h-screen flex items-center justify-center overflow-y-auto overflow-x-hidden bg-slate-950 text-slate-200 font-sans py-12">
 
             <LandingHeader />
 
