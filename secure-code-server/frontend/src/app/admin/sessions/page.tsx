@@ -34,9 +34,12 @@ const RrwebPlayerWrapper: React.FC<RrwebPlayerWrapperProps> = ({ filename, onNex
     const [currentTime, setCurrentTime] = useState(0);
     const [speed, setSpeed] = useState(1);
     const [showOverlayIcon, setShowOverlayIcon] = useState<'play' | 'pause' | null>(null);
+    const [isCompleted, setIsCompleted] = useState(false);
 
     useEffect(() => {
         let isMounted = true;
+        setStatus('loading');
+        setIsCompleted(false);
 
         const loadSession = async () => {
             try {
@@ -71,6 +74,13 @@ const RrwebPlayerWrapper: React.FC<RrwebPlayerWrapperProps> = ({ filename, onNex
                                 root: containerRef.current,
                                 showWarning: false,
                                 skipInactive: false,
+                            });
+                            
+                            replayer.on('finish', () => {
+                                if (isMounted) {
+                                    setIsCompleted(true);
+                                    setIsPlaying(false);
+                                }
                             });
                             
                             replayerRef.current = replayer;
@@ -150,13 +160,25 @@ const RrwebPlayerWrapper: React.FC<RrwebPlayerWrapperProps> = ({ filename, onNex
                 try {
                     if (replayerRef.current._cleanupResize) replayerRef.current._cleanupResize();
                     replayerRef.current.pause();
+                    replayerRef.current.destroy();
                 } catch (e) {}
+                replayerRef.current = null;
             }
         };
     }, [filename]);
 
     const togglePlay = () => {
         if (!replayerRef.current) return;
+        
+        if (isCompleted) {
+            replayerRef.current.play(0);
+            setIsCompleted(false);
+            setIsPlaying(true);
+            setShowOverlayIcon('play');
+            setTimeout(() => setShowOverlayIcon(null), 800);
+            return;
+        }
+
         if (isPlaying) {
             replayerRef.current.pause();
             setIsPlaying(false);
@@ -175,6 +197,8 @@ const RrwebPlayerWrapper: React.FC<RrwebPlayerWrapperProps> = ({ filename, onNex
         const rect = e.currentTarget.getBoundingClientRect();
         const percent = (e.clientX - rect.left) / rect.width;
         const targetTime = Math.floor(Math.max(0, Math.min(percent * totalTime, totalTime)));
+        
+        if (isCompleted) setIsCompleted(false);
         
         replayerRef.current.play(targetTime);
         setCurrentTime(targetTime);
@@ -242,7 +266,7 @@ const RrwebPlayerWrapper: React.FC<RrwebPlayerWrapperProps> = ({ filename, onNex
                         <div className="absolute inset-2 rounded-full border-r-2 border-b-2 border-indigo-400 animate-spin" style={{ animationDirection: 'reverse', animationDuration: '1.5s' }}></div>
                         <div className="absolute inset-0 flex items-center justify-center"><Video className="w-5 h-5 text-blue-400" /></div>
                     </div>
-                    <div className="text-slate-200 font-semibold text-sm animate-pulse tracking-wide">Initializing Replay Engine...</div>
+                    <div className="text-slate-200 font-semibold text-sm animate-pulse tracking-wide">Loading Session...</div>
                     <div className="text-slate-500 text-xs mt-2">Fetching session geometry</div>
                 </div>
             )}
@@ -268,13 +292,42 @@ const RrwebPlayerWrapper: React.FC<RrwebPlayerWrapperProps> = ({ filename, onNex
                 ></div>
 
                 {/* Big Center Overlay Icon */}
-                {showOverlayIcon && (
+                {showOverlayIcon && !isCompleted && (
                     <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
                         <div className="w-24 h-24 bg-black/40 backdrop-blur-sm rounded-full flex items-center justify-center animate-out fade-out zoom-out duration-700">
                             {showOverlayIcon === 'play' ? (
                                 <Play className="w-12 h-12 text-white fill-white ml-2" />
                             ) : (
                                 <Pause className="w-12 h-12 text-white fill-white" />
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* Session Completed Overlay */}
+                {isCompleted && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center z-30 bg-black/80 backdrop-blur-md animate-in fade-in duration-500">
+                        <div className="w-20 h-20 bg-emerald-500/20 border border-emerald-500/50 rounded-full flex items-center justify-center mb-6 shadow-[0_0_50px_rgba(16,185,129,0.3)]">
+                            <Video className="w-10 h-10 text-emerald-400" />
+                        </div>
+                        <h2 className="text-4xl font-bold text-white tracking-tight mb-2">Session Completed</h2>
+                        <p className="text-slate-400 mb-8 max-w-sm text-center">You have reached the end of this recording.</p>
+                        <div className="flex items-center space-x-4">
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); togglePlay(); }}
+                                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-full font-medium transition-colors flex items-center space-x-2"
+                            >
+                                <Play className="w-4 h-4 fill-current" />
+                                <span>Replay</span>
+                            </button>
+                            {hasNext && (
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); onNext(); }}
+                                    className="px-6 py-2.5 bg-slate-800 border border-slate-700 hover:bg-slate-700 text-white rounded-full font-medium transition-colors flex items-center space-x-2"
+                                >
+                                    <span>Next Session</span>
+                                    <SkipForward className="w-4 h-4" />
+                                </button>
                             )}
                         </div>
                     </div>
@@ -355,6 +408,7 @@ export default function SessionsPage() {
     const [sessionsList, setSessionsList] = useState<any[]>([]);
     const [usersMap, setUsersMap] = useState<Record<string, any>>({});
     const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+    const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
     const [activeSessionFilename, setActiveSessionFilename] = useState<string | null>(null);
     const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
@@ -391,6 +445,18 @@ export default function SessionsPage() {
         acc[session.userId].push(session);
         return acc;
     }, {});
+
+    // For a specific user, we want to group their sessions by projectId
+    const getProjectsForUser = (userId: string) => {
+        const userSessions = sessionsByUser[userId] || [];
+        const projectMap = userSessions.reduce((acc: any, session: any) => {
+            const pId = session.projectId || 'Unknown Project';
+            if (!acc[pId]) acc[pId] = 0;
+            acc[pId]++;
+            return acc;
+        }, {});
+        return Object.entries(projectMap).map(([projectId, count]) => ({ projectId, count }));
+    };
 
     // Sort users by most recently active (most recent session first)
     const userIds = Object.keys(sessionsByUser).sort((a, b) => {
@@ -483,33 +549,61 @@ export default function SessionsPage() {
                             ) : (
                                 userIds.map(userId => {
                                     const user = usersMap[userId];
+                                    const projects = getProjectsForUser(userId);
+                                    const projectCount = projects.length;
                                     const sessionCount = sessionsByUser[userId].length;
                                     const isSelected = selectedUserId === userId;
+                                    const isExpanded = expandedUserId === userId;
 
                                     return (
-                                        <button
-                                            key={userId}
-                                            onClick={() => setSelectedUserId(userId)}
-                                            className={`w-full text-left p-3 rounded-xl transition-all border ${
-                                                isSelected 
-                                                    ? 'bg-blue-500/10 border-blue-500/30 shadow-[inset_0_0_20px_rgba(59,130,246,0.05)]' 
-                                                    : 'bg-transparent border-transparent hover:bg-slate-800/50'
-                                            }`}
-                                        >
-                                            <div className="flex items-center space-x-3">
-                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 border ${isSelected ? 'bg-[#0a0f1c] border-blue-500/50' : 'bg-slate-800 border-slate-700'}`}>
-                                                    <span className={`text-sm font-bold ${isSelected ? 'text-blue-400' : 'text-slate-400'}`}>
-                                                        {user ? user.username.charAt(0).toUpperCase() : userId.charAt(0).toUpperCase()}
-                                                    </span>
+                                        <div key={userId} className={`rounded-xl border transition-all overflow-hidden ${isSelected ? 'bg-blue-500/10 border-blue-500/30 shadow-[inset_0_0_20px_rgba(59,130,246,0.05)]' : 'bg-transparent border-transparent'}`}>
+                                            <button
+                                                onClick={() => {
+                                                    setSelectedUserId(userId);
+                                                    setExpandedUserId(isExpanded ? null : userId);
+                                                }}
+                                                className={`w-full text-left p-3 flex items-center justify-between hover:bg-slate-800/50 transition-colors`}
+                                            >
+                                                <div className="flex items-center space-x-3">
+                                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 border ${isSelected ? 'bg-[#0a0f1c] border-blue-500/50' : 'bg-slate-800 border-slate-700'}`}>
+                                                        <span className={`text-sm font-bold ${isSelected ? 'text-blue-400' : 'text-slate-400'}`}>
+                                                            {user ? user.username.charAt(0).toUpperCase() : userId.charAt(0).toUpperCase()}
+                                                        </span>
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <p className={`text-sm font-medium truncate ${isSelected ? 'text-blue-300' : 'text-slate-300'}`}>
+                                                            {user ? user.username : `User ${userId.slice(0, 8)}`}
+                                                        </p>
+                                                        <div className="flex items-center space-x-2 text-xs text-slate-500">
+                                                            <span>{projectCount} Projects</span>
+                                                            <span className="w-1 h-1 rounded-full bg-slate-700"></span>
+                                                            <span>{sessionCount} Sessions</span>
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                <div className="min-w-0">
-                                                    <p className={`text-sm font-medium truncate ${isSelected ? 'text-blue-300' : 'text-slate-300'}`}>
-                                                        {user ? user.username : `User ${userId.slice(0, 8)}`}
-                                                    </p>
-                                                    <p className="text-xs text-slate-500">{sessionCount} sessions</p>
+                                                <ChevronRight className={`w-4 h-4 text-slate-500 transition-transform duration-300 ${isExpanded ? 'rotate-90' : ''}`} />
+                                            </button>
+                                            
+                                            {/* Dropdown Projects List */}
+                                            <div 
+                                                className={`transition-all duration-300 ease-in-out overflow-hidden bg-[#050810]/50`}
+                                                style={{ maxHeight: isExpanded ? `${projects.length * 50 + 20}px` : '0' }}
+                                            >
+                                                <div className="p-2 space-y-1">
+                                                    {projects.map((p, idx) => (
+                                                        <div key={idx} className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-800/50 group cursor-default">
+                                                            <div className="flex items-center space-x-2 min-w-0">
+                                                                <Folder className="w-3.5 h-3.5 text-slate-500 group-hover:text-emerald-400 transition-colors shrink-0" />
+                                                                <span className="text-xs text-slate-400 group-hover:text-slate-300 truncate">{p.projectId}</span>
+                                                            </div>
+                                                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-500 shrink-0">
+                                                                {String(p.count)} sessions
+                                                            </span>
+                                                        </div>
+                                                    ))}
                                                 </div>
                                             </div>
-                                        </button>
+                                        </div>
                                     );
                                 })
                             )}
