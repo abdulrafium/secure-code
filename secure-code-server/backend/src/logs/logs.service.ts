@@ -4,13 +4,30 @@ import { Repository } from 'typeorm';
 import { SecurityLog } from './entities/security-log.entity';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as winston from 'winston';
+import LokiTransport from 'winston-loki';
 
 @Injectable()
 export class LogsService {
+  private lokiLogger: winston.Logger;
+
   constructor(
     @InjectRepository(SecurityLog)
     private logsRepository: Repository<SecurityLog>,
-  ) {}
+  ) {
+    this.lokiLogger = winston.createLogger({
+      transports: [
+        new LokiTransport({
+          host: process.env.NODE_ENV === 'production' ? 'http://loki:3100' : 'http://localhost:3100',
+          labels: { job: 'secure-code-backend' },
+          json: true,
+          format: winston.format.json(),
+          replaceTimestamp: true,
+          onConnectionError: (err) => console.error('Loki connection error:', err),
+        })
+      ]
+    });
+  }
 
   async logThreat(data: {
     userId?: string;
@@ -19,8 +36,18 @@ export class LogsService {
     details: string;
     ipAddress?: string;
   }) {
+    // 1. Log to PostgreSQL (Legacy / UI requirement)
     const log = this.logsRepository.create(data);
-    return await this.logsRepository.save(log);
+    const savedLog = await this.logsRepository.save(log);
+
+    // 2. Stream to Grafana Loki
+    this.lokiLogger.error({
+      message: data.action,
+      labels: { severity: 'threat', action: data.action, userId: data.userId || 'system' },
+      ...data
+    });
+
+    return savedLog;
   }
 
   // General system-wide audit trailing
@@ -31,8 +58,18 @@ export class LogsService {
     details: string;
     ipAddress?: string;
   }) {
+    // 1. Log to PostgreSQL (Legacy / UI requirement)
     const log = this.logsRepository.create(data);
-    return await this.logsRepository.save(log);
+    const savedLog = await this.logsRepository.save(log);
+
+    // 2. Stream to Grafana Loki
+    this.lokiLogger.info({
+      message: data.action,
+      labels: { severity: 'info', action: data.action, userId: data.userId || 'system' },
+      ...data
+    });
+
+    return savedLog;
   }
 
   async getLogs() {

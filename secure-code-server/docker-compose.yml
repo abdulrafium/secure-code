@@ -33,6 +33,18 @@ services:
     networks:
       - secure_code_network
 
+  loki:
+    image: grafana/loki:2.9.2
+    container_name: secure_code_loki
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - loki_data:/tmp/loki
+    networks:
+      - secure_code_network
+
   backend:
     build: ./backend
     container_name: secure_code_backend
@@ -104,6 +116,7 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  loki_data:
   workspaces_data:
   certbot_www:
   certbot_conf:
