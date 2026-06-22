@@ -40,6 +40,7 @@ export class LogsController {
       req.user.id,
       req.user.username,
       body.projectId,
+      body.sessionId || 'legacy', // Handle legacy frontend if needed
       body.events,
     );
   }

@@ -72,6 +72,40 @@ const RrwebPlayerWrapper: React.FC<RrwebPlayerWrapperProps> = ({ filename, onNex
                             });
                             
                             replayerRef.current = replayer;
+                            
+                            const resizePlayer = () => {
+                                if (!containerRef.current || !replayer.wrapper) return;
+                                const wrapper = replayer.wrapper as HTMLElement;
+                                const recordWidth = parseInt(wrapper.style.width || '1920', 10);
+                                const recordHeight = parseInt(wrapper.style.height || '1080', 10);
+                                
+                                const containerWidth = containerRef.current.clientWidth;
+                                const containerHeight = containerRef.current.clientHeight;
+
+                                if (containerWidth > 0 && containerHeight > 0) {
+                                    const scale = Math.min(containerWidth / recordWidth, containerHeight / recordHeight);
+                                    
+                                    wrapper.style.transform = `scale(${scale})`;
+                                    wrapper.style.transformOrigin = 'top left';
+                                    
+                                    const scaledWidth = recordWidth * scale;
+                                    const scaledHeight = recordHeight * scale;
+                                    const left = (containerWidth - scaledWidth) / 2;
+                                    const top = (containerHeight - scaledHeight) / 2;
+                                    
+                                    wrapper.style.position = 'absolute';
+                                    wrapper.style.left = `${left}px`;
+                                    wrapper.style.top = `${top}px`;
+                                }
+                            };
+
+                            setTimeout(() => {
+                                resizePlayer();
+                                window.addEventListener('resize', resizePlayer);
+                            }, 50);
+
+                            replayerRef.current._cleanupResize = () => window.removeEventListener('resize', resizePlayer);
+
                             replayer.play();
                             setIsPlaying(true);
                             setSpeed(1); // Reset speed on new session
@@ -103,6 +137,7 @@ const RrwebPlayerWrapper: React.FC<RrwebPlayerWrapperProps> = ({ filename, onNex
             if (rafRef.current) cancelAnimationFrame(rafRef.current);
             if (replayerRef.current) {
                 try {
+                    if (replayerRef.current._cleanupResize) replayerRef.current._cleanupResize();
                     replayerRef.current.pause();
                 } catch (e) {}
             }

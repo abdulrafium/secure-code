@@ -50,6 +50,7 @@ export class LogsService {
     userId: string,
     username: string,
     projectId: string,
+    sessionId: string,
     events: any[],
   ) {
     try {
@@ -58,7 +59,7 @@ export class LogsService {
         fs.mkdirSync(sessionDir, { recursive: true });
       }
 
-      const fileName = `session_${projectId}_${userId}.json`;
+      const fileName = `session_${projectId}_${userId}_${sessionId}.json`;
       const filePath = path.join(sessionDir, fileName);
 
       let existingEvents: any[] = [];
@@ -86,12 +87,13 @@ export class LogsService {
       const files = fs.readdirSync(sessionDir).filter(f => f.endsWith('.json'));
       const sessions = files.map(file => {
         const stats = fs.statSync(path.join(sessionDir, file));
-        // Parse filename: session_projectId_userId.json
+        // Parse filename: session_projectId_userId_sessionId.json (or legacy session_projectId_userId.json)
         const parts = file.replace('.json', '').split('_');
         return {
           filename: file,
           projectId: parts[1] || 'Unknown',
           userId: parts[2] || 'Unknown',
+          sessionId: parts[3] || 'Legacy',
           size: stats.size,
           updatedAt: stats.mtime
         };

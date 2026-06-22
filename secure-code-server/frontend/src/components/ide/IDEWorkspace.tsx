@@ -450,13 +450,15 @@ export default function IDEWorkspace() {
     let rrwebStopFn: any = null;
     let sessionFlushInterval: any = null;
     let eventsBuffer: any[] = [];
+    const currentSessionId = Date.now().toString() + Math.random().toString(36).substring(2, 9);
 
     const flushEvents = () => {
       if (eventsBuffer.length > 0) {
         const payload = [...eventsBuffer];
         eventsBuffer = []; // reset buffer
         api.post('/logs/session', { 
-          projectId: projectId || 'default', 
+          projectId: projectId || 'default',
+          sessionId: currentSessionId,
           events: payload,
           url: window.location.href,
           timestamp: new Date().toISOString()
@@ -466,6 +468,9 @@ export default function IDEWorkspace() {
 
     try {
       rrwebStopFn = rrweb.record({
+        recordCanvas: true,
+        collectFonts: true,
+        inlineImages: true,
         emit(event) {
           eventsBuffer.push(event);
           if (eventsBuffer.length >= 100) {
