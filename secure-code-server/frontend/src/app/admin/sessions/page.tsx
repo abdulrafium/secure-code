@@ -1,19 +1,38 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import { User, Video, Folder, Calendar, Activity, Trash2, X, AlertTriangle } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { User, Video, Folder, Calendar, Activity, Trash2, X, AlertTriangle, Play, Pause, FastForward, SkipBack, SkipForward, ChevronLeft, ChevronRight } from 'lucide-react';
 import AdminHeader from '../../../components/AdminHeader';
 import { api } from '../../../lib/api';
 
 import 'rrweb-player/dist/style.css';
 
-import { Play, Pause } from 'lucide-react';
+const formatTime = (ms: number) => {
+    if (isNaN(ms) || ms < 0) ms = 0;
+    const totalSeconds = Math.floor(ms / 1000);
+    const m = Math.floor(totalSeconds / 60);
+    const s = totalSeconds % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+};
 
-const RrwebPlayerWrapper = ({ filename }: { filename: string }) => {
-    const containerRef = React.useRef<HTMLDivElement>(null);
-    const replayerRef = React.useRef<any>(null);
+interface RrwebPlayerWrapperProps {
+    filename: string;
+    onNext: () => void;
+    onPrev: () => void;
+    hasNext: boolean;
+    hasPrev: boolean;
+}
+
+const RrwebPlayerWrapper: React.FC<RrwebPlayerWrapperProps> = ({ filename, onNext, onPrev, hasNext, hasPrev }) => {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const replayerRef = useRef<any>(null);
+    const rafRef = useRef<number>(null);
+    
     const [status, setStatus] = useState<'loading' | 'error' | 'empty' | 'playing'>('loading');
     const [isPlaying, setIsPlaying] = useState(true);
+    const [currentTime, setCurrentTime] = useState(0);
+    const [totalTime, setTotalTime] = useState(0);
+    const [speed, setSpeed] = useState(1);
 
     useEffect(() => {
         let isMounted = true;
@@ -54,6 +73,19 @@ const RrwebPlayerWrapper = ({ filename }: { filename: string }) => {
                             replayerRef.current = replayer;
                             replayer.play();
                             setIsPlaying(true);
+                            setSpeed(1); // Reset speed on new session
+
+                            const meta = replayer.getMetaData();
+                            setTotalTime(meta.totalTime || 0);
+
+                            // Setup requestAnimationFrame for progress bar
+                            const updateTime = () => {
+                                if (replayerRef.current && replayerRef.current.timer) {
+                                    setCurrentTime(replayerRef.current.timer.timeOffset);
+                                }
+                                rafRef.current = requestAnimationFrame(updateTime);
+                            };
+                            rafRef.current = requestAnimationFrame(updateTime);
                         }
                     }, 50);
                 }
@@ -67,6 +99,7 @@ const RrwebPlayerWrapper = ({ filename }: { filename: string }) => {
 
         return () => {
             isMounted = false;
+            if (rafRef.current) cancelAnimationFrame(rafRef.current);
             if (replayerRef.current) {
                 try {
                     replayerRef.current.pause();
@@ -81,24 +114,85 @@ const RrwebPlayerWrapper = ({ filename }: { filename: string }) => {
             replayerRef.current.pause();
             setIsPlaying(false);
         } else {
-            replayerRef.current.play();
+            replayerRef.current.play(currentTime);
             setIsPlaying(true);
         }
     };
 
+    const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
+        if (!replayerRef.current || totalTime === 0) return;
+        const rect = e.currentTarget.getBoundingClientRect();
+        const percent = (e.clientX - rect.left) / rect.width;
+        const targetTime = Math.max(0, Math.min(percent * totalTime, totalTime));
+        replayerRef.current.play(targetTime);
+        setCurrentTime(targetTime);
+        setIsPlaying(true);
+    };
+
+    const handleSpeedChange = () => {
+        if (!replayerRef.current) return;
+        const nextSpeed = speed === 1 ? 2 : speed === 2 ? 4 : speed === 4 ? 8 : 1;
+        replayerRef.current.setConfig({ speed: nextSpeed });
+        setSpeed(nextSpeed);
+    };
+
+    const handleNextClick = () => {
+        if (hasNext) {
+            onNext();
+        } else {
+            // Replay from start
+            if (replayerRef.current) {
+                replayerRef.current.play(0);
+                setCurrentTime(0);
+                setIsPlaying(true);
+            }
+        }
+    };
+
+    const handlePrevClick = () => {
+        if (hasPrev) {
+            onPrev();
+        } else {
+            // Replay from start
+            if (replayerRef.current) {
+                replayerRef.current.play(0);
+                setCurrentTime(0);
+                setIsPlaying(true);
+            }
+        }
+    };
+
+    const progressPercent = totalTime > 0 ? (currentTime / totalTime) * 100 : 0;
+
     return (
-        <div className="w-full h-full flex flex-col justify-center items-center overflow-hidden bg-white">
+        <div className="w-full h-full flex flex-col justify-center items-center overflow-hidden bg-[#050810] relative">
+            
+            {/* Watermark Background */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0 overflow-hidden">
+                <span className="text-5xl md:text-7xl lg:text-8xl font-black text-slate-800/30 rotate-[-10deg] select-none whitespace-nowrap tracking-tighter">
+                    Secure Code Server
+                </span>
+            </div>
+
             {status === 'loading' && (
-                <div className="text-slate-500 animate-pulse text-sm">Loading playback...</div>
+                <div className="z-10 flex flex-col items-center justify-center bg-[#0a0f1c]/80 backdrop-blur-xl px-10 py-8 rounded-3xl border border-slate-700/50 shadow-2xl">
+                    <div className="relative w-14 h-14 mb-5">
+                        <div className="absolute inset-0 rounded-full border-t-2 border-l-2 border-blue-500 animate-spin"></div>
+                        <div className="absolute inset-2 rounded-full border-r-2 border-b-2 border-indigo-400 animate-spin" style={{ animationDirection: 'reverse', animationDuration: '1.5s' }}></div>
+                        <div className="absolute inset-0 flex items-center justify-center"><Video className="w-5 h-5 text-blue-400" /></div>
+                    </div>
+                    <div className="text-slate-200 font-semibold text-sm animate-pulse tracking-wide">Initializing Replay Engine...</div>
+                    <div className="text-slate-500 text-xs mt-2">Fetching session geometry</div>
+                </div>
             )}
             {status === 'empty' && (
-                <div className="text-slate-500 text-sm flex flex-col items-center justify-center">
+                <div className="z-10 text-slate-500 text-sm flex flex-col items-center justify-center bg-[#0a0f1c]/80 backdrop-blur-xl px-8 py-6 rounded-2xl border border-slate-800">
                     <p>Session data is incomplete or empty.</p>
                     <p className="text-xs opacity-70 mt-1">The user may have closed the window immediately.</p>
                 </div>
             )}
             {status === 'error' && (
-                <div className="text-red-500 text-sm flex flex-col items-center justify-center">
+                <div className="z-10 text-red-500 text-sm flex flex-col items-center justify-center bg-red-500/10 backdrop-blur-xl px-8 py-6 rounded-2xl border border-red-500/20">
                     <p>Failed to load session data.</p>
                 </div>
             )}
@@ -106,7 +200,6 @@ const RrwebPlayerWrapper = ({ filename }: { filename: string }) => {
             <div 
                 className={`w-full flex-1 relative overflow-hidden ${status === 'playing' ? 'block' : 'hidden'}`}
             >
-                {/* rrweb uses an iframe which we scale or center */}
                 <div 
                     ref={containerRef} 
                     className="absolute inset-0 flex justify-center items-center rrweb-replayer-container"
@@ -115,16 +208,67 @@ const RrwebPlayerWrapper = ({ filename }: { filename: string }) => {
 
             {/* Custom Control Bar */}
             {status === 'playing' && (
-                <div className="w-full h-14 bg-slate-900 border-t border-slate-800 flex items-center px-6 shadow-lg z-10 shrink-0">
-                    <button 
-                        onClick={togglePlay}
-                        className="w-10 h-10 rounded-full bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center transition-colors shadow-lg"
-                        title={isPlaying ? "Pause" : "Play"}
-                    >
-                        {isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-1" />}
-                    </button>
-                    <div className="ml-4 text-slate-400 text-sm font-medium">
-                        {isPlaying ? 'Playing Session...' : 'Paused'}
+                <div className="w-full bg-slate-900 border-t border-slate-800 flex flex-col shadow-lg z-10 shrink-0">
+                    {/* Progress Bar Area */}
+                    <div className="w-full h-4 bg-slate-800 cursor-pointer relative group" onClick={handleSeek}>
+                        {/* Hover/Background bar */}
+                        <div className="absolute inset-y-0 left-0 bg-blue-600/30 w-full opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                        {/* Active Progress */}
+                        <div 
+                            className="absolute inset-y-0 left-0 bg-blue-500 transition-all duration-75"
+                            style={{ width: `${Math.min(100, Math.max(0, progressPercent))}%` }}
+                        >
+                            {/* Scrubber Knob */}
+                            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow translate-x-1.5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                        </div>
+                    </div>
+
+                    {/* Controls Area */}
+                    <div className="w-full h-14 flex items-center justify-between px-6">
+                        {/* Left side: Playback controls */}
+                        <div className="flex items-center space-x-4">
+                            <button 
+                                onClick={handlePrevClick}
+                                className="text-slate-400 hover:text-white transition-colors"
+                                title={hasPrev ? "Previous Session" : "Replay from Start"}
+                            >
+                                <SkipBack className="w-5 h-5" />
+                            </button>
+                            
+                            <button 
+                                onClick={togglePlay}
+                                className="w-10 h-10 rounded-full bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center transition-colors shadow-lg"
+                                title={isPlaying ? "Pause" : "Play"}
+                            >
+                                {isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-1" />}
+                            </button>
+
+                            <button 
+                                onClick={handleNextClick}
+                                className="text-slate-400 hover:text-white transition-colors"
+                                title={hasNext ? "Next Session" : "Replay from Start"}
+                            >
+                                <SkipForward className="w-5 h-5" />
+                            </button>
+
+                            <div className="text-slate-400 font-mono text-xs font-medium ml-4 border-l border-slate-700 pl-4">
+                                <span className="text-white">{formatTime(currentTime)}</span>
+                                <span className="mx-1">/</span>
+                                <span>{formatTime(totalTime)}</span>
+                            </div>
+                        </div>
+
+                        {/* Right side: Tools */}
+                        <div className="flex items-center space-x-3">
+                            <button 
+                                onClick={handleSpeedChange}
+                                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold font-mono transition-colors border border-slate-700 flex items-center space-x-1"
+                                title="Playback Speed"
+                            >
+                                <FastForward className="w-3.5 h-3.5 mr-1" />
+                                {speed}x
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
@@ -139,6 +283,8 @@ export default function SessionsPage() {
     const [activeSessionFilename, setActiveSessionFilename] = useState<string | null>(null);
     const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
+
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -197,6 +343,32 @@ export default function SessionsPage() {
             alert('Failed to delete session');
         } finally {
             setIsDeleting(false);
+        }
+    };
+
+    // Calculate next/prev session availability
+    const currentUserSessions = selectedUserId ? sessionsByUser[selectedUserId] || [] : [];
+    const activeIndex = currentUserSessions.findIndex((s: any) => s.filename === activeSessionFilename);
+    const hasNext = activeIndex !== -1 && activeIndex < currentUserSessions.length - 1;
+    const hasPrev = activeIndex > 0;
+
+    const onNextSession = () => {
+        if (hasNext) setActiveSessionFilename(currentUserSessions[activeIndex + 1].filename);
+    };
+
+    const onPrevSession = () => {
+        if (hasPrev) setActiveSessionFilename(currentUserSessions[activeIndex - 1].filename);
+    };
+
+    const scrollLeft = () => {
+        if (scrollContainerRef.current) {
+            scrollContainerRef.current.scrollBy({ left: -300, behavior: 'smooth' });
+        }
+    };
+
+    const scrollRight = () => {
+        if (scrollContainerRef.current) {
+            scrollContainerRef.current.scrollBy({ left: 300, behavior: 'smooth' });
         }
     };
 
@@ -293,15 +465,21 @@ export default function SessionsPage() {
                                     >
                                         <X className="w-5 h-5" />
                                     </button>
-                                    <RrwebPlayerWrapper filename={activeSessionFilename} />
+                                    <RrwebPlayerWrapper 
+                                        filename={activeSessionFilename} 
+                                        onNext={onNextSession}
+                                        onPrev={onPrevSession}
+                                        hasNext={hasNext}
+                                        hasPrev={hasPrev}
+                                    />
                                 </div>
                             )}
                         </div>
 
                         {/* User's Sessions List (Bottom Strip) */}
-                        {selectedUserId && (
-                            <div className="h-48 bg-[#0b1121] border border-slate-800 rounded-xl overflow-hidden flex flex-col shrink-0">
-                                <div className="p-3 border-b border-slate-800 bg-[#080d1a] flex justify-between items-center">
+                        {selectedUserId && currentUserSessions.length > 0 && (
+                            <div className="h-48 bg-[#0b1121] border border-slate-800 rounded-xl overflow-hidden flex flex-col shrink-0 relative group">
+                                <div className="p-3 border-b border-slate-800 bg-[#080d1a] flex justify-between items-center z-10">
                                     <h3 className="text-xs font-medium text-slate-300 flex items-center space-x-2">
                                         <Calendar className="w-3.5 h-3.5 text-emerald-400" />
                                         <span>Recent Sessions for {usersMap[selectedUserId]?.username || 'User'}</span>
@@ -310,8 +488,23 @@ export default function SessionsPage() {
                                         Newest First
                                     </span>
                                 </div>
-                                <div className="flex-1 overflow-x-auto p-4 flex gap-4 custom-scrollbar items-center">
-                                    {sessionsByUser[selectedUserId].map((session: any, idx: number) => {
+                                
+                                {/* Left Scroll Button */}
+                                {currentUserSessions.length > 3 && (
+                                    <button 
+                                        onClick={scrollLeft}
+                                        className="absolute left-2 top-1/2 mt-2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-slate-900/80 border border-slate-700 text-slate-300 hover:text-white hover:bg-blue-600 flex items-center justify-center backdrop-blur-sm shadow-xl opacity-0 group-hover:opacity-100 transition-all transform -translate-x-2 group-hover:translate-x-0"
+                                    >
+                                        <ChevronLeft className="w-5 h-5" />
+                                    </button>
+                                )}
+
+                                <div 
+                                    ref={scrollContainerRef}
+                                    className="flex-1 overflow-x-auto p-4 flex gap-4 scrollbar-hide items-center scroll-smooth"
+                                    style={{ msOverflowStyle: 'none', scrollbarWidth: 'none' }}
+                                >
+                                    {currentUserSessions.map((session: any, idx: number) => {
                                         const isPlaying = activeSessionFilename === session.filename;
                                         
                                         return (
@@ -372,6 +565,16 @@ export default function SessionsPage() {
                                         );
                                     })}
                                 </div>
+
+                                {/* Right Scroll Button */}
+                                {currentUserSessions.length > 3 && (
+                                    <button 
+                                        onClick={scrollRight}
+                                        className="absolute right-2 top-1/2 mt-2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-slate-900/80 border border-slate-700 text-slate-300 hover:text-white hover:bg-blue-600 flex items-center justify-center backdrop-blur-sm shadow-xl opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0"
+                                    >
+                                        <ChevronRight className="w-5 h-5" />
+                                    </button>
+                                )}
                             </div>
                         )}
                     </div>
@@ -411,6 +614,12 @@ export default function SessionsPage() {
                     </div>
                 )}
             </main>
+
+            <style dangerouslySetInnerHTML={{__html: `
+                .scrollbar-hide::-webkit-scrollbar {
+                    display: none;
+                }
+            `}} />
         </div>
     );
 }
