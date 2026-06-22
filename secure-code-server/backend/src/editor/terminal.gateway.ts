@@ -150,8 +150,31 @@ export class TerminalGateway
           // If not running or doesn't exist, spin it up using Shared Runtime Pool cached image
           console.log(`Spinning up Docker container for project ${projectId}...`);
           // If the backend itself is running in Docker (e.g. Azure), it needs to know the absolute HOST path to mount.
-          // Otherwise, it falls back to the backend's own cwd (which works perfectly on localhost)
-          const hostWorkspacesDir = process.env.HOST_WORKSPACES_PATH || workspacesDir;
+          // We can automatically discover this by inspecting our own container!
+          let hostWorkspacesDir = process.env.HOST_WORKSPACES_PATH;
+          
+          if (!hostWorkspacesDir) {
+            try {
+              // Our docker-compose.yml hardcodes the backend container name to 'secure_code_backend'
+              const { stdout } = await execAsync('docker inspect secure_code_backend');
+              const containerInfo = JSON.parse(stdout);
+              if (containerInfo && containerInfo[0] && containerInfo[0].Mounts) {
+                const workspacesMount = containerInfo[0].Mounts.find((m: any) => m.Destination === '/workspaces');
+                if (workspacesMount && workspacesMount.Source) {
+                  hostWorkspacesDir = workspacesMount.Source;
+                  console.log(`Auto-discovered Host Workspace Path: ${hostWorkspacesDir}`);
+                }
+              }
+            } catch (e) {
+              // Normal if running locally without Docker. We will fallback silently.
+            }
+          }
+
+          // Fallback to the backend's own cwd if auto-discovery fails (works perfectly on localhost natively)
+          if (!hostWorkspacesDir) {
+            hostWorkspacesDir = workspacesDir;
+          }
+
           const relativeProjectDir = path.basename(cwd); // e.g. "my_project_name"
           const finalHostMountPath = path.join(hostWorkspacesDir, relativeProjectDir);
 
