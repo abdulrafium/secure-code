@@ -16,6 +16,7 @@ export default function AuditLogsPage() {
     const [currentPage, setCurrentPage] = useState(1);
     const [logsPerPage, setLogsPerPage] = useState(25);
     const [logToDelete, setLogToDelete] = useState<string | null>(null);
+    const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
 
     useEffect(() => {
         fetchLogs();
@@ -51,13 +52,10 @@ export default function AuditLogsPage() {
     };
 
     const handleDeleteAllLogs = async () => {
-        if (!confirm('Are you sure you want to delete ALL audit logs? This action cannot be undone and will wipe the entire log database.')) {
-            return;
-        }
-        
         try {
             await api.delete('/logs/all');
             setLogs([]);
+            setShowDeleteAllConfirm(false);
         } catch (error) {
             console.error('Failed to delete all logs', error);
             alert('Failed to delete all logs');
@@ -210,6 +208,37 @@ export default function AuditLogsPage() {
                 </div>
             )}
 
+            {/* Delete All Modal */}
+            {showDeleteAllConfirm && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#040814]/80 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-[#0b1121] border border-slate-700 rounded-xl shadow-2xl max-w-sm w-full p-6 animate-in zoom-in-95 duration-200">
+                        <div className="flex items-center space-x-3 mb-4 text-red-400">
+                            <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center">
+                                <Trash2 className="w-5 h-5" />
+                            </div>
+                            <h3 className="text-lg font-semibold text-white">Delete ALL Logs?</h3>
+                        </div>
+                        <p className="text-slate-400 text-sm mb-6 leading-relaxed">
+                            Are you sure you want to permanently delete ALL audit logs? This action cannot be undone and will completely wipe the database log table.
+                        </p>
+                        <div className="flex justify-end space-x-3">
+                            <button 
+                                onClick={() => setShowDeleteAllConfirm(false)} 
+                                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-sm font-medium rounded-lg transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                onClick={handleDeleteAllLogs} 
+                                className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-sm font-medium rounded-lg shadow-lg shadow-red-600/20 transition-colors"
+                            >
+                                Yes, Delete All
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <AdminHeader />
 
             <div className="relative z-10 max-w-7xl mx-auto p-6 space-y-6">
@@ -226,7 +255,7 @@ export default function AuditLogsPage() {
                     
                     <div className="flex items-center space-x-3">
                         <button 
-                            onClick={handleDeleteAllLogs}
+                            onClick={() => setShowDeleteAllConfirm(true)}
                             className="flex items-center space-x-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 text-sm font-medium rounded-lg transition-colors shadow-lg"
                         >
                             <Trash2 className="w-4 h-4" />

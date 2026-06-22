@@ -414,6 +414,7 @@ export default function SessionsPage() {
     const [activeSessionFilename, setActiveSessionFilename] = useState<string | null>(null);
     const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
 
     const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -499,9 +500,6 @@ export default function SessionsPage() {
 
     const handleDeleteAllSessions = async () => {
         if (!selectedProjectId) return;
-        if (!confirm(`Are you sure you want to delete ALL sessions for project ${projectsMap[selectedProjectId]?.name || selectedProjectId}? This cannot be undone.`)) {
-            return;
-        }
         
         try {
             await api.delete(`/logs/sessions/project/${selectedProjectId}`);
@@ -509,6 +507,7 @@ export default function SessionsPage() {
             if (activeSessionFilename && displayedSessions.some((s: any) => s.filename === activeSessionFilename)) {
                 setActiveSessionFilename(null);
             }
+            setShowDeleteAllConfirm(false);
         } catch (error) {
             console.error('Failed to delete all sessions', error);
             alert('Failed to delete all sessions');
@@ -547,6 +546,38 @@ export default function SessionsPage() {
 
     return (
         <div className="min-h-screen bg-[#050b14] font-sans text-slate-300 flex flex-col">
+            
+            {/* Delete All Modal */}
+            {showDeleteAllConfirm && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#040814]/80 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-[#0b1121] border border-slate-700 rounded-xl shadow-2xl max-w-sm w-full p-6 animate-in zoom-in-95 duration-200">
+                        <div className="flex items-center space-x-3 mb-4 text-red-400">
+                            <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center">
+                                <Trash2 className="w-5 h-5" />
+                            </div>
+                            <h3 className="text-lg font-semibold text-white">Delete All Sessions?</h3>
+                        </div>
+                        <p className="text-slate-400 text-sm mb-6 leading-relaxed">
+                            Are you sure you want to permanently delete ALL sessions for project <span className="text-white font-medium">{projectsMap[selectedProjectId || '']?.name || selectedProjectId}</span>? This action cannot be undone.
+                        </p>
+                        <div className="flex justify-end space-x-3">
+                            <button 
+                                onClick={() => setShowDeleteAllConfirm(false)} 
+                                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-sm font-medium rounded-lg transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                onClick={handleDeleteAllSessions} 
+                                className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-sm font-medium rounded-lg shadow-lg shadow-red-600/20 transition-colors"
+                            >
+                                Delete All
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <AdminHeader />
 
             <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col h-[calc(100vh-60px)]">
@@ -714,7 +745,7 @@ export default function SessionsPage() {
                                     </h3>
                                     <div className="flex items-center space-x-3">
                                         <button 
-                                            onClick={handleDeleteAllSessions}
+                                            onClick={() => setShowDeleteAllConfirm(true)}
                                             className="flex items-center space-x-1.5 text-xs text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 px-2.5 py-1 rounded-md transition-colors border border-red-500/20"
                                             title="Delete all sessions for this project"
                                         >

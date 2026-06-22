@@ -108,6 +108,25 @@ export class AuthController {
   async logout(@Request() req: any) {
     if (req.user && req.user.id) {
       await this.authService.logout(req.user.id);
+      
+      let clientIp =
+        req.headers['x-forwarded-for'] ||
+        req.connection?.remoteAddress ||
+        req.socket?.remoteAddress ||
+        'unknown';
+      if (typeof clientIp === 'string') {
+        clientIp = clientIp.split(',')[0].trim();
+      }
+
+      this.logsService
+        .logEvent({
+          userId: req.user.id,
+          username: req.user.username,
+          action: 'LOGOUT',
+          details: 'User logged out successfully.',
+          ipAddress: clientIp,
+        })
+        .catch((e) => console.error('Failed to log event:', e));
     }
     return { message: 'Logged out successfully' };
   }
