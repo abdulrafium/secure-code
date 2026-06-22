@@ -120,7 +120,7 @@ export default function TerminalPane({ projectId, isViewer, accessToken }: { pro
           const dangerousPatterns = [
              /^rm\s+-r/i, /^curl\s+/i, /^wget\s+/i, /cat\s+\.env/i, 
              /^export\s+/i, /^chmod\s+777/i, /^chown\s+/i, /^scp\s+/i, 
-             /^ftp\s+/i, /^ssh\s+/i, /^nc\s+/i, /^npm\s+publish/i
+             /^ftp\s+/i, /^ssh\s+/i, /^nc\s+/i, /^npm\s+publish/i, /^git\s+push/i
           ];
           for (const pattern of dangerousPatterns) {
              if (pattern.test(cmd)) {

@@ -409,6 +409,8 @@ export default function IDEWorkspace() {
     // Determine context based on URL
     const isViewerRoute = window.location.pathname.startsWith('/viewer');
 
+    let currentUserRole = '';
+
     // Find all cookies
     const cookies = document.cookie.split('; ').reduce((acc, row) => {
       const [key, value] = row.split('=');
@@ -417,14 +419,14 @@ export default function IDEWorkspace() {
     }, {} as Record<string, string>);
 
     if (isViewerRoute) {
-      if (cookies['viewer_userRole']) setUserRole(cookies['viewer_userRole']);
+      if (cookies['viewer_userRole']) { setUserRole(cookies['viewer_userRole']); currentUserRole = cookies['viewer_userRole']; }
       const token = sessionStorage.getItem('viewer_accessToken') || cookies['viewer_accessToken'];
       if (token) {
         setAccessToken(token);
         try {
           const parsed = JSON.parse(atob(token.split('.')[1]));
           setUserInfo(parsed);
-          if (parsed.role) setUserRole(parsed.role);
+          if (parsed.role) { setUserRole(parsed.role); currentUserRole = parsed.role; }
         } catch (e) { }
       }
     } else {
@@ -438,7 +440,7 @@ export default function IDEWorkspace() {
         try {
           const parsed = JSON.parse(atob(token.split('.')[1]));
           setUserInfo(parsed);
-          if (parsed.role) setUserRole(parsed.role);
+          if (parsed.role) { setUserRole(parsed.role); currentUserRole = parsed.role; }
         } catch (e) { }
       }
     }
@@ -468,6 +470,7 @@ export default function IDEWorkspace() {
     const executeFlush = (reason: string, isUnload: boolean = false) => {
       if (eventsBuffer.length > 0) {
         const payload = [...eventsBuffer];
+        eventsBuffer = []; // Clear buffer so subsequent flushes don't duplicate events
         const data = {
           projectId: projectId || 'default',
           sessionId: `${currentSessionId}_${Date.now()}`,
@@ -499,7 +502,13 @@ export default function IDEWorkspace() {
     };
 
     const flushTriggeredEvents = (e?: any) => {
+      if (currentUserRole === 'Admin') return; // Admins are exempt
+      
       const reason = e?.detail?.reason || 'Manual Trigger';
+      
+      // Immediate flush of pre-incident context!
+      executeFlush(`[PRE-INCIDENT] ${reason}`);
+      
       if (flushTimeout) {
         pendingReason = pendingReason ? `${pendingReason} | ${reason}` : reason;
         return; 
@@ -508,7 +517,7 @@ export default function IDEWorkspace() {
 
       // Wait 10 seconds to capture the aftermath of the event
       flushTimeout = setTimeout(() => {
-        executeFlush(pendingReason || 'Manual Trigger');
+        executeFlush(`[AFTERMATH] ${pendingReason || 'Manual Trigger'}`);
         flushTimeout = null;
         pendingReason = null;
       }, 10000);
@@ -546,11 +555,13 @@ export default function IDEWorkspace() {
       let metaHeld = false;
       let shiftHeld = false;
       const handleKeyDown = (e: KeyboardEvent) => {
+        if (currentUserRole === 'Admin') return;
+        
         if (e.key === 'Meta' || e.key === 'OS') metaHeld = true;
         if (e.key === 'Shift') shiftHeld = true;
 
         let isScreenshot = false;
-        if (e.key === 'PrintScreen') isScreenshot = true;
+        if (e.key === 'PrintScreen' || e.code === 'PrintScreen') isScreenshot = true;
         if (e.metaKey && e.shiftKey && ['3', '4', '5', 's', 'S'].includes(e.key)) isScreenshot = true;
         if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P')) isScreenshot = true;
 
@@ -574,6 +585,7 @@ export default function IDEWorkspace() {
 
       // Detect Windows Snipping Tool taking focus
       const handleBlur = () => {
+        if (currentUserRole === 'Admin') return;
         if (metaHeld && shiftHeld) {
           window.dispatchEvent(new CustomEvent('session-record-trigger', { detail: { reason: `External Snipping Tool Overlay Detected` } }));
         }
@@ -581,6 +593,7 @@ export default function IDEWorkspace() {
 
       // Detect Minimizing / Tab Switching (Possible background screen recorder)
       const handleVisibilityChange = () => {
+        if (currentUserRole === 'Admin') return;
         if (document.visibilityState === 'hidden') {
            // They minimized the browser or switched tabs
            window.dispatchEvent(new CustomEvent('session-record-trigger', { detail: { reason: `Browser Minimized or Tab Switched (Possible background recording)` } }));
