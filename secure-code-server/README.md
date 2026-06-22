@@ -38,3 +38,9 @@
 - **Backup System:** Daily automated snapshots and point-in-time recovery mechanisms.
 - **SSL & Firewall:** UFW configuration and Nginx certbot routing.
 - **Session Recording:** Visual or keystroke recording of active sessions is not implemented.
+
+### Day 7: Infrastructure & Advanced Architecture (Completed)
+- **Container Isolation:** Moved from host-execution to spinning up Rootless Docker containers per project/user.
+- **Runtime Environment:** Shared Runtime Pool & Rootless Docker Sandboxing (executing safely instead of directly on the host OS).
+- **Centralized Logging:** Integrated Grafana Loki alongside Postgres to serve as a high-performance, horizontally scalable log aggregation engine.
+- **CI/CD Automation:** Fully automated deployment pipeline using GitHub Actions (`deploy.yml`) with secure SSH runners for continuous integration and delivery.
