@@ -15,7 +15,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 @Controller('logs')
 @UseGuards(JwtAuthGuard)
 export class LogsController {
-  constructor(private readonly logsService: LogsService) {}
+  constructor(private readonly logsService: LogsService) { }
 
   @Get()
   async getLogs(@Request() req: any) {

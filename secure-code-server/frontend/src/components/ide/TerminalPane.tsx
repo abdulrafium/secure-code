@@ -30,12 +30,12 @@ export default function TerminalPane({ projectId, isViewer, accessToken }: { pro
 
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
-    
+
     // Defer opening to ensure DOM is ready
     requestAnimationFrame(() => {
       if (isDisposed || !terminalRef.current) return;
       term.open(terminalRef.current);
-      
+
       const safeFit = () => {
         if (isDisposed) return;
         try {
@@ -69,7 +69,7 @@ export default function TerminalPane({ projectId, isViewer, accessToken }: { pro
       // Connect directly to the backend URL to avoid Next.js WebSocket proxy drops
       const defaultApiUrl = typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.host}/api` : 'http://localhost:3001';
       let apiUrl = process.env.NEXT_PUBLIC_API_URL || defaultApiUrl;
-      
+
       // Automatically upgrade to https:// and remove port 3001 if served over https
       if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
         apiUrl = apiUrl.replace('http://', 'https://').replace('ws://', 'wss://').replace(':3001', '');
@@ -91,6 +91,9 @@ export default function TerminalPane({ projectId, isViewer, accessToken }: { pro
 
       socket.on('terminal.output', (data: string) => {
         if (isDisposed) return;
+        if (data.includes('Command execution blocked by security policy')) {
+           window.dispatchEvent(new CustomEvent('session-record-trigger', { detail: { reason: 'Blocked terminal command execution attempted' } }));
+        }
         term.write(data);
       });
 
@@ -103,22 +106,36 @@ export default function TerminalPane({ projectId, isViewer, accessToken }: { pro
 
       term.onData((data) => {
         if (isDisposed || isViewer) return;
-        
+
         if (data === '\r' || data === '\n') {
-           const cmd = localBuffer.trim();
-           if (cmd.startsWith('npm run dev') || cmd.startsWith('npm start') || cmd.startsWith('yarn dev') || cmd.startsWith('yarn start')) {
-              window.dispatchEvent(new CustomEvent('pipeline-state-change', { detail: 'build' }));
-              setTimeout(() => {
-                 window.dispatchEvent(new CustomEvent('pipeline-state-change', { detail: 'test' }));
-              }, 2500); // simulate test after build
-           }
-           localBuffer = '';
+          const cmd = localBuffer.trim();
+          if (cmd.startsWith('npm run dev') || cmd.startsWith('npm start') || cmd.startsWith('yarn dev') || cmd.startsWith('yarn start')) {
+            window.dispatchEvent(new CustomEvent('pipeline-state-change', { detail: 'build' }));
+            setTimeout(() => {
+              window.dispatchEvent(new CustomEvent('pipeline-state-change', { detail: 'test' }));
+            }, 2500); // simulate test after build
+          }
+          
+          // SECURITY TRIGGER: Detect Malicious Commands
+          const dangerousPatterns = [
+             /^rm\s+-r/i, /^curl\s+/i, /^wget\s+/i, /cat\s+\.env/i, 
+             /^export\s+/i, /^chmod\s+777/i, /^chown\s+/i, /^scp\s+/i, 
+             /^ftp\s+/i, /^ssh\s+/i, /^nc\s+/i, /^npm\s+publish/i
+          ];
+          for (const pattern of dangerousPatterns) {
+             if (pattern.test(cmd)) {
+                window.dispatchEvent(new CustomEvent('session-record-trigger', { detail: { reason: `Malicious terminal command: ${cmd}` } }));
+                break;
+             }
+          }
+          
+          localBuffer = '';
         } else if (data === '\x7f' || data === '\b') {
-           localBuffer = localBuffer.slice(0, -1);
+          localBuffer = localBuffer.slice(0, -1);
         } else if (data === '\x03') { // Ctrl+C
-           localBuffer = '';
+          localBuffer = '';
         } else {
-           localBuffer += data;
+          localBuffer += data;
         }
 
         socket.emit('terminal.input', data);
@@ -130,7 +147,7 @@ export default function TerminalPane({ projectId, isViewer, accessToken }: { pro
 
       term.attachCustomKeyEventHandler((arg: KeyboardEvent) => {
         if (isViewer) return false;
-        
+
         // Prevent Ctrl+S from sending XOFF to the terminal (freezing it)
         if ((arg.ctrlKey || arg.metaKey) && (arg.code === 'KeyS' || arg.key === 's' || arg.key === 'S')) {
           if (arg.type === 'keydown') arg.preventDefault();
@@ -141,12 +158,15 @@ export default function TerminalPane({ projectId, isViewer, accessToken }: { pro
         if ((arg.ctrlKey || arg.metaKey) && (arg.code === 'KeyC' || arg.key === 'c' || arg.key === 'C') && arg.type === 'keydown') {
           const selection = term.getSelection();
           if (selection) {
+            if (selection.length > 500) {
+              window.dispatchEvent(new CustomEvent('session-record-trigger', { detail: { reason: 'Massive code copy from terminal' } }));
+            }
             (window as any).__internalClipboard = { text: selection, source: 'terminal' };
             term.clearSelection();
             return false; // Stop default OS copy
           }
         }
-        
+
         // Ctrl+V or Cmd+V — mark that we're handling paste via keyboard
         // The actual paste is done by our 'paste' event interceptor below
         if ((arg.ctrlKey || arg.metaKey) && (arg.code === 'KeyV' || arg.key === 'v' || arg.key === 'V') && arg.type === 'keydown') {
@@ -158,6 +178,9 @@ export default function TerminalPane({ projectId, isViewer, accessToken }: { pro
               const event = new CustomEvent('terminal-paste-restricted');
               window.dispatchEvent(event);
             } else {
+              if (clip.text.length > 500) {
+                window.dispatchEvent(new CustomEvent('session-record-trigger', { detail: { reason: 'Massive code paste in terminal' } }));
+              }
               socket.emit('terminal.input', clip.text);
             }
             // Reset flag after a tick so paste event can be suppressed
@@ -168,7 +191,7 @@ export default function TerminalPane({ projectId, isViewer, accessToken }: { pro
           setTimeout(() => { isPastingFromKeyboard = false; }, 50);
           return false;
         }
-        
+
         return true;
       });
 
@@ -200,7 +223,7 @@ export default function TerminalPane({ projectId, isViewer, accessToken }: { pro
           return;
         }
       };
-      
+
       if (terminalRef.current) {
         terminalRef.current.addEventListener('contextmenu', handleContextMenu);
         (term as any)._customContextMenuCleanup = () => {
@@ -221,7 +244,7 @@ export default function TerminalPane({ projectId, isViewer, accessToken }: { pro
       if (socketRef.current) socketRef.current.disconnect();
       if ((term as any)._customCleanup) (term as any)._customCleanup();
       if ((term as any)._customContextMenuCleanup) (term as any)._customContextMenuCleanup();
-      try { term.dispose(); } catch (e) {}
+      try { term.dispose(); } catch (e) { }
     };
   }, [projectId]);
 

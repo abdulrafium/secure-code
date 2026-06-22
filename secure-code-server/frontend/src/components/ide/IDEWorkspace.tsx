@@ -67,7 +67,7 @@ export default function IDEWorkspace() {
   const [activeNodePaths, setActiveNodePaths] = useState<Set<string>>(new Set());
   const [activeFolderPath, setActiveFolderPath] = useState<string>('');
   const [refreshToggle, setRefreshToggle] = useState<number>(0);
-  
+
   const [showCommitModal, setShowCommitModal] = useState(false);
   const [commitMessage, setCommitMessage] = useState('');
   const [isDiffMode, setIsDiffMode] = useState(false);
@@ -90,11 +90,12 @@ export default function IDEWorkspace() {
     console.error(`Failed to ${action}`, err);
     const backendMessage = err.response?.data?.message || err.response?.data?.error || err.message;
     const msgStr = typeof backendMessage === 'string' ? backendMessage : JSON.stringify(backendMessage);
-    
+
     const namePrefix = itemName ? `"${itemName}" ` : '';
-    
+
     if (msgStr.toLowerCase().includes('restrict') || msgStr.toLowerCase().includes('denied')) {
       setAlertMessage(`${namePrefix}is restricted by the admin.`);
+      window.dispatchEvent(new CustomEvent('session-record-trigger', { detail: { reason: `Restricted File Operation Attempted: ${action} ${itemName || ''}` } }));
     } else if (msgStr.toLowerCase().includes('already exists') || msgStr.toLowerCase().includes('exists')) {
       setAlertMessage(`${namePrefix}already exists.`);
     } else {
@@ -104,12 +105,12 @@ export default function IDEWorkspace() {
 
   const executeGitPush = async () => {
     if (!commitMessage.trim()) return;
-    
+
     setShowCommitModal(false);
     if (isPipelineRunning) return;
     setIsPipelineRunning(true);
     setPipelineStage('deploy');
-    
+
     try {
       await api.post('/editor/git/push', {
         projectId,
@@ -118,13 +119,13 @@ export default function IDEWorkspace() {
       setPipelineStage('deploy');
       setSystemLogs(prev => [...prev, `[Git] Successfully pushed with message: "${commitMessage}"`]);
       setCommitMessage('');
-      
+
       // Simulate live deploy completion after a short delay
       setTimeout(() => {
         setPipelineStage('live');
         setIsPipelineRunning(false);
       }, 2000);
-      
+
     } catch (err: any) {
       setIsPipelineRunning(false);
       setPipelineStage('code');
@@ -256,7 +257,7 @@ export default function IDEWorkspace() {
       }
       return next;
     });
-    
+
     if (node.isDirectory) {
       setActiveFolderPath(node.path);
     } else {
@@ -288,14 +289,14 @@ export default function IDEWorkspace() {
         if (!fileClipboard || fileClipboard.paths.length === 0) return;
         const isCut = fileClipboard.action === 'cut';
         const targetDir = node.isDirectory ? node.path : node.path.substring(0, node.path.lastIndexOf('/'));
-        
+
         try {
           await Promise.all(fileClipboard.paths.map(async (srcPath) => {
             const sourceName = srcPath.split('/').pop()!;
             const finalPath = targetDir ? `${targetDir}/${sourceName}` : sourceName;
-            
-            if (srcPath === finalPath) return; 
-            
+
+            if (srcPath === finalPath) return;
+
             if (isCut) {
               await api.post('/editor/rename', { oldPath: srcPath, newPath: finalPath, projectId: projectId || '' });
             } else {
@@ -325,8 +326,17 @@ export default function IDEWorkspace() {
     const pathsToDelete = targetNode ? [targetNode.path] : Array.from(activeNodePaths);
     if (pathsToDelete.length === 0) return;
     
-    const msg = pathsToDelete.length === 1 ? `Are you sure you want to delete "${pathsToDelete[0].split('/').pop()}"?` : `Are you sure you want to delete ${pathsToDelete.length} items?`;
+    // SECURITY TRIGGER: Mass deletion or core folder deletion
+    const isCoreFolder = pathsToDelete.some(p => 
+      p === 'src' || p === 'backend' || p === 'frontend' || 
+      p.endsWith('package.json') || p.endsWith('.env')
+    );
+    if (pathsToDelete.length > 3 || isCoreFolder) {
+       window.dispatchEvent(new CustomEvent('session-record-trigger', { detail: { reason: `Suspicious File Tree Deletion: ${pathsToDelete.join(', ')}` } }));
+    }
     
+    const msg = pathsToDelete.length === 1 ? `Are you sure you want to delete "${pathsToDelete[0].split('/').pop()}"?` : `Are you sure you want to delete ${pathsToDelete.length} items?`;
+
     setConfirmDialog({
       message: msg,
       onConfirm: async () => {
@@ -356,10 +366,10 @@ export default function IDEWorkspace() {
       const parentFolder = oldPath.split('/').slice(0, -1).join('/');
       const finalPath = parentFolder ? `${parentFolder}/${newName}` : newName;
       await api.post('/editor/rename', { oldPath: oldPath, newPath: finalPath, projectId: projectId || '' });
-      
+
       setOpenFiles(prev => prev.map(f => f.path === oldPath ? { ...f, path: finalPath, name: newName } : f));
       if (activeFilePath === oldPath) setActiveFilePath(finalPath);
-      
+
       setRefreshToggle(prev => prev + 1);
       const treeEndpoint = projectId ? `/editor/tree?path=&projectId=${projectId}` : `/editor/tree?path=`;
       api.get(treeEndpoint).then(data => setTree(data)).catch(console.error);
@@ -398,7 +408,7 @@ export default function IDEWorkspace() {
   useEffect(() => {
     // Determine context based on URL
     const isViewerRoute = window.location.pathname.startsWith('/viewer');
-    
+
     // Find all cookies
     const cookies = document.cookie.split('; ').reduce((acc, row) => {
       const [key, value] = row.split('=');
@@ -411,11 +421,11 @@ export default function IDEWorkspace() {
       const token = sessionStorage.getItem('viewer_accessToken') || cookies['viewer_accessToken'];
       if (token) {
         setAccessToken(token);
-        try { 
+        try {
           const parsed = JSON.parse(atob(token.split('.')[1]));
           setUserInfo(parsed);
           if (parsed.role) setUserRole(parsed.role);
-        } catch (e) {}
+        } catch (e) { }
       }
     } else {
       // Developer route - prioritize Admin ONLY if asAdmin=true is in URL, otherwise use Developer
@@ -425,17 +435,17 @@ export default function IDEWorkspace() {
       const token = (isAsAdmin && adminToken) ? adminToken : devToken;
       if (token) {
         setAccessToken(token);
-        try { 
+        try {
           const parsed = JSON.parse(atob(token.split('.')[1]));
           setUserInfo(parsed);
           if (parsed.role) setUserRole(parsed.role);
-        } catch (e) {}
+        } catch (e) { }
       }
     }
 
     // Fetch tree first
     const endpoint = projectId ? `/editor/tree?path=&projectId=${projectId}` : `/editor/tree?path=`;
-    
+
     const fetchFullTree = () => {
       api.get(endpoint).then(data => {
         setTree(data || []);
@@ -446,23 +456,70 @@ export default function IDEWorkspace() {
     fetchFullTree();
     const treeInterval = setInterval(fetchFullTree, 5000);
 
-    // Initialize rrweb session recording
+    // Initialize rrweb session recording - Event-Based 5 Minute Rolling Buffer
     let rrwebStopFn: any = null;
-    let sessionFlushInterval: any = null;
+    let pruneInterval: any = null;
     let eventsBuffer: any[] = [];
     const currentSessionId = Date.now().toString() + Math.random().toString(36).substring(2, 9);
 
-    const flushEvents = () => {
+    let flushTimeout: any = null;
+    let pendingReason: string | null = null;
+
+    const executeFlush = (reason: string, isUnload: boolean = false) => {
       if (eventsBuffer.length > 0) {
         const payload = [...eventsBuffer];
-        eventsBuffer = []; // reset buffer
-        api.post('/logs/session', { 
+        const data = {
           projectId: projectId || 'default',
-          sessionId: currentSessionId,
+          sessionId: `${currentSessionId}_${Date.now()}`,
           events: payload,
           url: window.location.href,
-          timestamp: new Date().toISOString()
-        }).catch(() => {});
+          timestamp: new Date().toISOString(),
+          reason: reason
+        };
+
+        if (isUnload) {
+          // Use fetch with keepalive to ensure request completes even as the tab is closing
+          let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+          if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+            apiUrl = apiUrl.replace('http://', 'https://').replace(':3001', '');
+          }
+          fetch(`${apiUrl}/logs/session`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${accessToken || ''}`
+            },
+            body: JSON.stringify(data),
+            keepalive: true
+          }).catch(() => {});
+        } else {
+          api.post('/logs/session', data).catch(() => { });
+        }
+      }
+    };
+
+    const flushTriggeredEvents = (e?: any) => {
+      const reason = e?.detail?.reason || 'Manual Trigger';
+      if (flushTimeout) {
+        pendingReason = pendingReason ? `${pendingReason} | ${reason}` : reason;
+        return; 
+      }
+      pendingReason = reason;
+
+      // Wait 10 seconds to capture the aftermath of the event
+      flushTimeout = setTimeout(() => {
+        executeFlush(pendingReason || 'Manual Trigger');
+        flushTimeout = null;
+        pendingReason = null;
+      }, 10000);
+    };
+
+    const handleBeforeUnload = () => {
+      if (flushTimeout) {
+        clearTimeout(flushTimeout);
+        executeFlush(pendingReason || 'Manual Trigger (Unload)', true);
+        flushTimeout = null;
+        pendingReason = null;
       }
     };
 
@@ -473,16 +530,89 @@ export default function IDEWorkspace() {
         inlineImages: true,
         emit(event) {
           eventsBuffer.push(event);
-          if (eventsBuffer.length >= 100) {
-            flushEvents();
-          }
         },
       });
-      // Periodically flush events so we don't lose them if the user doesn't hit 100
-      sessionFlushInterval = setInterval(flushEvents, 5000);
 
-      // Flush before leaving the page
-      window.addEventListener('beforeunload', flushEvents);
+      // Prune events older than 5 minutes (300,000 ms)
+      pruneInterval = setInterval(() => {
+        const cutoff = Date.now() - (5 * 60 * 1000);
+        eventsBuffer = eventsBuffer.filter(e => e.timestamp > cutoff);
+      }, 10000); // Run pruner every 10 seconds
+
+      // Listen for custom trigger events from anywhere in the app
+      window.addEventListener('session-record-trigger', flushTriggeredEvents);
+
+      // Keyboard interceptors for Screenshots / Print Dialog
+      let metaHeld = false;
+      let shiftHeld = false;
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Meta' || e.key === 'OS') metaHeld = true;
+        if (e.key === 'Shift') shiftHeld = true;
+
+        let isScreenshot = false;
+        if (e.key === 'PrintScreen') isScreenshot = true;
+        if (e.metaKey && e.shiftKey && ['3', '4', '5', 's', 'S'].includes(e.key)) isScreenshot = true;
+        if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P')) isScreenshot = true;
+
+        if (isScreenshot) {
+          e.preventDefault();
+          
+          // Try to wipe clipboard aggressively to thwart print screen
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText('');
+          }
+          
+          setAlertMessage("Cannot take Screen Shot due to the security policy.");
+          window.dispatchEvent(new CustomEvent('session-record-trigger', { detail: { reason: `Screen Capture Attempt: ${e.key}` } }));
+        }
+      };
+      
+      const handleKeyUp = (e: KeyboardEvent) => {
+        if (e.key === 'Meta' || e.key === 'OS') metaHeld = false;
+        if (e.key === 'Shift') shiftHeld = false;
+      };
+
+      // Detect Windows Snipping Tool taking focus
+      const handleBlur = () => {
+        if (metaHeld && shiftHeld) {
+          window.dispatchEvent(new CustomEvent('session-record-trigger', { detail: { reason: `External Snipping Tool Overlay Detected` } }));
+        }
+      };
+
+      // Detect Minimizing / Tab Switching (Possible background screen recorder)
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === 'hidden') {
+           // They minimized the browser or switched tabs
+           window.dispatchEvent(new CustomEvent('session-record-trigger', { detail: { reason: `Browser Minimized or Tab Switched (Possible background recording)` } }));
+        }
+      };
+
+      // Intercept browser extension screen recorders
+      if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+        const originalGetDisplayMedia = navigator.mediaDevices.getDisplayMedia.bind(navigator.mediaDevices);
+        navigator.mediaDevices.getDisplayMedia = async (constraints) => {
+          window.dispatchEvent(new CustomEvent('session-record-trigger', { detail: { reason: `Browser Extension Screen Recording Started` } }));
+          return originalGetDisplayMedia(constraints);
+        };
+      }
+
+      window.addEventListener('keydown', handleKeyDown);
+      window.addEventListener('keyup', handleKeyUp);
+      window.addEventListener('blur', handleBlur);
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+      window.addEventListener('beforeunload', handleBeforeUnload);
+
+      // Cleanup
+      (window as any)._rrwebCleanup = () => {
+        window.removeEventListener('session-record-trigger', flushTriggeredEvents);
+        window.removeEventListener('keydown', handleKeyDown);
+        window.removeEventListener('keyup', handleKeyUp);
+        window.removeEventListener('blur', handleBlur);
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+        window.removeEventListener('beforeunload', handleBeforeUnload);
+        if (flushTimeout) clearTimeout(flushTimeout);
+      };
+
     } catch (err) {
       console.warn("Could not start rrweb recording", err);
     }
@@ -596,10 +726,11 @@ export default function IDEWorkspace() {
 
     return () => {
       clearInterval(treeInterval);
-      if (sessionFlushInterval) clearInterval(sessionFlushInterval);
-      window.removeEventListener('beforeunload', flushEvents);
-      flushEvents(); // Flush any remaining events on unmount
+      if (pruneInterval) clearInterval(pruneInterval);
       if (rrwebStopFn) rrwebStopFn();
+      handleBeforeUnload(); // force flush if unmounting while waiting
+      if ((window as any)._rrwebCleanup) (window as any)._rrwebCleanup();
+      window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, [projectId]);
 
@@ -719,7 +850,7 @@ export default function IDEWorkspace() {
         path: activeFile.path,
         content: activeFile.content
       });
-      setOpenFiles(prev => prev.map(f => 
+      setOpenFiles(prev => prev.map(f =>
         f.path === activeFile.path ? { ...f, originalContent: activeFile.content } : f
       ));
     } catch (err: any) {
@@ -763,7 +894,7 @@ export default function IDEWorkspace() {
       try {
         (navigator.clipboard as any).writeText = mockClipboard.writeText;
         (navigator.clipboard as any).readText = mockClipboard.readText;
-      } catch (e) {}
+      } catch (e) { }
     }
 
     // Apply to ALL roles (including admin), and immediately on mount.
@@ -773,12 +904,12 @@ export default function IDEWorkspace() {
       e.stopImmediatePropagation(); // Ensure no native OS clipboard access outside sandbox
 
       const target = e.target as HTMLElement;
-      
+
       // If we are copying/cutting, grab the active selection we've been tracking
       if (e.type === 'copy' || e.type === 'cut') {
         const termSel = (window as any).__currentTerminalSelection;
         const edSel = (window as any).__currentEditorSelection;
-        
+
         // Determine source based on where focus likely is, or which has selection
         if (target && target.closest('.terminal-container') && termSel) {
           (window as any).__internalClipboard = { text: termSel, source: 'terminal' };
@@ -788,7 +919,7 @@ export default function IDEWorkspace() {
             (window as any).__executeEditorCut();
           }
         }
-      } 
+      }
       // If we are pasting, check where we are pasting
       else if (e.type === 'paste') {
         const clip = (window as any).__internalClipboard;
@@ -802,7 +933,7 @@ export default function IDEWorkspace() {
           } else if ((window as any).__executeTerminalPaste) {
             (window as any).__executeTerminalPaste(clip.text);
           }
-        } 
+        }
         // Is it the editor? (Or context menu which implies editor since terminal context menu is native)
         else {
           if ((window as any).__executeEditorPaste) {
@@ -811,7 +942,7 @@ export default function IDEWorkspace() {
         }
       }
     };
-    
+
     // Use capture phase to intercept before Monaco handles it natively
     document.addEventListener('copy', blockEvent, true);
     document.addEventListener('cut', blockEvent, true);
@@ -821,7 +952,7 @@ export default function IDEWorkspace() {
       setAlertMessage("Pasting code from the file editor into the terminal is restricted.");
     };
     window.addEventListener('terminal-paste-restricted', handleRestrictedPaste);
-    
+
     return () => {
       document.removeEventListener('copy', blockEvent, true);
       document.removeEventListener('cut', blockEvent, true);
@@ -833,11 +964,19 @@ export default function IDEWorkspace() {
   const handleEditorMount = (editor: any, monaco: any) => {
     editorRef.current = editor;
     setIsEditorMounted(true);
-    
+
     // Always intercept copy/cut/paste and route them to __internalClipboard.
     // We do this for everyone (even admin) because we don't want code to leak
     // to the host OS clipboard, and userRole might be empty on initial mount.
     editor.onKeyDown((e: any) => {
+      // SECURITY TRIGGER: Mass Deletion via Backspace or Delete
+      if (e.keyCode === monaco.KeyCode.Backspace || e.keyCode === monaco.KeyCode.Delete) {
+        const selection = editor.getModel().getValueInRange(editor.getSelection());
+        if (selection && selection.length > 500) {
+           window.dispatchEvent(new CustomEvent('session-record-trigger', { detail: { reason: 'Massive code deletion in editor' } }));
+        }
+      }
+
       const isCtrlOrMeta = e.ctrlKey || e.metaKey;
       if (isCtrlOrMeta) {
         if (e.keyCode === monaco.KeyCode.KeyC) {
@@ -845,12 +984,18 @@ export default function IDEWorkspace() {
           e.stopPropagation();
           if (isViewer) return; // Block Ctrl+C for viewer
           const selection = editor.getModel().getValueInRange(editor.getSelection());
+          if (selection && selection.length > 500) {
+            window.dispatchEvent(new CustomEvent('session-record-trigger', { detail: { reason: 'Massive code copy from editor' } }));
+          }
           (window as any).__internalClipboard = { text: selection, source: 'editor' };
         } else if (e.keyCode === monaco.KeyCode.KeyX) {
           e.preventDefault();
           e.stopPropagation();
           if (isViewer) return; // Block Ctrl+X for viewer
           const selection = editor.getModel().getValueInRange(editor.getSelection());
+          if (selection && selection.length > 500) {
+            window.dispatchEvent(new CustomEvent('session-record-trigger', { detail: { reason: 'Massive code cut from editor' } }));
+          }
           (window as any).__internalClipboard = { text: selection, source: 'editor' };
           editor.executeEdits('cut', [{ range: editor.getSelection(), text: '' }]);
         } else if (e.keyCode === monaco.KeyCode.KeyV) {
@@ -859,6 +1004,9 @@ export default function IDEWorkspace() {
           if (isViewer) return; // Block Ctrl+V for viewer
           const clip = (window as any).__internalClipboard;
           if (clip && clip.text) {
+            if (clip.text.length > 500) {
+               window.dispatchEvent(new CustomEvent('session-record-trigger', { detail: { reason: 'Massive code paste in editor' } }));
+            }
             editor.executeEdits('paste', [{ range: editor.getSelection(), text: clip.text }]);
           }
         }
@@ -936,17 +1084,17 @@ export default function IDEWorkspace() {
 
     const yText = yDoc.getText('monaco');
 
-    const defaultWsUrl = typeof window !== 'undefined' 
+    const defaultWsUrl = typeof window !== 'undefined'
       ? `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`
       : 'ws://localhost:3001';
     let wsUrl = process.env.NEXT_PUBLIC_WS_URL || defaultWsUrl;
-    
+
     // Automatically upgrade to wss:// and remove port 3001 if served over https
     if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
       wsUrl = wsUrl.replace('ws://', 'wss://').replace('http://', 'https://').replace(':3001', '');
     }
     const yjsUrl = wsUrl.endsWith('/') ? `${wsUrl}yjs` : `${wsUrl}/yjs`;
-    
+
     // Unique room name per file
     const roomName = `room-${projectId || 'default'}-${activeFilePath}`;
 
@@ -963,7 +1111,7 @@ export default function IDEWorkspace() {
     };
     const username = userInfo?.username || 'Guest';
     const color = getHashColor(username);
-    
+
     if (!isViewer) {
       provider.awareness.setLocalStateField('user', {
         name: username,
@@ -1080,7 +1228,7 @@ export default function IDEWorkspace() {
 
   return (
     <div ref={containerRef} className="flex h-screen w-full bg-[#1e1e1e] text-[#cccccc] overflow-hidden font-sans select-none relative">
-      
+
       {/* Alert Modal */}
       {alertMessage && (
         <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/60 backdrop-blur-md transition-opacity duration-200">
@@ -1093,7 +1241,7 @@ export default function IDEWorkspace() {
             </div>
             <p className="text-gray-300 mb-8 pl-1 leading-relaxed text-[15px]">{alertMessage}</p>
             <div className="flex justify-end">
-              <button 
+              <button
                 onClick={() => setAlertMessage(null)}
                 className="bg-[#007fd4] hover:bg-[#006bb3] focus:ring-2 focus:ring-[#007fd4]/50 outline-none text-white px-5 py-2.5 rounded-md text-sm font-medium transition-all duration-150 ease-in-out"
               >
@@ -1116,13 +1264,13 @@ export default function IDEWorkspace() {
             </div>
             <p className="text-gray-300 mb-8 pl-1 leading-relaxed text-[15px]">{confirmDialog.message}</p>
             <div className="flex justify-end space-x-3">
-              <button 
+              <button
                 onClick={() => setConfirmDialog(null)}
                 className="bg-[#2d2d2d] hover:bg-[#3d3d3d] border border-[#4d4d4d] text-gray-200 px-5 py-2.5 rounded-md text-sm font-medium transition-all duration-150 ease-in-out outline-none"
               >
                 Cancel
               </button>
-              <button 
+              <button
                 onClick={() => {
                   confirmDialog.onConfirm();
                   setConfirmDialog(null);
@@ -1250,7 +1398,7 @@ export default function IDEWorkspace() {
 
       {/* Custom File Tree Context Menu */}
       {contextMenu && (
-        <div 
+        <div
           className="fixed z-[500] bg-[#252526] border border-[#454545] shadow-lg rounded py-1 min-w-[160px] text-[#cccccc] text-[13px] select-none"
           style={{ top: contextMenu.y, left: contextMenu.x }}
           onClick={(e) => e.stopPropagation()}
@@ -1273,7 +1421,7 @@ export default function IDEWorkspace() {
               <div className="px-4 py-1.5 hover:bg-[#094771] cursor-pointer flex justify-between group" onClick={() => handleContextMenuAction('cut')}>
                 <span>Cut</span><span className="text-[#888] group-hover:text-[#ccc]">Ctrl+X</span>
               </div>
-              <div 
+              <div
                 onClick={() => {
                   if (fileClipboard && fileClipboard.paths.length > 0 && (contextMenu.node.isDirectory || contextMenu.node.path === '')) handleContextMenuAction('paste');
                 }}
@@ -1288,7 +1436,7 @@ export default function IDEWorkspace() {
 
       {/* Custom Editor Context Menu */}
       {!isViewer && editorContextMenu && (
-        <div 
+        <div
           className="fixed z-[500] bg-[#252526] border border-[#454545] shadow-lg rounded py-1 min-w-[160px] text-[#cccccc] text-[13px] select-none"
           style={{ top: editorContextMenu.y, left: editorContextMenu.x }}
           onClick={(e) => {
@@ -1296,35 +1444,35 @@ export default function IDEWorkspace() {
             setEditorContextMenu(null);
           }}
         >
-          <div 
+          <div
             className="px-4 py-1.5 hover:bg-[#094771] cursor-pointer flex justify-between group"
             onClick={() => {
-               const edSel = (window as any).__currentEditorSelection;
-               if (edSel) (window as any).__internalClipboard = { text: edSel, source: 'editor' };
+              const edSel = (window as any).__currentEditorSelection;
+              if (edSel) (window as any).__internalClipboard = { text: edSel, source: 'editor' };
             }}
           >
             <span>Copy</span><span className="text-[#888] group-hover:text-[#ccc]">Ctrl+C</span>
           </div>
-          <div 
+          <div
             className="px-4 py-1.5 hover:bg-[#094771] cursor-pointer flex justify-between group"
             onClick={() => {
-               const edSel = (window as any).__currentEditorSelection;
-               if (edSel) {
-                 (window as any).__internalClipboard = { text: edSel, source: 'editor' };
-                 if ((window as any).__executeEditorCut) (window as any).__executeEditorCut();
-               }
+              const edSel = (window as any).__currentEditorSelection;
+              if (edSel) {
+                (window as any).__internalClipboard = { text: edSel, source: 'editor' };
+                if ((window as any).__executeEditorCut) (window as any).__executeEditorCut();
+              }
             }}
           >
             <span>Cut</span><span className="text-[#888] group-hover:text-[#ccc]">Ctrl+X</span>
           </div>
           <div className="h-[1px] bg-[#454545] my-1" />
-          <div 
+          <div
             className="px-4 py-1.5 hover:bg-[#094771] cursor-pointer flex justify-between group"
             onClick={() => {
-               const clip = (window as any).__internalClipboard;
-               if (clip && clip.text && (window as any).__executeEditorPaste) {
-                 (window as any).__executeEditorPaste(clip.text);
-               }
+              const clip = (window as any).__internalClipboard;
+              if (clip && clip.text && (window as any).__executeEditorPaste) {
+                (window as any).__executeEditorPaste(clip.text);
+              }
             }}
           >
             <span>Paste</span><span className="text-[#888] group-hover:text-[#ccc]">Ctrl+V</span>
@@ -1353,7 +1501,7 @@ export default function IDEWorkspace() {
                 </div>
                 <span className="text-[9px] text-slate-300 font-medium">Code</span>
               </div>
-              
+
               {/* Build */}
               <div className="flex flex-col items-center px-2 hover:bg-white/10 rounded transition-colors">
                 <div className={`w-4 h-4 rounded-full border flex items-center justify-center mb-0.5 transition-all ${pipelineStage === 'build' ? 'border-blue-400 shadow-[0_0_10px_rgba(96,165,250,0.7)]' : 'border-blue-400/40'} ${pipelineStage === 'build' && isPipelineRunning ? 'animate-spin' : ''}`}>
@@ -1361,7 +1509,7 @@ export default function IDEWorkspace() {
                 </div>
                 <span className="text-[9px] text-slate-300 font-medium">Build</span>
               </div>
-              
+
               {/* Test */}
               <div className="flex flex-col items-center px-2 hover:bg-white/10 rounded transition-colors">
                 <div className={`w-4 h-4 rounded-full border flex items-center justify-center mb-0.5 transition-all ${pipelineStage === 'test' ? 'border-purple-400 shadow-[0_0_10px_rgba(192,132,252,0.7)]' : 'border-purple-400/40'} ${pipelineStage === 'test' && isPipelineRunning ? 'animate-pulse' : ''}`}>
@@ -1369,7 +1517,7 @@ export default function IDEWorkspace() {
                 </div>
                 <span className="text-[9px] text-slate-300 font-medium">Test</span>
               </div>
-              
+
               {/* Deploy */}
               <div className="flex flex-col items-center px-2 hover:bg-white/10 rounded transition-colors">
                 <div className={`w-4 h-4 rounded-full border flex items-center justify-center mb-0.5 transition-all ${pipelineStage === 'deploy' ? 'border-pink-400 shadow-[0_0_10px_rgba(244,114,182,0.7)]' : 'border-pink-400/40'} ${pipelineStage === 'deploy' && isPipelineRunning ? 'animate-ping' : ''}`}>
@@ -1377,7 +1525,7 @@ export default function IDEWorkspace() {
                 </div>
                 <span className="text-[9px] text-slate-300 font-medium">Deploy</span>
               </div>
-              
+
               {/* Live */}
               <div className="flex flex-col items-center px-2 hover:bg-white/10 rounded transition-colors">
                 <div className={`w-4 h-4 rounded-full border flex items-center justify-center mb-0.5 transition-all ${pipelineStage === 'live' ? 'border-[#ff9800] shadow-[0_0_10px_rgba(255,152,0,0.7)]' : 'border-[#ff9800]/40'} ${pipelineStage === 'live' && isPipelineRunning ? 'animate-pulse' : ''}`}>
@@ -1387,11 +1535,11 @@ export default function IDEWorkspace() {
               </div>
             </div>
           )}
-          
+
           {/* Action Buttons */}
           <div className="flex items-center space-x-2 pointer-events-auto mt-1 mr-2">
             {!isViewer && (
-              <button 
+              <button
                 onClick={startPipeline}
                 disabled={isPipelineRunning}
                 className={`px-4 py-1.5 rounded text-white text-[12px] font-bold shadow-md transition-all ${isPipelineRunning ? 'bg-[#295ed9]/50 cursor-not-allowed' : 'bg-[#295ed9] hover:bg-[#346df0] active:scale-95'}`}
@@ -1399,7 +1547,7 @@ export default function IDEWorkspace() {
                 {isPipelineRunning ? 'pushing...' : 'code push'}
               </button>
             )}
-            <button 
+            <button
               onClick={() => {
                 setPipelineStage('live');
                 window.open('http://localhost:3000', '_blank');
@@ -1419,7 +1567,7 @@ export default function IDEWorkspace() {
           {/* Editor Tabs & Compare Bar */}
           <div className="flex bg-[#2d2d2d] h-[35px] border-b border-[#1e1e1e] flex-shrink-0 relative group pr-[280px]">
             {/* Left Scroll Arrow */}
-            <button 
+            <button
               onClick={() => scrollTabs('left')}
               className="px-1 hidden group-hover:flex items-center justify-center bg-[#2d2d2d]/90 hover:bg-[#4d4d4d] border-r border-[#1e1e1e] z-10"
               title="Scroll Tabs Left"
@@ -1428,7 +1576,7 @@ export default function IDEWorkspace() {
             </button>
 
             {/* Scrollable Tabs */}
-            <div 
+            <div
               ref={tabsContainerRef}
               className="flex-1 flex overflow-x-auto overflow-y-hidden scrollbar-hide no-scrollbar"
               style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
@@ -1462,7 +1610,7 @@ export default function IDEWorkspace() {
             {/* Fixed Right Elements (Scroll Arrow + Compare Icon) */}
             <div className="flex items-center h-full flex-shrink-0">
               {/* Right Scroll Arrow */}
-              <button 
+              <button
                 onClick={() => scrollTabs('right')}
                 className="px-1 hidden group-hover:flex items-center justify-center bg-[#2d2d2d]/90 hover:bg-[#4d4d4d] border-l border-[#1e1e1e] z-10 h-full"
                 title="Scroll Tabs Right"
@@ -1472,7 +1620,7 @@ export default function IDEWorkspace() {
 
               {/* Compare Icon */}
               {!isViewer && (
-                <div 
+                <div
                   className={`flex items-center justify-center px-3 border-l border-[#1e1e1e] h-full cursor-pointer transition-colors ${isDiffMode ? 'bg-[#ff9800] text-white' : 'bg-[#2d2d2d] text-[#969696] hover:bg-[#4d4d4d] hover:text-white'}`}
                   onClick={() => setIsDiffMode(!isDiffMode)}
                   title={isDiffMode ? "Exit Compare Mode" : "Compare"}
