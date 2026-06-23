@@ -55,8 +55,8 @@ export class MetricsService {
         cpuCores: 'count(node_cpu_seconds_total{mode="system"})',
         ramUsage: '100 * (1 - ((node_memory_MemFree_bytes + node_memory_Cached_bytes + node_memory_Buffers_bytes) / node_memory_MemTotal_bytes))',
         totalRam: 'node_memory_MemTotal_bytes',
-        diskTotal: 'sum(node_filesystem_size_bytes{fstype=~"ext4|xfs|btrfs|overlay", mountpoint="/"})',
-        diskFree: 'sum(node_filesystem_avail_bytes{fstype=~"ext4|xfs|btrfs|overlay", mountpoint="/"})',
+        diskTotal: 'sum(node_filesystem_size_bytes{fstype=~"ext4|xfs|btrfs", mountpoint=~"/|/rootfs"})',
+        diskFree: 'sum(node_filesystem_avail_bytes{fstype=~"ext4|xfs|btrfs", mountpoint=~"/|/rootfs"})',
         networkTraffic: 'sum(rate(node_network_receive_bytes_total{device!~"lo|docker.*|veth.*|wg.*"}[1m])) + sum(rate(node_network_transmit_bytes_total{device!~"lo|docker.*|veth.*|wg.*"}[1m]))',
         // Container specific metrics using raw systemd IDs
         containerCpu: 'sum(rate(container_cpu_usage_seconds_total{id=~"/system.slice/docker-.*"}[1m])) by (id) * 100',
@@ -105,18 +105,6 @@ export class MetricsService {
       });
 
       await Promise.all(promises);
-
-      // Override disk stats using df for foolproof accurate Azure VM root overlay space
-      try {
-        const dfOut = require('child_process').execSync('df -B1 / | tail -n 1').toString();
-        const parts = dfOut.trim().split(/\\s+/);
-        if (parts.length >= 4) {
-          results.diskTotal = parseInt(parts[1], 10);
-          results.diskFree = parseInt(parts[3], 10);
-        }
-      } catch (err: any) {
-        this.logger.warn(`Native disk stats failed: ${err.message}`);
-      }
 
       // Extract and format container lists
       const containerCpu = results.containerCpu || [];
