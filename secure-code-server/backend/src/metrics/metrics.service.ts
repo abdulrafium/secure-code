@@ -54,11 +54,11 @@ export class MetricsService {
         cpuCores: 'count(node_cpu_seconds_total{mode="system"})',
         ramUsage: '100 * (1 - ((node_memory_MemFree_bytes + node_memory_Cached_bytes + node_memory_Buffers_bytes) / node_memory_MemTotal_bytes))',
         totalRam: 'node_memory_MemTotal_bytes',
-        networkTraffic: 'sum(rate(node_network_receive_bytes_total{device!~"lo|docker.*|veth.*|wg.*"}[15s])) + sum(rate(node_network_transmit_bytes_total{device!~"lo|docker.*|veth.*|wg.*"}[15s]))',
+        networkTraffic: 'sum(rate(node_network_receive_bytes_total{device!~"lo|docker.*|veth.*|wg.*"}[1m])) + sum(rate(node_network_transmit_bytes_total{device!~"lo|docker.*|veth.*|wg.*"}[1m]))',
         // Container specific metrics using raw systemd IDs
-        containerCpu: 'sum(rate(container_cpu_usage_seconds_total{id=~"/system.slice/docker-.*"}[15s])) by (id) * 100',
+        containerCpu: 'sum(rate(container_cpu_usage_seconds_total{id=~"/system.slice/docker-.*"}[1m])) by (id) * 100',
         containerRam: 'sum(container_memory_usage_bytes{id=~"/system.slice/docker-.*"}) by (id)',
-        containerNetwork: 'sum(rate(container_network_receive_bytes_total{id=~"/system.slice/docker-.*"}[15s]) + rate(container_network_transmit_bytes_total{id=~"/system.slice/docker-.*"}[15s])) by (id)'
+        containerNetwork: 'sum(rate(container_network_receive_bytes_total{id=~"/system.slice/docker-.*"}[1m]) + rate(container_network_transmit_bytes_total{id=~"/system.slice/docker-.*"}[1m])) by (id)'
       };
 
       const results: any = {};
