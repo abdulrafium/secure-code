@@ -53,9 +53,15 @@ export default function UsersPage() {
     }, []);
 
     const handleSubmit = async () => {
+        const ipRegex = /^10\.8\.0\.([1-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$/;
+        if (!ipRegex.test(createAllowIp)) {
+            showToast('Invalid IP Format. Must be a WireGuard IP (e.g., 10.8.0.2)', 'error');
+            return;
+        }
+
         if (modalMode === 'edit') {
-            if (!createUsername || !createRole || !createStatus) {
-                showToast('Please fill out username, role, and status', 'error');
+            if (!createUsername || !createRole || !createStatus || !createAllowIp) {
+                showToast('Please fill out username, role, status, and Allow IP', 'error');
                 return;
             }
             setIsSubmitting(true);
@@ -77,8 +83,8 @@ export default function UsersPage() {
             return;
         }
 
-        if (!createUsername || !createPassword || !createRole || !createStatus) {
-            showToast('Please fill out username, password, role, and status', 'error');
+        if (!createUsername || !createPassword || !createRole || !createStatus || !createAllowIp) {
+            showToast('Please fill out username, password, role, status, and Allow IP', 'error');
             return;
         }
 
@@ -187,7 +193,8 @@ export default function UsersPage() {
     };
 
     const isPasswordValid = modalMode === 'edit' || (passwordCriteria.length && passwordCriteria.lower && passwordCriteria.upper && passwordCriteria.number && passwordCriteria.special);
-    const isFormValid = createUsername && createRole && createStatus && (modalMode === 'edit' || (createPassword && isPasswordValid));
+    const ipRegex = /^10\.8\.0\.([1-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$/;
+    const isFormValid = createUsername && createRole && createStatus && createAllowIp && ipRegex.test(createAllowIp) && (modalMode === 'edit' || (createPassword && isPasswordValid));
 
     return (
         <div className="min-h-screen bg-[#050810] text-slate-200 font-sans">
@@ -517,8 +524,19 @@ export default function UsersPage() {
                                 <input
                                     type="text"
                                     value={createAllowIp}
-                                    onChange={(e) => setCreateAllowIp(e.target.value)}
-                                    placeholder="Allow IP"
+                                    onChange={(e) => {
+                                        let val = e.target.value;
+                                        // Auto-prefix 10.8.0. if they start typing a number directly
+                                        if (val.length > 0 && !val.startsWith('10.8.0.')) {
+                                            if (val.startsWith('10')) {
+                                                // Let them type it manually if they know what they are doing
+                                            } else {
+                                                val = '10.8.0.' + val.replace(/[^0-9]/g, '');
+                                            }
+                                        }
+                                        setCreateAllowIp(val);
+                                    }}
+                                    placeholder="Allow IP (e.g. 10.8.0.2) *"
                                     className="w-full bg-[#050810] border border-slate-800/60 rounded-xl px-4 py-3.5 text-[14px] text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 focus:bg-[#070b14] transition-all shadow-inner"
                                 />
                             </div>

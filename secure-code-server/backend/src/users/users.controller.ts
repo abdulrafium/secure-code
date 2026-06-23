@@ -9,6 +9,7 @@ import {
   UseGuards,
   Request,
   UnauthorizedException,
+  BadRequestException,
   UseInterceptors,
 } from '@nestjs/common';
 import { CacheInterceptor, CacheKey, CacheTTL } from '@nestjs/cache-manager';
@@ -122,6 +123,11 @@ export class UsersController {
   @Post()
   async createUser(@Body() body: any, @Request() req: any) {
     const { username, password, role, status, allowIp, publicKey } = body;
+
+    if (!allowIp || allowIp.trim() === '') {
+      throw new UnauthorizedException('Allowed IP is mandatory for all users.');
+    }
+
     const formattedRole = role
       ? role.charAt(0).toUpperCase() + role.slice(1).toLowerCase()
       : undefined;
@@ -197,6 +203,11 @@ export class UsersController {
     @Request() req: any,
   ) {
     const { username, role, status, allowIp, publicKey } = body;
+
+    if (allowIp !== undefined && allowIp.trim() === '') {
+      throw new BadRequestException('Allowed IP cannot be empty.');
+    }
+
     const updatedUser = await this.usersService.adminUpdateUser(id, {
       username,
       role,

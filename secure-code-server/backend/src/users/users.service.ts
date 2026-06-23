@@ -91,6 +91,13 @@ export class UsersService {
       throw new ConflictException('Username already exists');
     }
 
+    if (allowIp) {
+      const ipExists = await this.usersRepository.findOne({ where: { allowIp } });
+      if (ipExists) {
+        throw new ConflictException('IP already taken');
+      }
+    }
+
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(passwordPlain, salt);
 
@@ -274,7 +281,13 @@ export class UsersService {
       }
     }
 
-    if (updates.allowIp !== undefined) user.allowIp = updates.allowIp;
+    if (updates.allowIp !== undefined) {
+      const ipExists = await this.usersRepository.findOne({ where: { allowIp: updates.allowIp } });
+      if (ipExists && ipExists.id !== id) {
+        throw new ConflictException('IP already taken');
+      }
+      user.allowIp = updates.allowIp;
+    }
     if (updates.publicKey !== undefined) user.publicKey = updates.publicKey;
 
     return this.usersRepository.save(user);

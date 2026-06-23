@@ -27,5 +27,9 @@ jobs:
             # Stop the current running containers safely
             sudo docker-compose down
             
+            # Export the WG_HOST automatically so WireGuard knows the server's public IP
+            export WG_HOST=${{ secrets.SERVER_IP }}
+            export WG_PASSWORD=securecodeadmin
+            
             # Rebuild and start the containers in the background
-            sudo docker-compose up --build -d
+            sudo -E docker-compose up --build -d
