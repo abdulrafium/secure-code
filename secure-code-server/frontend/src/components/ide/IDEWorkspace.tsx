@@ -68,6 +68,8 @@ export default function IDEWorkspace() {
   const [activeFolderPath, setActiveFolderPath] = useState<string>('');
   const [refreshToggle, setRefreshToggle] = useState<number>(0);
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
+  const [fileErrors, setFileErrors] = useState<Record<string, boolean>>({});
+  const hasWorkspaceErrors = Object.values(fileErrors).some(v => v);
 
   const [showCommitModal, setShowCommitModal] = useState(false);
   const [commitMessage, setCommitMessage] = useState('');
@@ -998,6 +1000,10 @@ export default function IDEWorkspace() {
 
   const handleEditorMount = (editor: any, monaco: any) => {
     editorRef.current = editor;
+
+    // Optional: Log validation markers (syntax errors) locally
+    // The actual onValidate event handles our global state.
+
     setIsEditorMounted(true);
 
     // Always intercept copy/cut/paste and route them to __internalClipboard.
@@ -1436,6 +1442,7 @@ export default function IDEWorkspace() {
             onRenameCommit={handleRenameCommit}
             onRenameCancel={handleRenameCancel}
             expandPath={activeFilePath}
+            fileErrors={fileErrors}
           />
         </div>
       </div>
@@ -1637,7 +1644,7 @@ export default function IDEWorkspace() {
                     }}
                     className={`flex items-center px-3 h-full cursor-pointer group border-r border-[#1e1e1e] flex-shrink-0 min-w-fit ${activeNodePaths.has(file.path) ? 'bg-[#1e1e1e] text-white border-t border-t-blue-500' : 'bg-[#2d2d2d] text-[#969696] hover:bg-[#2b2b2b]'}`}
                   >
-                    <span className="text-[13px] mr-2">{file.name}</span>
+                    <span className={`text-[13px] mr-2 ${fileErrors[file.path] ? 'text-red-500' : ''}`}>{file.name}</span>
                     {file.content !== file.originalContent && (
                       <div className="w-2 h-2 rounded-full bg-white mr-2" title="Unsaved changes" />
                     )}
@@ -1704,6 +1711,15 @@ export default function IDEWorkspace() {
                   defaultValue={activeFile.content}
                   onChange={handleEditorChange}
                   onMount={handleEditorMount}
+                  onValidate={(markers) => {
+                    const hasError = markers.some(m => m.severity === 8); // 8 is Monaco's severity enum for Error
+                    setFileErrors(prev => {
+                      if (!!prev[activeFile.path] !== hasError) {
+                        return { ...prev, [activeFile.path]: hasError };
+                      }
+                      return prev;
+                    });
+                  }}
                   options={{ ...EDITOR_OPTIONS, readOnly: isViewer }}
                 />
               )
@@ -1752,7 +1768,7 @@ export default function IDEWorkspace() {
                   <div className="w-full h-full relative">
                     {terminals.map(term => (
                       <div key={term.id} className="w-full h-full absolute inset-0 p-2" style={{ visibility: term.active ? 'visible' : 'hidden', pointerEvents: term.active ? 'auto' : 'none' }}>
-                        {accessToken && <TerminalPane projectId={projectId} isViewer={isViewer} accessToken={accessToken} />}
+                        {accessToken && <TerminalPane projectId={projectId} isViewer={isViewer} accessToken={accessToken} hasWorkspaceErrors={hasWorkspaceErrors} />}
                       </div>
                     ))}
                   </div>

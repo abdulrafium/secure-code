@@ -50,6 +50,7 @@ interface FileTreeProps {
   onRenameCommit?: (oldPath: string, newName: string) => void;
   onRenameCancel?: () => void;
   expandPath?: string | null;
+  fileErrors?: Record<string, boolean>;
 }
 
 const getFileIcon = (fileName: string) => {
@@ -118,7 +119,8 @@ export default function FileTree({
   setShowNewItemInput, currentPath = '',
   globalExpandedNodes, setGlobalExpandedNodes,
   globalLoadedChildren, setGlobalLoadedChildren, onContextMenu,
-  renamingNodePath, onRenameCommit, onRenameCancel, expandPath
+  renamingNodePath, onRenameCommit, onRenameCancel, expandPath,
+  fileErrors = {}
 }: FileTreeProps) {
 
   // Create state only at the root level, otherwise use passed-down state
@@ -306,6 +308,11 @@ export default function FileTree({
     }
   };
 
+  // ── Helper: Check if folder contains any errors ──────────────────────────────
+  const hasErrorInChildren = (folderPath: string) => {
+    return Object.keys(fileErrors).some(path => fileErrors[path] && path.startsWith(folderPath + '/'));
+  };
+
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col w-full">
@@ -400,7 +407,9 @@ export default function FileTree({
                   className="bg-[#3c3c3c] text-white border border-[#007fd4] text-[13px] px-1 py-0 w-full outline-none"
                 />
               ) : (
-                <span className="truncate text-[13px]">{node.name}</span>
+                <span className={`truncate text-[13px] ${node.isDirectory ? (hasErrorInChildren(node.path) ? 'text-red-400' : '') : (fileErrors[node.path] ? 'text-red-400' : '')}`}>
+                  {node.name}
+                </span>
               )}
             </div>
 
@@ -430,6 +439,7 @@ export default function FileTree({
                 onRenameCommit={onRenameCommit}
                 onRenameCancel={onRenameCancel}
                 expandPath={expandPath}
+                fileErrors={fileErrors}
               />
             )}
           </div>

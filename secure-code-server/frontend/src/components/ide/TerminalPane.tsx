@@ -4,7 +4,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { io, Socket } from 'socket.io-client';
 import '@xterm/xterm/css/xterm.css';
 
-export default function TerminalPane({ projectId, isViewer, accessToken }: { projectId?: string | null, isViewer?: boolean, accessToken?: string }) {
+export default function TerminalPane({ projectId, isViewer, accessToken, hasWorkspaceErrors = false }: { projectId?: string | null, isViewer?: boolean, accessToken?: string, hasWorkspaceErrors?: boolean }) {
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -116,6 +116,14 @@ export default function TerminalPane({ projectId, isViewer, accessToken }: { pro
 
         if (data === '\r' || data === '\n') {
           const cmd = localBuffer.trim();
+          
+          const isRunCommand = cmd.startsWith('npm') || cmd.startsWith('yarn') || cmd.startsWith('node') || cmd.startsWith('python') || cmd.startsWith('go run') || cmd.startsWith('./');
+          if (hasWorkspaceErrors && isRunCommand) {
+            term.write('\r\n\x1b[31;1m[IDE Error] Cannot execute command. Please fix the syntax errors in your files (marked in red) before running the project.\x1b[0m\r\n');
+            localBuffer = '';
+            return; // Block command execution
+          }
+
           if (cmd.startsWith('npm run dev') || cmd.startsWith('npm start') || cmd.startsWith('yarn dev') || cmd.startsWith('yarn start')) {
             window.dispatchEvent(new CustomEvent('pipeline-state-change', { detail: 'build' }));
             setTimeout(() => {
