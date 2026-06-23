@@ -146,7 +146,7 @@ export class EditorService {
         const nodes: any[] = [];
 
         for (const item of items) {
-          if (item.name === '.git' || item.name === 'node_modules') continue;
+          if (item.name === '.git') continue;
 
           const nodePath = path.join(relativeDir, item.name);
           const fullItemPath = path.join(currentPath, item.name);

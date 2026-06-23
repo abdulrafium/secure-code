@@ -1600,7 +1600,7 @@ export default function IDEWorkspace() {
             <button
               onClick={() => {
                 setPipelineStage('live');
-                window.open('https://' + window.location.hostname + ':4000', '_blank');
+                window.open('https://' + window.location.hostname + ':3000', '_blank');
               }}
               className="px-4 py-1.5 rounded text-white text-[12px] font-bold shadow-md transition-transform bg-[#295ed9] hover:bg-[#346df0] active:scale-95"
             >
