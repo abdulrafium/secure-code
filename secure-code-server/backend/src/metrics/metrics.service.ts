@@ -54,8 +54,8 @@ export class MetricsService {
         cpuCores: 'count(node_cpu_seconds_total{mode="system"})',
         ramUsage: '100 * (1 - ((node_memory_MemFree_bytes + node_memory_Cached_bytes + node_memory_Buffers_bytes) / node_memory_MemTotal_bytes))',
         totalRam: 'node_memory_MemTotal_bytes',
-        diskTotal: 'sum(node_filesystem_size_bytes{fstype=~"ext4|xfs|btrfs", mountpoint="/"})',
-        diskFree: 'sum(node_filesystem_avail_bytes{fstype=~"ext4|xfs|btrfs", mountpoint="/"})',
+        diskTotal: 'sum(node_filesystem_size_bytes{fstype=~"ext4|xfs|btrfs|overlay", mountpoint="/"})',
+        diskFree: 'sum(node_filesystem_avail_bytes{fstype=~"ext4|xfs|btrfs|overlay", mountpoint="/"})',
         networkTraffic: 'sum(rate(node_network_receive_bytes_total{device!~"lo|docker.*|veth.*|wg.*"}[1m])) + sum(rate(node_network_transmit_bytes_total{device!~"lo|docker.*|veth.*|wg.*"}[1m]))',
         // Container specific metrics using raw systemd IDs
         containerCpu: 'sum(rate(container_cpu_usage_seconds_total{id=~"/system.slice/docker-.*"}[1m])) by (id) * 100',

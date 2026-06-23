@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Save, Settings, Shield, Terminal, Globe, AlertTriangle, RefreshCcw, Bell } from 'lucide-react';
+import { Save, Settings, Shield, Terminal, Globe, AlertTriangle, RefreshCcw, Bell, HardDrive, Trash2, Check, X } from 'lucide-react';
 import AdminHeader from '../../../components/AdminHeader';
 import { api } from '../../../lib/api';
 
@@ -16,6 +16,71 @@ export default function SystemSettingsPage() {
     const [blockedCommands, setBlockedCommands] = useState("");
     const [systemMessage, setSystemMessage] = useState("");
     const [showSystemMessage, setShowSystemMessage] = useState(false);
+
+    // Storage States
+    const [diskMetrics, setDiskMetrics] = useState({ total: 0, free: 0 });
+    const [showStorageModal, setShowStorageModal] = useState(false);
+    const [isClearing, setIsClearing] = useState(false);
+    const [clearProgress, setClearProgress] = useState(0);
+    const [clearComplete, setClearComplete] = useState(false);
+
+    useEffect(() => {
+        const token = localStorage.getItem('token');
+        if (token) {
+            const eventSource = new EventSource(`/api/system/metrics/stream?token=${token}`);
+            eventSource.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.diskTotal && data.diskFree) {
+                        setDiskMetrics({
+                            total: data.diskTotal,
+                            free: data.diskFree
+                        });
+                    }
+                } catch (err) {}
+            };
+            return () => {
+                eventSource.close();
+            };
+        }
+    }, []);
+
+    const handleClearStorage = async () => {
+        setIsClearing(true);
+        setClearProgress(1);
+        
+        const interval = setInterval(() => {
+            setClearProgress(prev => {
+                if (prev >= 95) return 95;
+                return prev + Math.floor(Math.random() * 5) + 1;
+            });
+        }, 300);
+
+        try {
+            await api.post('/settings/clear-storage', {});
+            
+            clearInterval(interval);
+            setClearProgress(100);
+            
+            setTimeout(() => {
+                setClearComplete(true);
+                setIsClearing(false);
+            }, 500);
+
+        } catch (err) {
+            clearInterval(interval);
+            setIsClearing(false);
+            setShowStorageModal(false);
+        }
+    };
+
+    const formatBytes = (bytes: number) => {
+        if (!bytes || bytes === 0) return '0 GB';
+        return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
+    };
+
+    const usedBytes = Math.max(0, diskMetrics.total - diskMetrics.free);
+    const usedPercent = diskMetrics.total ? Math.round((usedBytes / diskMetrics.total) * 100) : 0;
 
     useEffect(() => {
         const fetchSettings = async () => {
@@ -97,6 +162,40 @@ export default function SystemSettingsPage() {
                     </div>
                 ) : (
                     <div className="space-y-6">
+
+                        {/* Storage Section */}
+                        <div className="bg-[#0b1121] border border-slate-800 rounded-xl overflow-hidden relative shadow-lg">
+                            {/* Glowing Background Accent */}
+                            <div className="absolute -top-20 -right-20 w-40 h-40 bg-blue-600/10 rounded-full blur-[50px] pointer-events-none" />
+                            
+                            <div className="px-6 py-4 border-b border-slate-800 bg-[#080d1a] flex items-center space-x-3">
+                                <HardDrive className="w-5 h-5 text-blue-400" />
+                                <h2 className="text-lg font-medium text-slate-200">System Storage</h2>
+                            </div>
+                            <div className="p-6">
+                                <div className="flex justify-between items-end mb-2">
+                                    <span className="text-[28px] font-bold text-white">{formatBytes(usedBytes)} <span className="text-[14px] font-normal text-slate-500">used</span></span>
+                                    <span className="text-[14px] text-slate-400 font-medium">{formatBytes(diskMetrics.total)} total</span>
+                                </div>
+
+                                {/* Progress Bar */}
+                                <div className="w-full h-3 bg-[#050810] rounded-full overflow-hidden border border-slate-800/80 mb-6 shadow-inner relative">
+                                    <div 
+                                        className={`absolute top-0 left-0 h-full transition-all duration-1000 ease-out ${usedPercent > 80 ? 'bg-red-500 shadow-[0_0_15px_rgba(239,68,68,0.5)]' : 'bg-blue-500 shadow-[0_0_15px_rgba(37,99,235,0.4)]'}`}
+                                        style={{ width: `${Math.max(2, usedPercent)}%` }}
+                                    />
+                                </div>
+
+                                <button
+                                    onClick={() => setShowStorageModal(true)}
+                                    className="px-6 py-3 bg-[#050810] hover:bg-[#0a0f1c] border border-red-500/20 hover:border-red-500/50 text-slate-200 font-medium rounded-xl transition-all flex items-center justify-center space-x-2 active:scale-[0.98] shadow-[0_0_15px_rgba(239,68,68,0.05)] w-full sm:w-auto"
+                                >
+                                    <Trash2 className="w-4 h-4 text-red-400" />
+                                    <span className="text-[14px]">Clear Storage Cache</span>
+                                </button>
+                            </div>
+                        </div>
+
                         {/* Security Section */}
                         <div className="bg-[#0b1121] border border-slate-800 rounded-xl overflow-hidden">
                             <div className="px-6 py-4 border-b border-slate-800 bg-[#080d1a] flex items-center space-x-3">
@@ -180,6 +279,94 @@ export default function SystemSettingsPage() {
                             </div>
                         </div>
 
+                    </div>
+                )}
+
+                {/* Storage Clear Modal */}
+                {showStorageModal && (
+                    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm transition-all duration-300">
+                        <div className="w-full max-w-[420px] p-8 mx-4 bg-[#0a0f1c]/95 border border-slate-800/80 rounded-[2rem] shadow-[0_0_50px_rgba(0,0,0,0.8)] relative flex flex-col items-center">
+                            
+                            {!isClearing && !clearComplete && (
+                                <button
+                                    onClick={() => setShowStorageModal(false)}
+                                    className="absolute top-6 right-6 text-slate-500 hover:text-slate-300 transition-colors focus:outline-none"
+                                >
+                                    <X className="w-6 h-6" />
+                                </button>
+                            )}
+
+                            <div className={`w-[4rem] h-[4rem] mt-2 mb-6 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(239,68,68,0.15)] border ${clearComplete ? 'bg-emerald-500/20 border-emerald-500/30 shadow-[0_0_30px_rgba(16,185,129,0.15)]' : 'bg-[#1a0f12] border-red-500/20'}`}>
+                                {clearComplete ? (
+                                    <Check className="w-7 h-7 text-emerald-500" strokeWidth={2.5} />
+                                ) : (
+                                    <Trash2 className="w-7 h-7 text-red-500" strokeWidth={2} />
+                                )}
+                            </div>
+
+                            <h2 className="text-[20px] font-bold text-white mb-3 tracking-wide text-center">
+                                {clearComplete ? 'Storage Cleared!' : 'Clear System Storage?'}
+                            </h2>
+                            
+                            {!isClearing && !clearComplete && (
+                                <>
+                                    <p className="text-[14px] text-slate-400 text-center mb-8 leading-relaxed">
+                                        This will safely clear your unused system cache, dangling images, and <span className="text-white font-medium">not running</span> containers. 
+                                        <br/><br/>
+                                        <span className="text-blue-400 bg-blue-500/10 border border-blue-500/20 px-3 py-1.5 rounded-lg text-[13px] block mt-2 shadow-[0_0_15px_rgba(37,99,235,0.1)]">Active developer workspaces and data will not be deleted.</span>
+                                    </p>
+                                    <div className="flex space-x-3 w-full">
+                                        <button
+                                            onClick={() => setShowStorageModal(false)}
+                                            className="flex-1 py-3.5 bg-[#0f172a] hover:bg-slate-800 border border-slate-700/50 text-white font-medium rounded-xl transition-all active:scale-[0.98]"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            onClick={handleClearStorage}
+                                            className="flex-1 py-3.5 bg-red-600 hover:bg-red-500 text-white font-medium rounded-xl transition-all shadow-[0_0_20px_rgba(239,68,68,0.3)] active:scale-[0.98]"
+                                        >
+                                            Yes, Clear
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+
+                            {(isClearing || clearComplete) && (
+                                <div className="w-full flex flex-col items-center mt-2">
+                                    <div className="w-full h-3 bg-[#050810] rounded-full overflow-hidden border border-slate-800/80 mb-4 shadow-inner relative">
+                                        <div 
+                                            className={`absolute top-0 left-0 h-full ${clearComplete ? 'bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.6)]' : 'bg-gradient-to-r from-blue-600 to-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.6)]'} transition-all duration-300 ease-linear`}
+                                            style={{ width: `${clearProgress}%` }}
+                                        >
+                                            {!clearComplete && (
+                                                <div className="absolute top-0 left-0 right-0 bottom-0 bg-white/20 animate-pulse" />
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-between w-full mb-8">
+                                        <span className={`text-[13px] font-medium ${clearComplete ? 'text-emerald-400' : 'text-blue-400 animate-pulse'}`}>
+                                            {clearComplete ? 'Optimization complete' : 'Clearing cache...'}
+                                        </span>
+                                        <span className="text-[13px] font-bold text-white">{clearProgress}%</span>
+                                    </div>
+
+                                    {clearComplete && (
+                                        <button
+                                            onClick={() => {
+                                                setShowStorageModal(false);
+                                                setClearComplete(false);
+                                                setClearProgress(0);
+                                            }}
+                                            className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-xl transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] active:scale-[0.98]"
+                                        >
+                                            OK
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+
+                        </div>
                     </div>
                 )}
             </div>
