@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { LogsService } from '../logs/logs.service';
+import * as http from 'http';
 
 @Injectable()
 export class MetricsService {
@@ -16,6 +17,35 @@ export class MetricsService {
     private readonly logsService: LogsService
   ) {}
 
+  private async getContainerNamesMap(): Promise<Record<string, string>> {
+    return new Promise((resolve) => {
+      const req = http.request({
+        socketPath: '/var/run/docker.sock',
+        path: '/containers/json',
+        method: 'GET'
+      }, (res) => {
+        let data = '';
+        res.on('data', chunk => data += chunk);
+        res.on('end', () => {
+          try {
+            const containers = JSON.parse(data);
+            const map: Record<string, string> = {};
+            containers.forEach((c: any) => {
+              if (c.Id && c.Names && c.Names.length > 0) {
+                map[c.Id] = c.Names[0].replace(/^\//, '');
+              }
+            });
+            resolve(map);
+          } catch (err) {
+            resolve({});
+          }
+        });
+      });
+      req.on('error', () => resolve({}));
+      req.end();
+    });
+  }
+
   async getMetrics() {
     try {
       // Queries for host metrics
@@ -25,13 +55,14 @@ export class MetricsService {
         ramUsage: '100 * (1 - ((node_memory_MemFree_bytes + node_memory_Cached_bytes + node_memory_Buffers_bytes) / node_memory_MemTotal_bytes))',
         totalRam: 'node_memory_MemTotal_bytes',
         networkTraffic: 'sum(rate(node_network_receive_bytes_total{device!~"lo|docker.*|veth.*|wg.*"}[15s])) + sum(rate(node_network_transmit_bytes_total{device!~"lo|docker.*|veth.*|wg.*"}[15s]))',
-        // Container specific metrics using Docker Compose labels
-        containerCpu: 'sum(rate(container_cpu_usage_seconds_total{container_label_com_docker_compose_service!=""}[15s])) by (container_label_com_docker_compose_service) * 100',
-        containerRam: 'sum(container_memory_usage_bytes{container_label_com_docker_compose_service!=""}) by (container_label_com_docker_compose_service)',
-        containerNetwork: 'sum(rate(container_network_receive_bytes_total{container_label_com_docker_compose_service!=""}[15s]) + rate(container_network_transmit_bytes_total{container_label_com_docker_compose_service!=""}[15s])) by (container_label_com_docker_compose_service)'
+        // Container specific metrics using raw systemd IDs
+        containerCpu: 'sum(rate(container_cpu_usage_seconds_total{id=~"/system.slice/docker-.*"}[15s])) by (id) * 100',
+        containerRam: 'sum(container_memory_usage_bytes{id=~"/system.slice/docker-.*"}) by (id)',
+        containerNetwork: 'sum(rate(container_network_receive_bytes_total{id=~"/system.slice/docker-.*"}[15s]) + rate(container_network_transmit_bytes_total{id=~"/system.slice/docker-.*"}[15s])) by (id)'
       };
 
       const results: any = {};
+      const containerNamesMap = await this.getContainerNamesMap();
       
       const promises = Object.entries(queries).map(async ([key, query]) => {
         try {
@@ -41,10 +72,17 @@ export class MetricsService {
           if (response.data?.data?.result && response.data.data.result.length > 0) {
             if (key.startsWith('container')) {
               // Parse array of vectors for container metrics
-              results[key] = response.data.data.result.map((r: any) => ({
-                name: r.metric.container_label_com_docker_compose_service || r.metric.name || 'unknown',
-                value: parseFloat(r.value[1])
-              })).sort((a: any, b: any) => b.value - a.value); // Sort descending
+              results[key] = response.data.data.result.map((r: any) => {
+                let name = r.metric.id || 'unknown';
+                const match = name.match(/docker-([a-f0-9]{64})\.scope/);
+                if (match && containerNamesMap[match[1]]) {
+                  name = containerNamesMap[match[1]];
+                }
+                return {
+                  name,
+                  value: parseFloat(r.value[1])
+                };
+              }).sort((a: any, b: any) => b.value - a.value); // Sort descending
             } else {
               // Single scalar for host metrics
               results[key] = parseFloat(response.data.data.result[0].value[1]);
