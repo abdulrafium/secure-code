@@ -148,8 +148,7 @@ export default function AdminDashboard() {
         
         eventSource.onmessage = (event) => {
             try {
-                const data = JSON.parse(event.data);
-                const metrics = data.data;
+                const metrics = JSON.parse(event.data);
                 
                 setCurrentMetrics({
                     cpuUsage: metrics.cpuUsage || 0,
@@ -158,6 +157,7 @@ export default function AdminDashboard() {
                     totalRam: metrics.totalRam || 0,
                     networkTraffic: metrics.networkTraffic || 0,
                     responseTime: metrics.responseTime || 0,
+                    error: metrics.error || null,
                 });
 
                 setMetricsData(prev => ({
