@@ -129,6 +129,30 @@ export class ProjectsService {
     return project;
   }
 
+  async recalculateStorage(id: string): Promise<Project> {
+    const project = await this.projectsRepository.findOne({ where: { id } });
+    if (!project) throw new NotFoundException('Project not found');
+
+    const safeName = project.name.replace(/[^a-zA-Z0-9-_\\.]/g, '_');
+    const workspacesDir = process.env.WORKSPACES_DIR || path.resolve(process.cwd(), '..', 'workspaces');
+    let projectDir = path.join(workspacesDir, safeName);
+    
+    // Fallback to ID directory if name directory doesn't exist (older format)
+    if (!fs.existsSync(projectDir)) {
+      const oldProjectDir = path.join(workspacesDir, id);
+      if (fs.existsSync(oldProjectDir)) {
+        projectDir = oldProjectDir;
+      }
+    }
+
+    if (fs.existsSync(projectDir)) {
+      const sizeBytes = await this.calculateDirectorySize(projectDir);
+      project.storageBytes = sizeBytes;
+      await this.projectsRepository.save(project);
+    }
+    return project;
+  }
+
   async remove(id: string): Promise<void> {
     const project = await this.projectsRepository.findOne({ where: { id } });
     if (!project) throw new NotFoundException('Project not found');

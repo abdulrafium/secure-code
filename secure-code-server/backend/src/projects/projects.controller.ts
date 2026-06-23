@@ -95,6 +95,11 @@ export class ProjectsController {
     return this.projectsService.update(id, name, allowedCommands, allowedFiles);
   }
 
+  @Patch(':id/recalculate-storage')
+  async recalculateStorage(@Param('id') id: string) {
+    return this.projectsService.recalculateStorage(id);
+  }
+
   @Post(':id/import')
   @UseInterceptors(FileInterceptor('file'))
   async importZip(@Param('id') id: string, @UploadedFile() file: any) {

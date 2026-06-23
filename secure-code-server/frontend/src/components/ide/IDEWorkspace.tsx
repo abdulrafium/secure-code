@@ -458,6 +458,12 @@ export default function IDEWorkspace() {
     fetchFullTree();
     const treeInterval = setInterval(fetchFullTree, 5000);
 
+    const storageInterval = setInterval(() => {
+      if (projectId) {
+        api.patch(`/projects/${projectId}/recalculate-storage`, {}).catch(() => {});
+      }
+    }, 60000);
+
     // Initialize rrweb session recording - Event-Based 5 Minute Rolling Buffer
     let rrwebStopFn: any = null;
     let pruneInterval: any = null;
@@ -758,6 +764,7 @@ export default function IDEWorkspace() {
 
     return () => {
       clearInterval(treeInterval);
+      clearInterval(storageInterval);
       if (pruneInterval) clearInterval(pruneInterval);
       if (rrwebStopFn) rrwebStopFn();
       handleBeforeUnload(); // force flush if unmounting while waiting
@@ -1336,6 +1343,17 @@ export default function IDEWorkspace() {
         <div className="flex items-center justify-between px-4 py-2 bg-[#2d2d2d] border-b border-[#3c3c3c]">
           <span className="text-xs font-semibold text-slate-300 tracking-wider">EXPLORER</span>
           <div className="flex space-x-1">
+            <RefreshCw
+              className="w-4 h-4 text-slate-400 hover:text-white cursor-pointer mr-2"
+              onClick={() => {
+                const endpoint = projectId ? `/editor/tree?path=&projectId=${projectId}` : `/editor/tree?path=`;
+                api.get(endpoint).then(data => {
+                  setTree(data || []);
+                  setRefreshToggle(prev => prev + 1);
+                  api.patch(`/projects/${projectId}/recalculate-storage`, {}).catch(() => {});
+                }).catch(err => console.error('Failed to fetch tree', err));
+              }}
+            />
             <FilePlus
               className={`w-4 h-4 text-slate-400 ${isViewer ? 'opacity-30 cursor-not-allowed' : 'hover:text-white cursor-pointer'}`}
               onClick={() => !isViewer && setShowNewItemInput('file')}
@@ -1582,7 +1600,7 @@ export default function IDEWorkspace() {
             <button
               onClick={() => {
                 setPipelineStage('live');
-                window.open('http://' + window.location.hostname + ':3000', '_blank');
+                window.open('https://' + window.location.hostname + ':4000', '_blank');
               }}
               className="px-4 py-1.5 rounded text-white text-[12px] font-bold shadow-md transition-transform bg-[#295ed9] hover:bg-[#346df0] active:scale-95"
             >
