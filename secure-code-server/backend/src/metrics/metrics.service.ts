@@ -21,25 +21,26 @@ export class MetricsService {
       };
 
       const results: any = {};
-
-      for (const [key, query] of Object.entries(queries)) {
+      
+      const promises = Object.entries(queries).map(async ([key, query]) => {
         try {
           const response = await firstValueFrom(
             this.httpService.get(this.prometheusUrl, { params: { query } })
           );
-          
           if (response.data?.data?.result && response.data.data.result.length > 0) {
             results[key] = parseFloat(response.data.data.result[0].value[1]);
           } else {
-            this.logger.warn(`Prometheus query ${key} returned empty results!`);
             results[key] = 0;
+            if (!results.error) results.error = `Prometheus returned empty results for ${key}`;
           }
         } catch (err: any) {
           this.logger.error(`Prometheus query ${key} failed: ${err.message}`);
           results[key] = 0;
           results.error = err.message;
         }
-      }
+      });
+
+      await Promise.all(promises);
 
       return {
         cpuUsage: results.cpuUsage || 0,
