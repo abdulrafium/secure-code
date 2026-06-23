@@ -91,8 +91,9 @@ export class ProjectsController {
     @Body('name') name?: string,
     @Body('allowedCommands') allowedCommands?: string[],
     @Body('allowedFiles') allowedFiles?: string[],
+    @Body('memberRestrictions') memberRestrictions?: any,
   ) {
-    return this.projectsService.update(id, name, allowedCommands, allowedFiles);
+    return this.projectsService.update(id, name, allowedCommands, allowedFiles, memberRestrictions);
   }
 
   @Patch(':id/recalculate-storage')

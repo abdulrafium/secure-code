@@ -309,7 +309,10 @@ export class TerminalGateway
               'dpkg',
               'rm -rf /',
             ];
-            const customBlacklist = project?.allowedCommands || [];
+            let customBlacklist = [...(project?.allowedCommands || [])];
+            if (user && project?.memberRestrictions && project.memberRestrictions[user.id] && project.memberRestrictions[user.id].allowedCommands) {
+              customBlacklist = [...customBlacklist, ...project.memberRestrictions[user.id].allowedCommands];
+            }
             const combinedBlacklist = [
               ...new Set([...globalBlacklist, ...customBlacklist]),
             ];
@@ -342,7 +345,11 @@ export class TerminalGateway
               const baseCmd = normalizedCmd.split(' ')[0];
 
               // Project's "allowedCommands" in the database is actually used as RESTRICTED commands in the UI.
-              const projectRestricted = project?.allowedCommands || [];
+              let projectRestricted = [...(project?.allowedCommands || [])];
+              if (user && project?.memberRestrictions && project.memberRestrictions[user.id] && project.memberRestrictions[user.id].allowedCommands) {
+                projectRestricted = [...projectRestricted, ...project.memberRestrictions[user.id].allowedCommands];
+              }
+
               const combinedBlacklist = [
                 ...new Set([...globalBlacklist, ...projectRestricted]),
               ];

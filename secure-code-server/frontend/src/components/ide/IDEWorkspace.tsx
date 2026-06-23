@@ -62,6 +62,7 @@ export default function IDEWorkspace() {
   const [userInfo, setUserInfo] = useState<any>(null);
   const [accessToken, setAccessToken] = useState<string>('');
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
+  const [restrictedFiles, setRestrictedFiles] = useState<string[]>([]);
   const [confirmDialog, setConfirmDialog] = useState<{ message: string, onConfirm: () => void } | null>(null);
   const [renamingNodePath, setRenamingNodePath] = useState<string | null>(null);
   const [activeNodePaths, setActiveNodePaths] = useState<Set<string>>(new Set());
@@ -1445,6 +1446,7 @@ export default function IDEWorkspace() {
             onFileClick={handleFileClick}
             projectId={projectId || ''}
             isViewer={isViewer}
+            restrictedFiles={restrictedFiles}
             activeNodePaths={activeNodePaths}
             onNodeSelect={handleNodeSelect}
             refreshToggle={refreshToggle}

@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 
 const FileTreeNode = ({ node, allowedFiles, onToggle }: { node: any, allowedFiles: string[], onToggle: (path: string) => void }) => {
     const isChecked = allowedFiles.includes(node.path);
-    const [isOpen, setIsOpen] = useState(true);
+    const [isOpen, setIsOpen] = useState(false);
 
     if (node.isDirectory) {
         return (
@@ -90,6 +90,7 @@ export default function ProjectsPage() {
     const [newTerminalCommand, setNewTerminalCommand] = useState('');
     const [newFilePath, setNewFilePath] = useState('');
     const [fileTree, setFileTree] = useState<any[]>([]);
+    const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
 
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
@@ -357,11 +358,28 @@ export default function ProjectsPage() {
         }
     };
 
+    const getActiveCommands = () => {
+        if (!activeProject) return [];
+        if (selectedMemberId && activeProject.memberRestrictions?.[selectedMemberId]) {
+            return activeProject.memberRestrictions[selectedMemberId].allowedCommands || [];
+        }
+        return activeProject.allowedCommands || [];
+    };
+
+    const getActiveFiles = () => {
+        if (!activeProject) return [];
+        if (selectedMemberId && activeProject.memberRestrictions?.[selectedMemberId]) {
+            return activeProject.memberRestrictions[selectedMemberId].allowedFiles || [];
+        }
+        return activeProject.allowedFiles || [];
+    };
+
     const handleUpdateProjectAccess = async (updatedProject: any) => {
         try {
             await api.patch(`/projects/${updatedProject.id}`, {
                 allowedCommands: updatedProject.allowedCommands,
-                allowedFiles: updatedProject.allowedFiles
+                allowedFiles: updatedProject.allowedFiles,
+                memberRestrictions: updatedProject.memberRestrictions
             });
             setActiveProject(updatedProject);
             setProjects(projects.map(p => p.id === updatedProject.id ? updatedProject : p));
@@ -372,38 +390,76 @@ export default function ProjectsPage() {
 
     const handleAddCommand = () => {
         if (!newTerminalCommand.trim() || !activeProject) return;
-        const commands = activeProject.allowedCommands || [];
-        if (commands.includes(newTerminalCommand)) return;
-        const updated = { ...activeProject, allowedCommands: [...commands, newTerminalCommand] };
+        const updated = JSON.parse(JSON.stringify(activeProject));
+        if (!updated.memberRestrictions) updated.memberRestrictions = {};
+        
+        if (selectedMemberId) {
+            if (!updated.memberRestrictions[selectedMemberId]) {
+                updated.memberRestrictions[selectedMemberId] = { allowedCommands: [], allowedFiles: [] };
+            }
+            if (updated.memberRestrictions[selectedMemberId].allowedCommands.includes(newTerminalCommand)) return;
+            updated.memberRestrictions[selectedMemberId].allowedCommands.push(newTerminalCommand);
+        } else {
+            if (!updated.allowedCommands) updated.allowedCommands = [];
+            if (updated.allowedCommands.includes(newTerminalCommand)) return;
+            updated.allowedCommands.push(newTerminalCommand);
+        }
+        
         handleUpdateProjectAccess(updated);
         setNewTerminalCommand('');
     };
 
     const handleRemoveCommand = (cmd: string) => {
         if (!activeProject) return;
-        const updated = { ...activeProject, allowedCommands: (activeProject.allowedCommands || []).filter((c: string) => c !== cmd) };
+        const updated = JSON.parse(JSON.stringify(activeProject));
+        if (!updated.memberRestrictions) updated.memberRestrictions = {};
+
+        if (selectedMemberId && updated.memberRestrictions[selectedMemberId]) {
+            updated.memberRestrictions[selectedMemberId].allowedCommands = updated.memberRestrictions[selectedMemberId].allowedCommands.filter((c: string) => c !== cmd);
+        } else if (!selectedMemberId) {
+            updated.allowedCommands = (updated.allowedCommands || []).filter((c: string) => c !== cmd);
+        }
         handleUpdateProjectAccess(updated);
     };
 
     const handleAddFile = (pathStr?: string) => {
         let p = typeof pathStr === 'string' ? pathStr : newFilePath;
         if (!p.trim() || !activeProject) return;
-        const files = activeProject.allowedFiles || [];
-        if (files.includes(p)) return;
-        const updated = { ...activeProject, allowedFiles: [...files, p] };
+        const updated = JSON.parse(JSON.stringify(activeProject));
+        if (!updated.memberRestrictions) updated.memberRestrictions = {};
+        
+        if (selectedMemberId) {
+            if (!updated.memberRestrictions[selectedMemberId]) {
+                updated.memberRestrictions[selectedMemberId] = { allowedCommands: [], allowedFiles: [] };
+            }
+            if (updated.memberRestrictions[selectedMemberId].allowedFiles.includes(p)) return;
+            updated.memberRestrictions[selectedMemberId].allowedFiles.push(p);
+        } else {
+            if (!updated.allowedFiles) updated.allowedFiles = [];
+            if (updated.allowedFiles.includes(p)) return;
+            updated.allowedFiles.push(p);
+        }
+
         handleUpdateProjectAccess(updated);
         if (p === newFilePath) setNewFilePath('');
     };
 
     const handleRemoveFile = (pathStr: string) => {
         if (!activeProject) return;
-        const updated = { ...activeProject, allowedFiles: (activeProject.allowedFiles || []).filter((f: string) => f !== pathStr) };
+        const updated = JSON.parse(JSON.stringify(activeProject));
+        if (!updated.memberRestrictions) updated.memberRestrictions = {};
+
+        if (selectedMemberId && updated.memberRestrictions[selectedMemberId]) {
+            updated.memberRestrictions[selectedMemberId].allowedFiles = updated.memberRestrictions[selectedMemberId].allowedFiles.filter((f: string) => f !== pathStr);
+        } else if (!selectedMemberId) {
+            updated.allowedFiles = (updated.allowedFiles || []).filter((f: string) => f !== pathStr);
+        }
         handleUpdateProjectAccess(updated);
     };
 
     const handleToggleFile = (pathStr: string) => {
         if (!activeProject) return;
-        const files = activeProject.allowedFiles || [];
+        const files = getActiveFiles();
         if (files.includes(pathStr)) {
             handleRemoveFile(pathStr);
         } else {
@@ -936,7 +992,7 @@ export default function ProjectsPage() {
 
                         {/* Close Button */}
                         <button
-                            onClick={() => setShowAccessModal(false)}
+                            onClick={() => { setShowAccessModal(false); setSelectedMemberId(null); }}
                             className="absolute top-6 right-6 text-slate-500 hover:text-slate-300 transition-colors focus:outline-none bg-blue-500/10 p-1.5 rounded-full border border-blue-500/20"
                         >
                             <X className="w-5 h-5 text-blue-400" />
@@ -997,7 +1053,7 @@ export default function ProjectsPage() {
 
                                 <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2.5 pr-2">
                                     {(activeProject as any)?.users?.map((user: any) => (
-                                        <div key={user.id} className={`flex items-center justify-between p-3.5 rounded-xl transition-colors border ${user.role === 'Viewer' ? 'bg-blue-500/10 border-blue-500/20' : 'hover:bg-[#141b2d] border-transparent'}`}>
+                                        <div key={user.id} onClick={() => setSelectedMemberId(user.id)} className={`flex items-center justify-between p-3.5 rounded-xl transition-colors border cursor-pointer ${selectedMemberId === user.id ? 'bg-[#1b2b4d] border-blue-500' : user.role === 'Viewer' ? 'bg-blue-500/10 border-blue-500/20' : 'hover:bg-[#141b2d] border-transparent'}`}>
                                             <span className={`text-[13.5px] ${user.role === 'Viewer' ? 'font-medium text-blue-400' : 'text-slate-300'}`}>{user.username}</span>
                                             <div className="flex items-center space-x-4">
                                                 <span className={`text-[13px] font-bold ${user.role === 'Viewer' ? 'text-blue-400' : 'text-slate-400'}`}>{user.role}</span>
@@ -1024,13 +1080,13 @@ export default function ProjectsPage() {
                                 </div>
 
                                 <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pr-2">
-                                    {(activeProject?.allowedCommands || []).map((cmd: string) => (
+                                    {getActiveCommands().map((cmd: string) => (
                                         <div key={cmd} className="flex items-center justify-between p-3.5 rounded-xl bg-[#0b1220] border border-slate-800 transition-colors shadow-inner">
                                             <span className="text-[13px] text-slate-400 font-mono">{cmd}</span>
                                             <Trash2 onClick={() => handleRemoveCommand(cmd)} className="w-4 h-4 text-red-500 cursor-pointer hover:text-red-400 flex-shrink-0 ml-3" />
                                         </div>
                                     ))}
-                                    {(!activeProject?.allowedCommands || activeProject.allowedCommands.length === 0) && (
+                                    {getActiveCommands().length === 0 && (
                                         <p className="text-slate-500 text-xs text-center mt-4">No restricted commands set.</p>
                                     )}
                                 </div>
@@ -1048,7 +1104,7 @@ export default function ProjectsPage() {
                                 {/* File Tree */}
                                 <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 mb-4 pl-1 pr-2">
                                     {fileTree.length > 0 ? fileTree.map(node => (
-                                        <FileTreeNode key={node.path} node={node} allowedFiles={activeProject?.allowedFiles || []} onToggle={handleToggleFile} />
+                                        <FileTreeNode key={node.path} node={node} allowedFiles={getActiveFiles()} onToggle={handleToggleFile} />
                                     )) : (
                                         <div className="text-[13px] text-slate-500 italic ml-2">Loading workspace files...</div>
                                     )}
@@ -1056,13 +1112,13 @@ export default function ProjectsPage() {
 
                                 {/* Bottom List Item */}
                                 <div className="space-y-2 mt-auto max-h-[100px] overflow-y-auto custom-scrollbar">
-                                    {(activeProject?.allowedFiles || []).map((f: string) => (
+                                    {getActiveFiles().map((f: string) => (
                                         <div key={f} className="flex items-center justify-between p-3.5 rounded-xl bg-[#0b1220] border border-slate-800 transition-colors shadow-inner">
                                             <span className="text-[12px] text-slate-400 font-mono truncate mr-2" title={f}>{f}</span>
                                             <Trash2 onClick={() => handleRemoveFile(f)} className="w-4 h-4 text-red-500 cursor-pointer hover:text-red-400 flex-shrink-0 ml-1" />
                                         </div>
                                     ))}
-                                    {(!activeProject?.allowedFiles || activeProject.allowedFiles.length === 0) && (
+                                    {getActiveFiles().length === 0 && (
                                         <p className="text-slate-500 text-xs text-center mt-2">No file restrictions set.</p>
                                     )}
                                 </div>

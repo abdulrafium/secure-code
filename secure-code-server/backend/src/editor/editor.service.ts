@@ -44,9 +44,14 @@ export class EditorService {
     });
     if (!project) return;
 
-    if (project.allowedFiles && project.allowedFiles.length > 0) {
+    let restrictedFiles = [...(project.allowedFiles || [])];
+    if (project.memberRestrictions && project.memberRestrictions[user.id] && project.memberRestrictions[user.id].allowedFiles) {
+      restrictedFiles = [...restrictedFiles, ...project.memberRestrictions[user.id].allowedFiles];
+    }
+
+    if (restrictedFiles.length > 0) {
       // It's a blacklist
-      for (const restrictedPath of project.allowedFiles) {
+      for (const restrictedPath of restrictedFiles) {
         if (
           targetPath === restrictedPath ||
           targetPath.startsWith(restrictedPath + '/')

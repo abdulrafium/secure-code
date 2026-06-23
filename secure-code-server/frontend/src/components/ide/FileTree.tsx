@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   ChevronDown, ChevronRight, Settings, FileText, Code,
-  Info, CheckSquare, File as GenericFile, Folder, FolderOpen
+  Info, CheckSquare, File as GenericFile, Folder, FolderOpen, Lock
 } from 'lucide-react';
 import {
   SiPython, SiJavascript, SiTypescript, SiReact, SiHtml5, SiCss, SiMarkdown,
@@ -51,6 +51,7 @@ interface FileTreeProps {
   onRenameCancel?: () => void;
   expandPath?: string | null;
   fileErrors?: Record<string, boolean>;
+  restrictedFiles?: string[];
 }
 
 const getFileIcon = (fileName: string) => {
@@ -120,7 +121,7 @@ export default function FileTree({
   globalExpandedNodes, setGlobalExpandedNodes,
   globalLoadedChildren, setGlobalLoadedChildren, onContextMenu,
   renamingNodePath, onRenameCommit, onRenameCancel, expandPath,
-  fileErrors = {}
+  fileErrors = {}, restrictedFiles = []
 }: FileTreeProps) {
 
   // Create state only at the root level, otherwise use passed-down state
@@ -338,7 +339,8 @@ export default function FileTree({
       )}
 
       {(nodes || []).map(node => {
-        const isExpanded = !!expandedNodes[node.path];
+        const isRestrictedPath = restrictedFiles.some(r => node.path === r || node.path.startsWith(r + '/'));
+        const isExpanded = !!expandedNodes[node.path] && !isRestrictedPath;
         // Root node uses pre-loaded children from backend; sub-folders use lazy-loaded children
         const children = node.path === ''
           ? (node.children || [])
@@ -348,9 +350,15 @@ export default function FileTree({
           <div key={node.path} className="flex flex-col">
             <div
               id={`tree-node-${node.path}`}
-              className={`flex items-center py-0.5 cursor-pointer select-none ${activeNodePaths?.has(node.path) ? 'bg-[#37373d] text-white outline outline-1 outline-[#007fd4] outline-offset-[-1px]' : 'text-[#cccccc] hover:bg-[#2a2d2e]'}`}
+              className={`flex items-center py-0.5 cursor-pointer select-none ${activeNodePaths?.has(node.path) ? 'bg-[#37373d] text-white outline outline-1 outline-[#007fd4] outline-offset-[-1px]' : 'text-[#cccccc] hover:bg-[#2a2d2e]'} ${isRestrictedPath ? 'opacity-80' : ''}`}
               style={{ paddingLeft: `${(level * 12) + 4}px` }}
               onClick={(e) => {
+                if (isRestrictedPath) {
+                   e.preventDefault();
+                   e.stopPropagation();
+                   alert(`Not Allowed: "${node.name}" is restricted by the admin.`);
+                   return;
+                }
                 if (onNodeSelect) onNodeSelect(e, node);
                 if (!e.ctrlKey && !e.metaKey) {
                   if (node.isDirectory) toggleFolder(node);
@@ -358,6 +366,11 @@ export default function FileTree({
                 }
               }}
               onContextMenu={(e) => {
+                if (isRestrictedPath) {
+                   e.preventDefault();
+                   e.stopPropagation();
+                   return;
+                }
                 if (onContextMenu) onContextMenu(e, node);
               }}
             >
@@ -407,10 +420,11 @@ export default function FileTree({
                   className="bg-[#3c3c3c] text-white border border-[#007fd4] text-[13px] px-1 py-0 w-full outline-none"
                 />
               ) : (
-                <span className={`truncate text-[13px] ${node.isDirectory ? (hasErrorInChildren(node.path) ? 'text-red-400' : '') : (fileErrors[node.path] ? 'text-red-400' : '')}`}>
+                <span className={`truncate text-[13px] flex-1 ${node.isDirectory ? (hasErrorInChildren(node.path) ? 'text-red-400' : '') : (fileErrors[node.path] ? 'text-red-400' : '')}`}>
                   {node.name}
                 </span>
               )}
+              {isRestrictedPath && <Lock className="w-3 h-3 text-red-500 mr-2 flex-shrink-0" />}
             </div>
 
             {node.isDirectory && (isExpanded || (showNewItemInput && activeFolderPath === node.path)) && (
@@ -440,6 +454,7 @@ export default function FileTree({
                 onRenameCancel={onRenameCancel}
                 expandPath={expandPath}
                 fileErrors={fileErrors}
+                restrictedFiles={restrictedFiles}
               />
             )}
           </div>

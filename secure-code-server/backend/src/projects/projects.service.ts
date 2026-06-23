@@ -87,6 +87,7 @@ export class ProjectsService {
     newName?: string,
     allowedCommands?: string[],
     allowedFiles?: string[],
+    memberRestrictions?: any,
   ): Promise<Project> {
     const project = await this.projectsRepository.findOne({ where: { id } });
     if (!project) throw new NotFoundException('Project not found');
@@ -124,6 +125,7 @@ export class ProjectsService {
     if (allowedCommands !== undefined)
       project.allowedCommands = allowedCommands;
     if (allowedFiles !== undefined) project.allowedFiles = allowedFiles;
+    if (memberRestrictions !== undefined) project.memberRestrictions = memberRestrictions;
 
     await this.projectsRepository.save(project);
     return project;

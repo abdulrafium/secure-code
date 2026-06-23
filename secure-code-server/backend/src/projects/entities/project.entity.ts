@@ -39,6 +39,9 @@ export class Project {
   @Column({ type: 'text', array: true, default: [] })
   allowedFiles: string[];
 
+  @Column({ type: 'jsonb', default: {} })
+  memberRestrictions: Record<string, { allowedCommands: string[]; allowedFiles: string[] }>;
+
   @ManyToMany(() => User, (user) => user.projects)
   @JoinTable()
   users: User[];
