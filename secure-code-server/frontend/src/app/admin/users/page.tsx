@@ -64,22 +64,14 @@ export default function UsersPage() {
                 showToast('Please fill out username, role, status, and Allow IP', 'error');
                 return;
             }
-            if (createPassword && !isPasswordValid) {
-                showToast('Password does not meet security criteria', 'error');
-                return;
-            }
             setIsSubmitting(true);
             try {
-                const updatePayload: any = {
+                await api.patch(`/users/${activeUser.id}`, {
                     username: createUsername,
                     role: createRole,
                     status: createStatus,
                     allowIp: createAllowIp
-                };
-                if (createPassword) {
-                    updatePayload.password = createPassword;
-                }
-                await api.patch(`/users/${activeUser.id}`, updatePayload);
+                });
                 showToast('User updated successfully');
                 setShowCreateModal(false);
                 fetchUsers();
@@ -200,10 +192,9 @@ export default function UsersPage() {
         special: /[^a-zA-Z0-9]/.test(createPassword)
     };
 
-    const isPasswordValid = passwordCriteria.length && passwordCriteria.lower && passwordCriteria.upper && passwordCriteria.number && passwordCriteria.special;
+    const isPasswordValid = modalMode === 'edit' || (passwordCriteria.length && passwordCriteria.lower && passwordCriteria.upper && passwordCriteria.number && passwordCriteria.special);
     const ipRegex = /^10\.8\.0\.([1-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$/;
-    const isFormValid = createUsername && createRole && createStatus && createAllowIp && ipRegex.test(createAllowIp) && 
-        (modalMode === 'edit' ? (!createPassword || isPasswordValid) : (createPassword && isPasswordValid));
+    const isFormValid = createUsername && createRole && createStatus && createAllowIp && ipRegex.test(createAllowIp) && (modalMode === 'edit' || (createPassword && isPasswordValid));
 
     return (
         <div className="min-h-screen bg-[#050810] text-slate-200 font-sans">
@@ -444,19 +435,22 @@ export default function UsersPage() {
                                 <div className="relative">
                                     <input
                                         type={createPasswordVisible ? "text" : "password"}
-                                        value={createPassword}
+                                        value={modalMode === 'edit' ? '*'.repeat(activeUser?.passwordLength || 8) : createPassword}
                                         onChange={(e) => setCreatePassword(e.target.value)}
-                                        placeholder={modalMode === 'edit' ? "Leave blank to keep current password" : "Password"}
-                                        className="w-full bg-[#050810] border border-slate-800/60 rounded-xl px-4 py-3.5 pr-12 text-[14px] text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 focus:bg-[#070b14] transition-all shadow-inner"
+                                        disabled={modalMode === 'edit'}
+                                        placeholder="Password"
+                                        className={`w-full bg-[#050810] border border-slate-800/60 rounded-xl px-4 py-3.5 pr-12 text-[14px] text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 focus:bg-[#070b14] transition-all shadow-inner ${modalMode === 'edit' ? 'opacity-50 cursor-not-allowed text-slate-500' : ''}`}
                                     />
-                                    <button
-                                        onClick={() => setCreatePasswordVisible(!createPasswordVisible)}
-                                        className="absolute right-4 top-[14px] text-slate-500 hover:text-slate-400 focus:outline-none"
-                                    >
-                                        {createPasswordVisible ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                                    </button>
+                                    {modalMode !== 'edit' && (
+                                        <button
+                                            onClick={() => setCreatePasswordVisible(!createPasswordVisible)}
+                                            className="absolute right-4 top-[14px] text-slate-500 hover:text-slate-400 focus:outline-none"
+                                        >
+                                            {createPasswordVisible ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                                        </button>
+                                    )}
                                 </div>
-                                {(modalMode === 'create' || (modalMode === 'edit' && createPassword.length > 0)) && (
+                                {modalMode === 'create' && createPassword.length > 0 && (
                                     <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 px-1">
                                         <div className="flex items-center space-x-1.5">
                                             <div className={`w-3 h-3 rounded-full flex items-center justify-center ${passwordCriteria.length ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-transparent'}`}>

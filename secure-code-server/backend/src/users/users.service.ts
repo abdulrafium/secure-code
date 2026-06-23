@@ -120,6 +120,7 @@ export class UsersService {
     const newUser = this.usersRepository.create({
       username,
       passwordHash,
+      passwordLength: passwordPlain.length,
       role,
       status,
       allowIp,
@@ -227,6 +228,7 @@ export class UsersService {
     if (updates.newPassword) {
       const salt = await bcrypt.genSalt(10);
       user.passwordHash = await bcrypt.hash(updates.newPassword, salt);
+      user.passwordLength = updates.newPassword.length;
     }
     if (updates.backupCode !== undefined) {
       user.backupCode = updates.backupCode; // can be null or 'RECOVERED'
@@ -267,6 +269,7 @@ export class UsersService {
     if (updates.password) {
       const salt = await bcrypt.genSalt(10);
       user.passwordHash = await bcrypt.hash(updates.password, salt);
+      user.passwordLength = updates.password.length;
     }
 
     if (updates.role) {

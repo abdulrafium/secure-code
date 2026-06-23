@@ -21,6 +21,9 @@ export class User {
   @Column()
   passwordHash: string;
 
+  @Column({ type: 'int', default: 8 })
+  passwordLength: number;
+
   @Column({
     type: 'enum',
     enum: Role,
