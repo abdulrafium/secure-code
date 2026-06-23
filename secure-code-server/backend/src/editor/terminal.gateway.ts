@@ -178,11 +178,27 @@ export class TerminalGateway
           const relativeProjectDir = path.basename(cwd); // e.g. "my_project_name"
           const finalHostMountPath = path.join(hostWorkspacesDir, relativeProjectDir);
 
+          // Dynamically discover the network the backend is running on
+          let networkName = 'secure_code_network';
           try {
-            await execAsync(`docker run -d --rm --name ${containerName} --network secure_code_network -v "${finalHostMountPath}:/workspace" -w /workspace node:18 tail -f /dev/null`);
+            const { stdout: netStdout } = await execAsync('docker inspect secure_code_backend');
+            const netInfo = JSON.parse(netStdout);
+            if (netInfo && netInfo[0] && netInfo[0].NetworkSettings && netInfo[0].NetworkSettings.Networks) {
+              const networks = Object.keys(netInfo[0].NetworkSettings.Networks);
+              if (networks.length > 0) {
+                networkName = networks[0];
+                console.log(`Auto-discovered Docker Network: ${networkName}`);
+              }
+            }
           } catch (e) {
+            // fallback
+          }
+
+          try {
+            await execAsync(`docker run -d --rm --name ${containerName} --network ${networkName} -v "${finalHostMountPath}:/workspace" -w /workspace node:18 tail -f /dev/null`);
+          } catch (e: any) {
             console.error('Failed to start docker container:', e);
-            client.emit('terminal.output', `\\r\\n\\x1b[31mError: Failed to start isolated container.\\x1b[0m\\r\\n`);
+            client.emit('terminal.output', `\\r\\n\\x1b[31mError: Failed to start isolated container. ${e.message}\\x1b[0m\\r\\n`);
             return;
           }
         }

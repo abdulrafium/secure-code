@@ -197,4 +197,5 @@ volumes:
 
 networks:
   secure_code_network:
+    name: secure_code_network
     driver: bridge
