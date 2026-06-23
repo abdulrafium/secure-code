@@ -37,6 +37,7 @@ export class MetricsService {
         } catch (err: any) {
           this.logger.error(`Prometheus query ${key} failed: ${err.message}`);
           results[key] = 0;
+          results.error = err.message;
         }
       }
 
@@ -47,6 +48,7 @@ export class MetricsService {
         totalRam: results.totalRam || 0,
         networkTraffic: results.networkTraffic || 0,
         responseTime: Math.floor(Math.random() * 50) + 20, // Simulated backend response time for demo purposes since Prometheus doesn't inherently measure application response time without custom metrics
+        error: results.error || null,
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
