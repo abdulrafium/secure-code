@@ -1,9 +1,18 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import {
-  ChevronDown, ChevronRight, Settings, FileText, Code,
-  Info, CheckSquare, File as GenericFile, Folder, FolderOpen, Lock
+import { 
+  ChevronRight, 
+  ChevronDown, 
+  Folder, 
+  FolderOpen, 
+  File as GenericFile,
+  Lock,
+  Settings, 
+  FileText, 
+  Code,
+  Info, 
+  CheckSquare
 } from 'lucide-react';
 import {
   SiPython, SiJavascript, SiTypescript, SiReact, SiHtml5, SiCss, SiMarkdown,
@@ -350,13 +359,12 @@ export default function FileTree({
           <div key={node.path} className="flex flex-col">
             <div
               id={`tree-node-${node.path}`}
-              className={`flex items-center py-0.5 cursor-pointer select-none ${activeNodePaths?.has(node.path) ? 'bg-[#37373d] text-white outline outline-1 outline-[#007fd4] outline-offset-[-1px]' : 'text-[#cccccc] hover:bg-[#2a2d2e]'} ${isRestrictedPath ? 'opacity-80' : ''}`}
+              className={`flex items-center py-0.5 cursor-pointer select-none ${activeNodePaths?.has(node.path) ? 'bg-[#37373d] text-white outline outline-1 outline-[#007fd4] outline-offset-[-1px]' : 'text-[#cccccc] hover:bg-[#2a2d2e]'} ${isRestrictedPath ? 'opacity-50 pointer-events-none' : ''}`}
               style={{ paddingLeft: `${(level * 12) + 4}px` }}
               onClick={(e) => {
                 if (isRestrictedPath) {
                    e.preventDefault();
                    e.stopPropagation();
-                   alert(`Not Allowed: "${node.name}" is restricted by the admin.`);
                    return;
                 }
                 if (onNodeSelect) onNodeSelect(e, node);

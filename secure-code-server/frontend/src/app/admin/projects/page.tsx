@@ -1053,8 +1053,8 @@ export default function ProjectsPage() {
 
                                 <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2.5 pr-2">
                                     {(activeProject as any)?.users?.map((user: any) => (
-                                        <div key={user.id} onClick={() => setSelectedMemberId(user.id)} className={`flex items-center justify-between p-3.5 rounded-xl transition-colors border cursor-pointer ${selectedMemberId === user.id ? 'bg-[#1b2b4d] border-blue-500' : user.role === 'Viewer' ? 'bg-blue-500/10 border-blue-500/20' : 'hover:bg-[#141b2d] border-transparent'}`}>
-                                            <span className={`text-[13.5px] ${user.role === 'Viewer' ? 'font-medium text-blue-400' : 'text-slate-300'}`}>{user.username}</span>
+                                        <div key={user.id} onClick={() => setSelectedMemberId(user.id)} className={`flex items-center justify-between p-3.5 rounded-xl transition-colors border cursor-pointer ${selectedMemberId === user.id ? 'bg-[#1b2b4d] border-blue-500' : 'hover:bg-[#141b2d] border-transparent'}`}>
+                                            <span className="text-[13.5px] text-slate-300">{user.username}</span>
                                             <div className="flex items-center space-x-4">
                                                 <span className={`text-[13px] font-bold ${user.role === 'Viewer' ? 'text-blue-400' : 'text-slate-400'}`}>{user.role}</span>
                                                 <Trash2

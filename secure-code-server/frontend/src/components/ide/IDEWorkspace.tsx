@@ -457,6 +457,26 @@ export default function IDEWorkspace() {
         setRefreshToggle(prev => prev + 1); // Triggers FileTree to also refresh expanded sub-folders
         if (projectId) {
           api.patch(`/projects/${projectId}/recalculate-storage`, {}).catch(() => {});
+          api.get(`/projects/${projectId}`).then(proj => {
+            let files = [...(proj.allowedFiles || [])];
+            if (currentUserRole !== 'Admin') {
+              let userId = '';
+              const token = isViewerRoute 
+                ? (sessionStorage.getItem('viewer_accessToken') || cookies['viewer_accessToken'])
+                : ((window.location.search.includes('asAdmin=true') && (sessionStorage.getItem('admin_accessToken') || cookies['admin_accessToken'])) 
+                   ? (sessionStorage.getItem('admin_accessToken') || cookies['admin_accessToken']) 
+                   : (sessionStorage.getItem('developer_accessToken') || cookies['developer_accessToken']));
+              if (token) {
+                try {
+                  userId = JSON.parse(atob(token.split('.')[1])).id;
+                } catch (e) {}
+              }
+              if (userId && proj.memberRestrictions && proj.memberRestrictions[userId]) {
+                files = [...files, ...(proj.memberRestrictions[userId].allowedFiles || [])];
+              }
+            }
+            setRestrictedFiles(files);
+          }).catch(() => {});
         }
       }).catch(err => console.error('Failed to fetch tree', err));
     };
