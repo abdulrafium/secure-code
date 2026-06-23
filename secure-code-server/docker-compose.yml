@@ -131,6 +131,41 @@ services:
     networks:
       - secure_code_network
 
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: secure_code_prometheus
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+    ports:
+      - "9090:9090"
+    networks:
+      - secure_code_network
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: secure_code_node_exporter
+    restart: unless-stopped
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    ports:
+      - "9100:9100"
+    networks:
+      - secure_code_network
+
 volumes:
   postgres_data:
   redis_data:
@@ -141,6 +176,7 @@ volumes:
   certbot_conf:
   sessions_data:
   backups_data:
+  prometheus_data:
 
 networks:
   secure_code_network:

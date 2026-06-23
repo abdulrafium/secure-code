@@ -15,6 +15,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { ScheduleModule } from '@nestjs/schedule';
 import { redisStore } from 'cache-manager-redis-yet';
 import { BackupsModule } from './backups/backups.module';
+import { MetricsModule } from './metrics/metrics.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { BackupsModule } from './backups/backups.module';
     LogsModule,
     SettingsModule,
     BackupsModule,
+    MetricsModule,
     CacheModule.registerAsync({
       isGlobal: true,
       useFactory: async () => ({

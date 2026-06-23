@@ -60,6 +60,26 @@ const GraphCard = ({
     </div>
 );
 
+const generateSvgPath = (dataPoints: number[]) => {
+    if (!dataPoints || dataPoints.length === 0) return '';
+    const width = 400;
+    const height = 100;
+    const step = width / (dataPoints.length - 1);
+    
+    let path = `M 0 ${Math.max(0, Math.min(100, 100 - dataPoints[0]))}`;
+    for (let i = 1; i < dataPoints.length; i++) {
+        const prevX = (i - 1) * step;
+        const prevY = Math.max(0, Math.min(100, 100 - dataPoints[i - 1]));
+        const currX = i * step;
+        const currY = Math.max(0, Math.min(100, 100 - dataPoints[i]));
+        const controlX1 = prevX + step / 2;
+        const controlX2 = currX - step / 2;
+        path += ` C ${controlX1} ${prevY}, ${controlX2} ${currY}, ${currX} ${currY}`;
+    }
+    path += ` L ${width} ${height} L 0 ${height} Z`;
+    return path;
+};
+
 export default function AdminDashboard() {
     const [deployments, setDeployments] = useState<any[]>([]);
     const [securityLogs, setSecurityLogs] = useState<any[]>([]);
@@ -93,6 +113,21 @@ export default function AdminDashboard() {
     const [jobType, setJobType] = useState<string>('');
     const [backupToDelete, setBackupToDelete] = useState<string | null>(null);
 
+    const [metricsData, setMetricsData] = useState({
+        cpu: Array(20).fill(0),
+        ram: Array(20).fill(0),
+        network: Array(20).fill(0),
+        response: Array(20).fill(0),
+    });
+    const [currentMetrics, setCurrentMetrics] = useState({
+        cpuUsage: 0,
+        cpuCores: 24,
+        ramUsage: 0,
+        totalRam: 16 * 1024 * 1024 * 1024,
+        networkTraffic: 0,
+        responseTime: 0,
+    });
+
     const [stats, setStats] = useState({ 
         roles: { admin: 0, developer: 0, viewer: 0 }, 
         online: 0, 
@@ -107,6 +142,39 @@ export default function AdminDashboard() {
         systemHealth: 100,
         healthStatus: 'Excellent'
     });
+
+    useEffect(() => {
+        const eventSource = new EventSource(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/system/metrics/stream`);
+        
+        eventSource.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                const metrics = data.data;
+                
+                setCurrentMetrics({
+                    cpuUsage: metrics.cpuUsage || 0,
+                    cpuCores: metrics.cpuCores || 0,
+                    ramUsage: metrics.ramUsage || 0,
+                    totalRam: metrics.totalRam || 0,
+                    networkTraffic: metrics.networkTraffic || 0,
+                    responseTime: metrics.responseTime || 0,
+                });
+
+                setMetricsData(prev => ({
+                    cpu: [...prev.cpu.slice(1), metrics.cpuUsage || 0],
+                    ram: [...prev.ram.slice(1), metrics.ramUsage || 0],
+                    network: [...prev.network.slice(1), metrics.networkTraffic ? Math.min(100, (metrics.networkTraffic / 1000000) * 100) : 0],
+                    response: [...prev.response.slice(1), metrics.responseTime ? Math.min(100, (metrics.responseTime / 200) * 100) : 0]
+                }));
+            } catch (err) {
+                console.error("Failed to parse metrics", err);
+            }
+        };
+
+        return () => {
+            eventSource.close();
+        };
+    }, []);
 
     useEffect(() => {
         const fetchData = () => {
@@ -524,28 +592,28 @@ export default function AdminDashboard() {
 
                     <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                         <GraphCard
-                            title="CPU Usage" subtitle="24 Cores" value="68%" valueColor="purple"
+                            title="CPU Usage" subtitle={`${currentMetrics.cpuCores || 24} Cores`} value={`${Math.round(currentMetrics.cpuUsage || 0)}%`} valueColor="purple"
                             strokeColor="#a855f7" fillFrom="#a855f7"
                             yLabels={['100%', '75%', '50%', '25%', '0%']}
-                            pathD="M 0 50 C 40 20, 60 80, 100 40 C 140 0, 160 80, 200 40 C 240 0, 260 80, 300 40 C 340 0, 360 80, 400 30 L 400 100 L 0 100 Z"
+                            pathD={generateSvgPath(metricsData.cpu)}
                         />
                         <GraphCard
-                            title="RAM Usage" subtitle="16 GB" value="72%" valueColor="blue"
+                            title="RAM Usage" subtitle={`${(currentMetrics.totalRam / (1024 * 1024 * 1024)).toFixed(1)} GB`} value={`${Math.round(currentMetrics.ramUsage || 0)}%`} valueColor="blue"
                             strokeColor="#3b82f6" fillFrom="#3b82f6"
                             yLabels={['100%', '75%', '50%', '25%', '0%']}
-                            pathD="M 0 70 C 50 20, 80 90, 130 50 C 180 10, 210 80, 260 40 C 310 0, 340 80, 400 20 L 400 100 L 0 100 Z"
+                            pathD={generateSvgPath(metricsData.ram)}
                         />
                         <GraphCard
-                            title="Network Traffic" subtitle="1 GB" value="42Mb/s" valueColor="emerald"
+                            title="Network Traffic" subtitle={`${(currentMetrics.networkTraffic / (1024 * 1024)).toFixed(1)} MB/s`} value={`${Math.round(currentMetrics.networkTraffic / (1024 * 1024))}Mb/s`} valueColor="emerald"
                             strokeColor="#10b981" fillFrom="#10b981"
                             yLabels={['100Mb/s', '75Mb/s', '50Mb/s', '25Mb/s', '0Mb/s']}
-                            pathD="M 0 60 C 30 70, 70 30, 120 50 C 160 70, 200 20, 250 40 C 300 60, 340 10, 400 30 L 400 100 L 0 100 Z"
+                            pathD={generateSvgPath(metricsData.network)}
                         />
                         <GraphCard
-                            title="Response Time" subtitle="500 MS" value="82ms" valueColor="amber"
+                            title="Response Time" subtitle={`${Math.round(currentMetrics.responseTime)} MS`} value={`${Math.round(currentMetrics.responseTime)}ms`} valueColor="amber"
                             strokeColor="#f59e0b" fillFrom="#f59e0b"
                             yLabels={['200ms', '150ms', '100ms', '50ms', '0ms']}
-                            pathD="M 0 40 C 40 80, 80 10, 120 50 C 160 90, 200 20, 240 60 C 280 90, 320 10, 400 40 L 400 100 L 0 100 Z"
+                            pathD={generateSvgPath(metricsData.response)}
                         />
                     </div>
 
