@@ -348,7 +348,12 @@ export default function FileTree({
       )}
 
       {(nodes || []).map(node => {
-        const isRestrictedPath = restrictedFiles.some(r => node.path === r || node.path.startsWith(r + '/'));
+        const isRestrictedPath = restrictedFiles.some(r => 
+          node.path === r || 
+          node.path.startsWith(r + '/') || 
+          node.path.endsWith('/' + r) || 
+          node.path.includes('/' + r + '/')
+        );
         const isExpanded = !!expandedNodes[node.path] && !isRestrictedPath;
         // Root node uses pre-loaded children from backend; sub-folders use lazy-loaded children
         const children = node.path === ''
