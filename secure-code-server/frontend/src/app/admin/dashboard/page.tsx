@@ -14,15 +14,17 @@ import 'rrweb-player/dist/style.css';
 
 // Reusable SVG Graph Component
 const GraphCard = ({
-    title, subtitle, value, valueColor, strokeColor, fillFrom, pathD, yLabels
+    title, subtitle, value, valueColor, strokeColor, fillFrom, pathD, yLabels, onViewAll
 }: {
     title: string; subtitle: string; value: string; valueColor: string;
-    strokeColor: string; fillFrom: string; pathD: string; yLabels: string[]
+    strokeColor: string; fillFrom: string; pathD: string; yLabels: string[]; onViewAll?: () => void;
 }) => (
     <div className="bg-[#0b1121]/80 backdrop-blur-sm border border-slate-800/80 rounded-xl p-4 flex flex-col relative overflow-hidden h-[200px]">
         <div className="flex justify-between items-start mb-2 z-10 relative">
             <h3 className="text-slate-300 font-medium text-sm">{title} <span className="text-slate-500 text-xs ml-1 font-normal">{subtitle}</span></h3>
-            <a href="#" className="text-indigo-400 text-xs hover:text-indigo-300 transition-colors">View all</a>
+            {onViewAll && (
+                <button onClick={(e) => { e.preventDefault(); onViewAll(); }} className="text-indigo-400 text-xs hover:text-indigo-300 transition-colors">View all</button>
+            )}
         </div>
 
         <div className="absolute right-4 top-10 z-20">
@@ -113,6 +115,9 @@ export default function AdminDashboard() {
     const [jobType, setJobType] = useState<string>('');
     const [backupToDelete, setBackupToDelete] = useState<string | null>(null);
 
+    const [isMetricsModalOpen, setIsMetricsModalOpen] = useState(false);
+    const [metricsModalCategory, setMetricsModalCategory] = useState<'CPU' | 'RAM' | 'Network' | 'Response'>('CPU');
+
     const [metricsData, setMetricsData] = useState({
         cpu: Array(20).fill(0),
         ram: Array(20).fill(0),
@@ -127,6 +132,10 @@ export default function AdminDashboard() {
         networkTraffic: 0,
         responseTime: 0,
         error: null as string | null,
+        containerCpu: [] as any[],
+        containerRam: [] as any[],
+        containerNetwork: [] as any[],
+        containerResponse: [] as any[],
     });
 
     const [stats, setStats] = useState({ 
@@ -159,6 +168,10 @@ export default function AdminDashboard() {
                     networkTraffic: metrics.networkTraffic || 0,
                     responseTime: metrics.responseTime || 0,
                     error: metrics.error || null,
+                    containerCpu: metrics.containerCpu || [],
+                    containerRam: metrics.containerRam || [],
+                    containerNetwork: metrics.containerNetwork || [],
+                    containerResponse: metrics.containerResponse || [],
                 });
 
                 setMetricsData(prev => ({
@@ -597,24 +610,28 @@ export default function AdminDashboard() {
                             strokeColor="#a855f7" fillFrom="#a855f7"
                             yLabels={['100%', '75%', '50%', '25%', '0%']}
                             pathD={generateSvgPath(metricsData.cpu)}
+                            onViewAll={() => { setMetricsModalCategory('CPU'); setIsMetricsModalOpen(true); }}
                         />
                         <GraphCard
                             title="RAM Usage" subtitle={`${(currentMetrics.totalRam / (1024 * 1024 * 1024)).toFixed(1)} GB`} value={`${Math.round(currentMetrics.ramUsage || 0)}%`} valueColor="blue"
                             strokeColor="#3b82f6" fillFrom="#3b82f6"
                             yLabels={['100%', '75%', '50%', '25%', '0%']}
                             pathD={generateSvgPath(metricsData.ram)}
+                            onViewAll={() => { setMetricsModalCategory('RAM'); setIsMetricsModalOpen(true); }}
                         />
                         <GraphCard
                             title="Network Traffic" subtitle={`${(currentMetrics.networkTraffic / (1024 * 1024)).toFixed(1)} MB/s`} value={`${Math.round(currentMetrics.networkTraffic / (1024 * 1024))}Mb/s`} valueColor="emerald"
                             strokeColor="#10b981" fillFrom="#10b981"
                             yLabels={['100Mb/s', '75Mb/s', '50Mb/s', '25Mb/s', '0Mb/s']}
                             pathD={generateSvgPath(metricsData.network)}
+                            onViewAll={() => { setMetricsModalCategory('Network'); setIsMetricsModalOpen(true); }}
                         />
                         <GraphCard
                             title="Response Time" subtitle={`${Math.round(currentMetrics.responseTime)} MS`} value={`${Math.round(currentMetrics.responseTime)}ms`} valueColor="amber"
                             strokeColor="#f59e0b" fillFrom="#f59e0b"
                             yLabels={['200ms', '150ms', '100ms', '50ms', '0ms']}
                             pathD={generateSvgPath(metricsData.response)}
+                            onViewAll={() => { setMetricsModalCategory('Response'); setIsMetricsModalOpen(true); }}
                         />
                     </div>
 
@@ -1326,6 +1343,62 @@ export default function AdminDashboard() {
                                     Delete
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Metrics Modal */}
+            {isMetricsModalOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-[#0b1121] border border-slate-800 rounded-xl w-full max-w-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[80vh]">
+                        <div className="flex justify-between items-center p-5 border-b border-slate-800">
+                            <h2 className="text-xl font-bold text-slate-200">Container {metricsModalCategory} Breakdown</h2>
+                            <button onClick={() => setIsMetricsModalOpen(false)} className="text-slate-500 hover:text-slate-300 transition-colors">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        
+                        <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
+                            {currentMetrics[`container${metricsModalCategory}` as keyof typeof currentMetrics] && (currentMetrics[`container${metricsModalCategory}` as keyof typeof currentMetrics] as any[]).length > 0 ? (
+                                <div className="space-y-2">
+                                    {(currentMetrics[`container${metricsModalCategory}` as keyof typeof currentMetrics] as any[]).map((c, i) => (
+                                        <div key={i} className="flex items-center justify-between p-4 rounded-xl border border-slate-800/50 bg-[#080d1a] hover:border-slate-700 transition-colors">
+                                            <div className="flex items-center space-x-3">
+                                                <div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20 shrink-0">
+                                                    <Box className="w-5 h-5 text-indigo-400" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-medium text-slate-300">{c.name.replace(/^\//, '')}</p>
+                                                    <p className="text-xs text-slate-500 font-mono mt-0.5">Docker Container</p>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-lg font-bold text-slate-200">
+                                                    {metricsModalCategory === 'CPU' && `${c.value.toFixed(1)}%`}
+                                                    {metricsModalCategory === 'RAM' && `${(c.value / (1024 * 1024)).toFixed(1)} MB`}
+                                                    {metricsModalCategory === 'Network' && `${(c.value / 1024).toFixed(1)} KB/s`}
+                                                    {metricsModalCategory === 'Response' && `${c.value} ms`}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center py-10 text-slate-500">
+                                    <Activity className="w-10 h-10 mx-auto text-slate-600 mb-3" />
+                                    No container-level metrics available. Make sure cadvisor is running.
+                                </div>
+                            )}
+                        </div>
+                        
+                        <div className="p-5 border-t border-slate-800 bg-[#080d1a] flex justify-end">
+                            <button
+                                onClick={() => setIsMetricsModalOpen(false)}
+                                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-sm font-medium rounded-lg transition-colors"
+                            >
+                                Close
+                            </button>
                         </div>
                     </div>
                 </div>
