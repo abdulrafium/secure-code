@@ -25,10 +25,10 @@ export class MetricsService {
         ramUsage: '100 * (1 - ((node_memory_MemFree_bytes + node_memory_Cached_bytes + node_memory_Buffers_bytes) / node_memory_MemTotal_bytes))',
         totalRam: 'node_memory_MemTotal_bytes',
         networkTraffic: 'sum(rate(node_network_receive_bytes_total{device!~"lo|docker.*|veth.*|wg.*"}[15s])) + sum(rate(node_network_transmit_bytes_total{device!~"lo|docker.*|veth.*|wg.*"}[15s]))',
-        // Container specific metrics
-        containerCpu: 'sum(rate(container_cpu_usage_seconds_total{name=~".+"}[15s])) by (name) * 100',
-        containerRam: 'sum(container_memory_usage_bytes{name=~".+"}) by (name)',
-        containerNetwork: 'sum(rate(container_network_receive_bytes_total{name=~".+"}[15s]) + rate(container_network_transmit_bytes_total{name=~".+"}[15s])) by (name)'
+        // Container specific metrics using Docker Compose labels
+        containerCpu: 'sum(rate(container_cpu_usage_seconds_total{container_label_com_docker_compose_service!=""}[15s])) by (container_label_com_docker_compose_service) * 100',
+        containerRam: 'sum(container_memory_usage_bytes{container_label_com_docker_compose_service!=""}) by (container_label_com_docker_compose_service)',
+        containerNetwork: 'sum(rate(container_network_receive_bytes_total{container_label_com_docker_compose_service!=""}[15s]) + rate(container_network_transmit_bytes_total{container_label_com_docker_compose_service!=""}[15s])) by (container_label_com_docker_compose_service)'
       };
 
       const results: any = {};
@@ -42,7 +42,7 @@ export class MetricsService {
             if (key.startsWith('container')) {
               // Parse array of vectors for container metrics
               results[key] = response.data.data.result.map((r: any) => ({
-                name: r.metric.name,
+                name: r.metric.container_label_com_docker_compose_service || r.metric.name || 'unknown',
                 value: parseFloat(r.value[1])
               })).sort((a: any, b: any) => b.value - a.value); // Sort descending
             } else {
