@@ -154,10 +154,7 @@ export default function ProjectsPage() {
         setGitProgress(0);
         try {
             const token = document.cookie.split('; ').find(row => row.startsWith('accessToken='))?.split('=')[1];
-            const defaultApiUrl = typeof window !== 'undefined' ? `http://${window.location.hostname}:3001` : 'http://localhost:3001';
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL || defaultApiUrl;
-
-            const response = await fetch(`${apiUrl}/projects/${activeProject.id}/git-pull`, {
+            const response = await fetch(`/api/projects/${activeProject.id}/git-pull`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

@@ -481,11 +481,8 @@ export default function IDEWorkspace() {
         };
 
         if (isUnload) {
-          // Send synchronously if possible or keepalive
-          let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
-          if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+            let apiUrl = '/api';
             apiUrl = apiUrl.replace('http://', 'https://').replace(':3001', '');
-          }
           
           try {
              // keepalive is limited to 64KB, which videos exceed. 
@@ -1585,7 +1582,7 @@ export default function IDEWorkspace() {
             <button
               onClick={() => {
                 setPipelineStage('live');
-                window.open('http://localhost:3000', '_blank');
+                window.open('http://' + window.location.hostname + ':3000', '_blank');
               }}
               className="px-4 py-1.5 rounded text-white text-[12px] font-bold shadow-md transition-transform bg-[#295ed9] hover:bg-[#346df0] active:scale-95"
             >
