@@ -1010,7 +1010,8 @@ export default function IDEWorkspace() {
       monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
         target: monaco.languages.typescript.ScriptTarget.ESNext,
         allowNonTsExtensions: true,
-        checkJs: true
+        checkJs: false,
+        jsx: monaco.languages.typescript.JsxEmit.React
       });
     }
 
