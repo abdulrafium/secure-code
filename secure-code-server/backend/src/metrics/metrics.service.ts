@@ -3,6 +3,7 @@ import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { LogsService } from '../logs/logs.service';
 import * as http from 'http';
+import * as fs from 'fs';
 
 @Injectable()
 export class MetricsService {
@@ -104,6 +105,15 @@ export class MetricsService {
       });
 
       await Promise.all(promises);
+
+      // Override disk stats using native fs module for perfectly accurate Azure VM root overlay space
+      try {
+        const stat = fs.statfsSync('/');
+        results.diskTotal = stat.blocks * stat.bsize;
+        results.diskFree = stat.bavail * stat.bsize;
+      } catch (err: any) {
+        this.logger.warn(`Native disk stats failed: ${err.message}`);
+      }
 
       // Extract and format container lists
       const containerCpu = results.containerCpu || [];
