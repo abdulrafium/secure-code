@@ -246,6 +246,7 @@ export class UsersService {
     id: string,
     updates: {
       username?: string;
+      password?: string;
       role?: string;
       status?: string;
       allowIp?: string;
@@ -261,6 +262,11 @@ export class UsersService {
         throw new ConflictException('Username already taken');
       }
       user.username = updates.username;
+    }
+
+    if (updates.password) {
+      const salt = await bcrypt.genSalt(10);
+      user.passwordHash = await bcrypt.hash(updates.password, salt);
     }
 
     if (updates.role) {

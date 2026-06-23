@@ -202,7 +202,7 @@ export class UsersController {
     @Body() body: any,
     @Request() req: any,
   ) {
-    const { username, role, status, allowIp, publicKey } = body;
+    const { username, password, role, status, allowIp, publicKey } = body;
 
     if (allowIp !== undefined && allowIp.trim() === '') {
       throw new BadRequestException('Allowed IP cannot be empty.');
@@ -210,6 +210,7 @@ export class UsersController {
 
     const updatedUser = await this.usersService.adminUpdateUser(id, {
       username,
+      password,
       role,
       status,
       allowIp,

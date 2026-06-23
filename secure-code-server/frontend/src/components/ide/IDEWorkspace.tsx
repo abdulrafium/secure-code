@@ -67,6 +67,7 @@ export default function IDEWorkspace() {
   const [activeNodePaths, setActiveNodePaths] = useState<Set<string>>(new Set());
   const [activeFolderPath, setActiveFolderPath] = useState<string>('');
   const [refreshToggle, setRefreshToggle] = useState<number>(0);
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false);
 
   const [showCommitModal, setShowCommitModal] = useState(false);
   const [commitMessage, setCommitMessage] = useState('');
@@ -446,23 +447,19 @@ export default function IDEWorkspace() {
     }
 
     // Fetch tree first
-    const endpoint = projectId ? `/editor/tree?path=&projectId=${projectId}` : `/editor/tree?path=`;
-
     const fetchFullTree = () => {
+      const endpoint = projectId ? `/editor/tree?path=&projectId=${projectId}` : `/editor/tree?path=`;
       api.get(endpoint).then(data => {
         setTree(data || []);
         setRefreshToggle(prev => prev + 1); // Triggers FileTree to also refresh expanded sub-folders
+        if (projectId) {
+          api.patch(`/projects/${projectId}/recalculate-storage`, {}).catch(() => {});
+        }
       }).catch(err => console.error('Failed to fetch tree', err));
     };
 
     fetchFullTree();
     const treeInterval = setInterval(fetchFullTree, 5000);
-
-    const storageInterval = setInterval(() => {
-      if (projectId) {
-        api.patch(`/projects/${projectId}/recalculate-storage`, {}).catch(() => {});
-      }
-    }, 60000);
 
     // Initialize rrweb session recording - Event-Based 5 Minute Rolling Buffer
     let rrwebStopFn: any = null;
@@ -764,7 +761,6 @@ export default function IDEWorkspace() {
 
     return () => {
       clearInterval(treeInterval);
-      clearInterval(storageInterval);
       if (pruneInterval) clearInterval(pruneInterval);
       if (rrwebStopFn) rrwebStopFn();
       handleBeforeUnload(); // force flush if unmounting while waiting
@@ -1343,17 +1339,6 @@ export default function IDEWorkspace() {
         <div className="flex items-center justify-between px-4 py-2 bg-[#2d2d2d] border-b border-[#3c3c3c]">
           <span className="text-xs font-semibold text-slate-300 tracking-wider">EXPLORER</span>
           <div className="flex space-x-1">
-            <RefreshCw
-              className="w-4 h-4 text-slate-400 hover:text-white cursor-pointer mr-2"
-              onClick={() => {
-                const endpoint = projectId ? `/editor/tree?path=&projectId=${projectId}` : `/editor/tree?path=`;
-                api.get(endpoint).then(data => {
-                  setTree(data || []);
-                  setRefreshToggle(prev => prev + 1);
-                  api.patch(`/projects/${projectId}/recalculate-storage`, {}).catch(() => {});
-                }).catch(err => console.error('Failed to fetch tree', err));
-              }}
-            />
             <FilePlus
               className={`w-4 h-4 text-slate-400 ${isViewer ? 'opacity-30 cursor-not-allowed' : 'hover:text-white cursor-pointer'}`}
               onClick={() => !isViewer && setShowNewItemInput('file')}
@@ -1399,12 +1384,21 @@ export default function IDEWorkspace() {
                 </>
               )}
             </div>
-            <RefreshCw className="w-4 h-4 text-slate-400 hover:text-white cursor-pointer" onClick={(e) => {
+            <RefreshCw className={`w-4 h-4 text-slate-400 hover:text-white cursor-pointer ${isManualRefreshing ? 'animate-spin text-white' : ''}`} onClick={(e) => {
               e.stopPropagation();
               e.preventDefault();
-              setRefreshToggle(prev => prev + 1);
+              if (isManualRefreshing) return;
+              setIsManualRefreshing(true);
               const endpoint = projectId ? `/editor/tree?path=&projectId=${projectId}` : `/editor/tree?path=`;
-              api.get(endpoint).then(data => setTree(data)).catch(console.error);
+              api.get(endpoint).then(data => {
+                setTree(data || []);
+                setRefreshToggle(prev => prev + 1);
+                if (projectId) {
+                  api.patch(`/projects/${projectId}/recalculate-storage`, {}).catch(() => {});
+                }
+              }).catch(console.error).finally(() => {
+                setTimeout(() => setIsManualRefreshing(false), 500); // give it at least 500ms to spin
+              });
             }} />
           </div>
         </div>
