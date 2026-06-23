@@ -932,7 +932,7 @@ export default function ProjectsPage() {
             {/* Access Member Modal */}
             {showAccessModal && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm transition-all duration-300 py-6">
-                    <div className="w-full max-w-[1100px] p-8 mx-4 bg-[#0a0f1c]/95 border border-slate-800/80 rounded-[2rem] shadow-[0_0_50px_rgba(0,0,0,0.8)] relative flex flex-col max-h-full overflow-y-auto custom-scrollbar">
+                    <div className="w-full max-w-[1100px] p-8 mx-4 bg-[#0a0f1c]/95 border border-slate-800/80 rounded-[2rem] shadow-[0_0_50px_rgba(0,0,0,0.8)] relative flex flex-col max-h-[95vh] overflow-hidden">
 
                         {/* Close Button */}
                         <button
@@ -947,7 +947,7 @@ export default function ProjectsPage() {
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
                             {/* Member Column */}
-                            <div className="border border-slate-700/60 rounded-xl p-5 relative pt-6 flex flex-col min-h-[350px]">
+                            <div className="border border-slate-700/60 rounded-xl p-5 relative pt-6 flex flex-col h-[500px]">
                                 <span className="absolute -top-3 left-4 bg-[#0a0f1c] px-2 text-[14px] font-semibold text-slate-300">Member</span>
 
                                 <div className="relative mb-6">
@@ -1015,7 +1015,7 @@ export default function ProjectsPage() {
                             </div>
 
                             {/* Terminal Column */}
-                            <div className="border border-slate-700/60 rounded-xl p-5 relative pt-6 flex flex-col min-h-[350px]">
+                            <div className="border border-slate-700/60 rounded-xl p-5 relative pt-6 flex flex-col h-[500px]">
                                 <span className="absolute -top-3 left-4 bg-[#0a0f1c] px-2 text-[14px] font-semibold text-slate-300">Terminal</span>
 
                                 <div className="flex items-center bg-[#050810] border border-slate-700/60 rounded-lg p-1.5 mb-6">
@@ -1037,7 +1037,7 @@ export default function ProjectsPage() {
                             </div>
 
                             {/* File Column */}
-                            <div className="border border-slate-700/60 rounded-xl p-5 relative pt-6 flex flex-col min-h-[350px]">
+                            <div className="border border-slate-700/60 rounded-xl p-5 relative pt-6 flex flex-col h-[500px]">
                                 <span className="absolute -top-3 left-4 bg-[#0a0f1c] px-2 text-[14px] font-semibold text-slate-300">File</span>
 
                                 <div className="flex items-center bg-[#050810] border border-slate-700/60 rounded-lg p-1.5 mb-4">
