@@ -13,16 +13,11 @@ export class MetricsService {
     try {
       // Queries for host metrics
       const queries = {
-        // CPU usage percentage: 100 - (idle_time_percentage)
-        cpuUsage: '100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[2s])) * 100)',
-        // Total CPU cores
-        cpuCores: 'count(count(node_cpu_seconds_total) by (cpu))',
-        // RAM usage percentage
+        cpuUsage: '100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[15s])) * 100)',
+        cpuCores: 'count(node_cpu_seconds_total{mode="system"})',
         ramUsage: '100 * (1 - ((node_memory_MemFree_bytes + node_memory_Cached_bytes + node_memory_Buffers_bytes) / node_memory_MemTotal_bytes))',
-        // Total RAM in bytes
         totalRam: 'node_memory_MemTotal_bytes',
-        // Network traffic in bytes/s (receive + transmit on eth0 or en* interfaces)
-        networkTraffic: 'sum(rate(node_network_receive_bytes_total{device!~"lo|docker.*|veth.*|wg.*"}[2s])) + sum(rate(node_network_transmit_bytes_total{device!~"lo|docker.*|veth.*|wg.*"}[2s]))'
+        networkTraffic: 'sum(rate(node_network_receive_bytes_total{device!~"lo|docker.*|veth.*|wg.*"}[15s])) + sum(rate(node_network_transmit_bytes_total{device!~"lo|docker.*|veth.*|wg.*"}[15s]))'
       };
 
       const results: any = {};
@@ -36,10 +31,11 @@ export class MetricsService {
           if (response.data?.data?.result && response.data.data.result.length > 0) {
             results[key] = parseFloat(response.data.data.result[0].value[1]);
           } else {
+            this.logger.warn(`Prometheus query ${key} returned empty results!`);
             results[key] = 0;
           }
-        } catch (err) {
-          // Fallback if Prometheus query fails
+        } catch (err: any) {
+          this.logger.error(`Prometheus query ${key} failed: ${err.message}`);
           results[key] = 0;
         }
       }
