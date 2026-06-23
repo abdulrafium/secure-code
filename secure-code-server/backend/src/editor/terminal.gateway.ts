@@ -179,7 +179,7 @@ export class TerminalGateway
           const finalHostMountPath = path.join(hostWorkspacesDir, relativeProjectDir);
 
           try {
-            await execAsync(`docker run -d --rm --name ${containerName} -v "${finalHostMountPath}:/workspace" -w /workspace node:18 tail -f /dev/null`);
+            await execAsync(`docker run -d --rm --name ${containerName} --network secure_code_network -v "${finalHostMountPath}:/workspace" -w /workspace node:18 tail -f /dev/null`);
           } catch (e) {
             console.error('Failed to start docker container:', e);
             client.emit('terminal.output', `\\r\\n\\x1b[31mError: Failed to start isolated container.\\x1b[0m\\r\\n`);
