@@ -26,9 +26,9 @@ export class MetricsService {
         totalRam: 'node_memory_MemTotal_bytes',
         networkTraffic: 'sum(rate(node_network_receive_bytes_total{device!~"lo|docker.*|veth.*|wg.*"}[15s])) + sum(rate(node_network_transmit_bytes_total{device!~"lo|docker.*|veth.*|wg.*"}[15s]))',
         // Container specific metrics
-        containerCpu: 'sum(rate(container_cpu_usage_seconds_total{image!="", name!=""}[15s])) by (name) * 100',
-        containerRam: 'sum(container_memory_usage_bytes{image!="", name!=""}) by (name)',
-        containerNetwork: 'sum(rate(container_network_receive_bytes_total{image!="", name!=""}[15s]) + rate(container_network_transmit_bytes_total{image!="", name!=""}[15s])) by (name)'
+        containerCpu: 'sum(rate(container_cpu_usage_seconds_total{name=~".+"}[15s])) by (name) * 100',
+        containerRam: 'sum(container_memory_usage_bytes{name=~".+"}) by (name)',
+        containerNetwork: 'sum(rate(container_network_receive_bytes_total{name=~".+"}[15s]) + rate(container_network_transmit_bytes_total{name=~".+"}[15s])) by (name)'
       };
 
       const results: any = {};
