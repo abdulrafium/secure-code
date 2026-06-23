@@ -412,7 +412,11 @@ export class TerminalGateway
         }
       }
 
-      ptyProcess.write(data);
+      try {
+        ptyProcess.write(data);
+      } catch (err) {
+        console.error('Failed to write to pty:', err);
+      }
     }
   }
   @SubscribeMessage('terminal.resize')

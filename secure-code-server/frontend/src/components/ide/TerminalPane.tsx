@@ -36,16 +36,23 @@ export default function TerminalPane({ projectId, isViewer, accessToken }: { pro
       if (isDisposed || !terminalRef.current) return;
       term.open(terminalRef.current);
 
+      let lastCols = 0;
+      let lastRows = 0;
+
       const safeFit = () => {
         if (isDisposed) return;
         try {
           if (terminalRef.current && terminalRef.current.clientWidth > 0 && terminalRef.current.clientHeight > 0) {
             fitAddon.fit();
             if (socketRef.current && term.cols && term.rows) {
-              socketRef.current.emit('terminal.resize', {
-                cols: term.cols,
-                rows: term.rows,
-              });
+              if (term.cols !== lastCols || term.rows !== lastRows) {
+                lastCols = term.cols;
+                lastRows = term.rows;
+                socketRef.current.emit('terminal.resize', {
+                  cols: term.cols,
+                  rows: term.rows,
+                });
+              }
             }
           }
         } catch (e) {
@@ -59,7 +66,7 @@ export default function TerminalPane({ projectId, isViewer, accessToken }: { pro
         clearTimeout(resizeTimeout);
         resizeTimeout = setTimeout(() => {
           requestAnimationFrame(safeFit);
-        }, 50);
+        }, 250);
       });
       resizeObserver.observe(terminalRef.current);
 
