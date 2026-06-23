@@ -126,6 +126,7 @@ export default function AdminDashboard() {
         totalRam: 0,
         networkTraffic: 0,
         responseTime: 0,
+        error: null as string | null,
     });
 
     const [stats, setStats] = useState({ 
