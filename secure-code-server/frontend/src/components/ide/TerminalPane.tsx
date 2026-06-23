@@ -9,6 +9,11 @@ export default function TerminalPane({ projectId, isViewer, accessToken, hasWork
   const xtermRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const socketRef = useRef<Socket | null>(null);
+  
+  const hasWorkspaceErrorsRef = useRef(hasWorkspaceErrors);
+  useEffect(() => {
+    hasWorkspaceErrorsRef.current = hasWorkspaceErrors;
+  }, [hasWorkspaceErrors]);
 
   useEffect(() => {
     if (!terminalRef.current) return;
@@ -118,7 +123,7 @@ export default function TerminalPane({ projectId, isViewer, accessToken, hasWork
           const cmd = localBuffer.trim();
           
           const isRunCommand = cmd.startsWith('npm') || cmd.startsWith('yarn') || cmd.startsWith('node') || cmd.startsWith('python') || cmd.startsWith('go run') || cmd.startsWith('./');
-          if (hasWorkspaceErrors && isRunCommand) {
+          if (hasWorkspaceErrorsRef.current && isRunCommand) {
             term.write('\r\n\x1b[31;1m[IDE Error] Cannot execute command. Please fix the syntax errors in your files (marked in red) before running the project.\x1b[0m\r\n');
             localBuffer = '';
             return; // Block command execution

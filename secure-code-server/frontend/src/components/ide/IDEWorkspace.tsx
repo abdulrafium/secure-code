@@ -1010,9 +1010,20 @@ export default function IDEWorkspace() {
       monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
         target: monaco.languages.typescript.ScriptTarget.ESNext,
         allowNonTsExtensions: true,
-        checkJs: false,
-        jsx: monaco.languages.typescript.JsxEmit.React
+        checkJs: true,
+        jsx: monaco.languages.typescript.JsxEmit.ReactJSX
       });
+
+      monaco.languages.typescript.javascriptDefaults.addExtraLib(`
+        declare module "*.svg" {
+          const content: any;
+          export default content;
+        }
+        declare module "*.css" {
+          const content: any;
+          export default content;
+        }
+      `, 'ambient.d.ts');
     }
 
     // Optional: Log validation markers (syntax errors) locally
