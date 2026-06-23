@@ -121,9 +121,9 @@ export default function AdminDashboard() {
     });
     const [currentMetrics, setCurrentMetrics] = useState({
         cpuUsage: 0,
-        cpuCores: 24,
+        cpuCores: 0,
         ramUsage: 0,
-        totalRam: 16 * 1024 * 1024 * 1024,
+        totalRam: 0,
         networkTraffic: 0,
         responseTime: 0,
     });
@@ -144,7 +144,7 @@ export default function AdminDashboard() {
     });
 
     useEffect(() => {
-        const eventSource = new EventSource(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/system/metrics/stream`);
+        const eventSource = new EventSource('/api/system/metrics/stream');
         
         eventSource.onmessage = (event) => {
             try {
@@ -592,7 +592,7 @@ export default function AdminDashboard() {
 
                     <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                         <GraphCard
-                            title="CPU Usage" subtitle={`${currentMetrics.cpuCores || 24} Cores`} value={`${Math.round(currentMetrics.cpuUsage || 0)}%`} valueColor="purple"
+                            title="CPU Usage" subtitle={`${currentMetrics.cpuCores} Cores`} value={`${Math.round(currentMetrics.cpuUsage || 0)}%`} valueColor="purple"
                             strokeColor="#a855f7" fillFrom="#a855f7"
                             yLabels={['100%', '75%', '50%', '25%', '0%']}
                             pathD={generateSvgPath(metricsData.cpu)}
