@@ -106,11 +106,14 @@ export class MetricsService {
 
       await Promise.all(promises);
 
-      // Override disk stats using native fs module for perfectly accurate Azure VM root overlay space
+      // Override disk stats using df for foolproof accurate Azure VM root overlay space
       try {
-        const stat = fs.statfsSync('/');
-        results.diskTotal = stat.blocks * stat.bsize;
-        results.diskFree = stat.bavail * stat.bsize;
+        const dfOut = require('child_process').execSync('df -B1 / | tail -n 1').toString();
+        const parts = dfOut.trim().split(/\\s+/);
+        if (parts.length >= 4) {
+          results.diskTotal = parseInt(parts[1], 10);
+          results.diskFree = parseInt(parts[3], 10);
+        }
       } catch (err: any) {
         this.logger.warn(`Native disk stats failed: ${err.message}`);
       }

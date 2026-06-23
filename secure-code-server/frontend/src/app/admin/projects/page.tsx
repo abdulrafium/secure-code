@@ -460,7 +460,7 @@ export default function ProjectsPage() {
                         </button>
                     </div>
 
-                    <div className="w-full relative overflow-x-auto">
+                    <div className="w-full relative overflow-visible">
                         <table className="w-full text-left border-collapse whitespace-nowrap">
                             <thead>
                                 <tr className="border-b border-slate-800/80 text-[14px] text-slate-300 bg-[#070b14]">
