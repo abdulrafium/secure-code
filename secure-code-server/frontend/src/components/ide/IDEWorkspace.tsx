@@ -1001,6 +1001,19 @@ export default function IDEWorkspace() {
   const handleEditorMount = (editor: any, monaco: any) => {
     editorRef.current = editor;
 
+    // Enable strict checking for JavaScript so undefined variables show as red errors
+    if (monaco.languages?.typescript?.javascriptDefaults) {
+      monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
+        noSemanticValidation: false,
+        noSyntaxValidation: false,
+      });
+      monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
+        target: monaco.languages.typescript.ScriptTarget.ESNext,
+        allowNonTsExtensions: true,
+        checkJs: true
+      });
+    }
+
     // Optional: Log validation markers (syntax errors) locally
     // The actual onValidate event handles our global state.
 
