@@ -176,6 +176,8 @@ export class MetricsService {
         cpuCores: results.cpuCores || 0,
         ramUsage: results.ramUsage || 0,
         totalRam: results.totalRam || 0,
+        diskTotal: results.diskTotal || 0,
+        diskFree: results.diskFree || 0,
         networkTraffic: results.networkTraffic || 0,
         responseTime: respVal,
         containerCpu,
