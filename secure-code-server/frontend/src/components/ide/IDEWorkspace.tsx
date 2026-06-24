@@ -459,22 +459,36 @@ export default function IDEWorkspace() {
           api.patch(`/projects/${projectId}/recalculate-storage`, {}).catch(() => {});
           api.get(`/projects/${projectId}`).then(proj => {
             let files = [...(proj.allowedFiles || [])];
-            if (currentUserRole !== 'Admin') {
-              let userId = '';
-              const token = isViewerRoute 
-                ? (sessionStorage.getItem('viewer_accessToken') || cookies['viewer_accessToken'])
-                : ((window.location.search.includes('asAdmin=true') && (sessionStorage.getItem('admin_accessToken') || cookies['admin_accessToken'])) 
-                   ? (sessionStorage.getItem('admin_accessToken') || cookies['admin_accessToken']) 
-                   : (sessionStorage.getItem('developer_accessToken') || cookies['developer_accessToken']));
-              if (token) {
-                try {
-                  userId = JSON.parse(atob(token.split('.')[1])).id;
-                } catch (e) {}
+            
+            if (proj.memberRestrictions) {
+              let restrictions = proj.memberRestrictions;
+              if (typeof restrictions === 'string') {
+                try { restrictions = JSON.parse(restrictions); } catch(e) {}
               }
-              if (userId && proj.memberRestrictions && proj.memberRestrictions[userId]) {
-                files = [...files, ...(proj.memberRestrictions[userId].allowedFiles || [])];
+              
+              if (currentUserRole === 'Admin') {
+                // Admin wants to see all restrictions applied to any member to verify them
+                for (const memberId in restrictions) {
+                  files = [...files, ...(restrictions[memberId].allowedFiles || [])];
+                }
+              } else {
+                let userId = '';
+                const token = isViewerRoute 
+                  ? (sessionStorage.getItem('viewer_accessToken') || cookies['viewer_accessToken'])
+                  : ((window.location.search.includes('asAdmin=true') && (sessionStorage.getItem('admin_accessToken') || cookies['admin_accessToken'])) 
+                     ? (sessionStorage.getItem('admin_accessToken') || cookies['admin_accessToken']) 
+                     : (sessionStorage.getItem('developer_accessToken') || cookies['developer_accessToken']));
+                if (token) {
+                  try {
+                    userId = JSON.parse(atob(token.split('.')[1])).id;
+                  } catch (e) {}
+                }
+                if (userId && restrictions[userId]) {
+                  files = [...files, ...(restrictions[userId].allowedFiles || [])];
+                }
               }
             }
+            
             setRestrictedFiles(files);
           }).catch(() => {});
         }
