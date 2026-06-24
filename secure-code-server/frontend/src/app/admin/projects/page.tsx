@@ -99,10 +99,20 @@ export default function ProjectsPage() {
 
     const fileInputRef = React.useRef<HTMLInputElement>(null);
 
+    const showAccessModalRef = React.useRef(showAccessModal);
+    const showCreateModalRef = React.useRef(showCreateModal);
+    
+    React.useEffect(() => {
+        showAccessModalRef.current = showAccessModal;
+        showCreateModalRef.current = showCreateModal;
+    }, [showAccessModal, showCreateModal]);
+
     React.useEffect(() => {
         fetchProjects();
         const interval = setInterval(() => {
-            fetchProjects();
+            if (!showAccessModalRef.current && !showCreateModalRef.current) {
+                fetchProjects();
+            }
         }, 5000);
         fetchAllUsers();
         return () => clearInterval(interval);
