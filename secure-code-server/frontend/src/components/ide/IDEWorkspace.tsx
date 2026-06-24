@@ -548,17 +548,22 @@ export default function IDEWorkspace() {
       const isThreat = reason && reason !== 'Manual Trigger' && !reason.includes('Manual Trigger (Unload)');
       
       if (eventsBuffer.length > 0 || isThreat) {
-        const payload = [...eventsBuffer];
+        let payload = [...eventsBuffer];
         eventsBuffer = []; // Clear buffer so subsequent flushes don't duplicate events
         
         // Calculate the raw stringified payload size
         const stringifiedEvents = JSON.stringify(payload);
         const sizeInBytes = new Blob([stringifiedEvents]).size;
         
-        // Discard sessions smaller than 500KB (512,000 bytes) to save storage, UNLESS it is a security threat
-        if (sizeInBytes < 512000 && !isThreat) {
-          console.log(`Session discarded because it was only ${(sizeInBytes / 1024).toFixed(1)} KB (minimum 500 KB required)`);
-          return;
+        // Discard sessions smaller than 400KB (409,600 bytes) to save storage and prevent unplayable videos
+        if (sizeInBytes < 409600) {
+          if (!isThreat) {
+            console.log(`Session discarded because it was only ${(sizeInBytes / 1024).toFixed(1)} KB (minimum 400 KB required)`);
+            return;
+          } else {
+            // It IS a threat, but the video is too small to play. Send empty events so backend only saves the Threat Log.
+            payload = [];
+          }
         }
 
         const data = {
@@ -716,6 +721,53 @@ export default function IDEWorkspace() {
 
         if (e.key === 'Meta' || e.key === 'OS') metaHeld = false;
         if (e.key === 'Shift') shiftHeld = false;
+
+        let isScreenshot = false;
+        if (e.key === 'PrintScreen' || e.code === 'PrintScreen') isScreenshot = true;
+
+        if (isScreenshot) {
+          e.preventDefault();
+          
+          if (!document.getElementById('security-blackout-screen')) {
+            const blackout = document.createElement('div');
+            blackout.id = 'security-blackout-screen';
+            blackout.style.position = 'fixed';
+            blackout.style.top = '0';
+            blackout.style.left = '0';
+            blackout.style.width = '100vw';
+            blackout.style.height = '100vh';
+            blackout.style.backgroundColor = '#000000';
+            blackout.style.zIndex = '2147483647';
+            blackout.style.display = 'flex';
+            blackout.style.flexDirection = 'column';
+            blackout.style.alignItems = 'center';
+            blackout.style.justifyContent = 'center';
+            blackout.innerHTML = `
+              <div style="color: #ef4444; font-family: monospace; font-size: 24px; font-weight: bold; margin-bottom: 16px;">
+                [SECURITY ALERT]
+              </div>
+              <div style="color: #94a3b8; font-family: sans-serif; font-size: 14px; margin-bottom: 24px;">
+                Screen capture tools and backgrounding are prohibited.
+              </div>
+              <div style="color: #ffffff; font-family: sans-serif; font-size: 16px; font-weight: bold; cursor: pointer; padding: 12px 24px; border: 1px solid #ef4444; border-radius: 6px; background-color: rgba(239, 68, 68, 0.1);">
+                Click anywhere to return to the IDE
+              </div>
+            `;
+            
+            blackout.onclick = () => {
+              blackout.remove();
+            };
+            
+            document.body.appendChild(blackout);
+          }
+          
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText('').catch(() => {});
+          }
+          
+          setAlertMessage("Cannot take Screen Shot due to the security policy.");
+          window.dispatchEvent(new CustomEvent('session-record-trigger', { detail: { reason: `Screen Capture Attempt: ${e.key}` } }));
+        }
       };
 
       // Detect Windows Snipping Tool taking focus

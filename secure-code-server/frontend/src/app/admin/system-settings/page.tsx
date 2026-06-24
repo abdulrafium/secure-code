@@ -25,24 +25,21 @@ export default function SystemSettingsPage() {
     const [clearComplete, setClearComplete] = useState(false);
 
     useEffect(() => {
-        const token = localStorage.getItem('token');
-        if (token) {
-            const eventSource = new EventSource(`/api/system/metrics/stream?token=${token}`);
-            eventSource.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-                    if (data.diskTotal && data.diskFree) {
-                        setDiskMetrics({
-                            total: data.diskTotal,
-                            free: data.diskFree
-                        });
-                    }
-                } catch (err) {}
-            };
-            return () => {
-                eventSource.close();
-            };
-        }
+        const eventSource = new EventSource('/api/system/metrics/stream');
+        eventSource.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.diskTotal && data.diskFree) {
+                    setDiskMetrics({
+                        total: data.diskTotal,
+                        free: data.diskFree
+                    });
+                }
+            } catch (err) {}
+        };
+        return () => {
+            eventSource.close();
+        };
     }, []);
 
     const handleClearStorage = async () => {
@@ -75,7 +72,7 @@ export default function SystemSettingsPage() {
     };
 
     const formatBytes = (bytes: number) => {
-        if (!bytes || bytes === 0) return '0 GB';
+        if (!bytes || bytes === 0) return 'N/A';
         return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
     };
 
@@ -182,7 +179,7 @@ export default function SystemSettingsPage() {
                                 <div className="w-full h-3 bg-[#050810] rounded-full overflow-hidden border border-slate-800/80 mb-6 shadow-inner relative">
                                     <div 
                                         className={`absolute top-0 left-0 h-full transition-all duration-1000 ease-out ${usedPercent > 80 ? 'bg-red-500 shadow-[0_0_15px_rgba(239,68,68,0.5)]' : 'bg-blue-500 shadow-[0_0_15px_rgba(37,99,235,0.4)]'}`}
-                                        style={{ width: `${Math.max(2, usedPercent)}%` }}
+                                        style={{ width: diskMetrics.total === 0 ? '0%' : `${Math.max(2, usedPercent)}%` }}
                                     />
                                 </div>
 

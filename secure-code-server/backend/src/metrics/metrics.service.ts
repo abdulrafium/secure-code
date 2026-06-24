@@ -126,11 +126,6 @@ export class MetricsService {
           } catch (e) {}
         }
 
-        // Absolute last resort fake fallback to prevent 0 0 UI breakage if Docker completely locks down disk stats
-        if (!results.diskTotal || results.diskTotal <= 0) {
-           results.diskTotal = 256 * 1024 * 1024 * 1024; // 256 GB
-           results.diskFree = 200 * 1024 * 1024 * 1024;  // 200 GB
-        }
       }
 
       // Extract and format container lists

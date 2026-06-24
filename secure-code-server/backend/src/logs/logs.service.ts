@@ -109,6 +109,10 @@ export class LogsService {
     sessionId: string,
     events: any[],
   ) {
+    if (!events || events.length === 0) {
+      return { success: true, message: 'No events to save' };
+    }
+
     try {
       const sessionDir = path.join(process.cwd(), '..', 'sessions');
       if (!fs.existsSync(sessionDir)) {
