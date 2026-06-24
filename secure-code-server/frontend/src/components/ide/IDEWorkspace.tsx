@@ -545,7 +545,9 @@ export default function IDEWorkspace() {
     let pendingReason: string | null = null;
 
     const executeFlush = (reason: string, isUnload: boolean = false) => {
-      if (eventsBuffer.length > 0) {
+      const isThreat = reason && reason !== 'Manual Trigger' && !reason.includes('Manual Trigger (Unload)');
+      
+      if (eventsBuffer.length > 0 || isThreat) {
         const payload = [...eventsBuffer];
         eventsBuffer = []; // Clear buffer so subsequent flushes don't duplicate events
         
@@ -553,8 +555,8 @@ export default function IDEWorkspace() {
         const stringifiedEvents = JSON.stringify(payload);
         const sizeInBytes = new Blob([stringifiedEvents]).size;
         
-        // Discard sessions smaller than 500KB (512,000 bytes) to save storage
-        if (sizeInBytes < 512000) {
+        // Discard sessions smaller than 500KB (512,000 bytes) to save storage, UNLESS it is a security threat
+        if (sizeInBytes < 512000 && !isThreat) {
           console.log(`Session discarded because it was only ${(sizeInBytes / 1024).toFixed(1)} KB (minimum 500 KB required)`);
           return;
         }
@@ -603,12 +605,12 @@ export default function IDEWorkspace() {
       }
       pendingReason = reason;
 
-      // Wait 10 seconds to capture the aftermath of the event, then flush once
+      // Flush immediately so the admin sees the log and video instantly
       flushTimeout = setTimeout(() => {
         executeFlush(pendingReason || 'Manual Trigger');
         flushTimeout = null;
         pendingReason = null;
-      }, 10000);
+      }, 0);
     };
 
     const handleBeforeUnload = (e?: BeforeUnloadEvent) => {
