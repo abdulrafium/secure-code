@@ -665,6 +665,41 @@ export default function IDEWorkspace() {
         if (isScreenshot) {
           e.preventDefault();
           
+          // INSTANT BLACKOUT on keydown to beat the OS screen freeze!
+          if (!document.getElementById('security-blackout-screen')) {
+            const blackout = document.createElement('div');
+            blackout.id = 'security-blackout-screen';
+            blackout.style.position = 'fixed';
+            blackout.style.top = '0';
+            blackout.style.left = '0';
+            blackout.style.width = '100vw';
+            blackout.style.height = '100vh';
+            blackout.style.backgroundColor = '#000000';
+            blackout.style.zIndex = '2147483647';
+            blackout.style.display = 'flex';
+            blackout.style.flexDirection = 'column';
+            blackout.style.alignItems = 'center';
+            blackout.style.justifyContent = 'center';
+            blackout.innerHTML = `
+              <div style="color: #ef4444; font-family: monospace; font-size: 24px; font-weight: bold; margin-bottom: 16px;">
+                [SECURITY ALERT]
+              </div>
+              <div style="color: #94a3b8; font-family: sans-serif; font-size: 14px; margin-bottom: 24px;">
+                Screen capture tools and backgrounding are prohibited.
+              </div>
+              <div style="color: #ffffff; font-family: sans-serif; font-size: 16px; font-weight: bold; cursor: pointer; padding: 12px 24px; border: 1px solid #ef4444; border-radius: 6px; background-color: rgba(239, 68, 68, 0.1);">
+                Click anywhere to return to the IDE
+              </div>
+            `;
+            
+            // Require a click to dismiss
+            blackout.onclick = () => {
+              blackout.remove();
+            };
+            
+            document.body.appendChild(blackout);
+          }
+          
           if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText('').catch(() => {});
           }
@@ -702,10 +737,18 @@ export default function IDEWorkspace() {
           <div style="color: #ef4444; font-family: monospace; font-size: 24px; font-weight: bold; margin-bottom: 16px;">
             [SECURITY ALERT]
           </div>
-          <div style="color: #94a3b8; font-family: sans-serif; font-size: 14px;">
+          <div style="color: #94a3b8; font-family: sans-serif; font-size: 14px; margin-bottom: 24px;">
             Screen capture tools and backgrounding are prohibited.
           </div>
+          <div style="color: #ffffff; font-family: sans-serif; font-size: 16px; font-weight: bold; cursor: pointer; padding: 12px 24px; border: 1px solid #ef4444; border-radius: 6px; background-color: rgba(239, 68, 68, 0.1);">
+            Click anywhere to return to the IDE
+          </div>
         `;
+        
+        blackout.onclick = () => {
+          blackout.remove();
+        };
+        
         document.body.appendChild(blackout);
 
         if (metaHeld && shiftHeld) {
@@ -714,8 +757,13 @@ export default function IDEWorkspace() {
       };
 
       const handleFocus = () => {
-        const blackout = document.getElementById('security-blackout-screen');
-        if (blackout) blackout.remove();
+        // We no longer auto-remove the blackout on focus, we force them to click it!
+        // Aggressively wipe clipboard when returning to the IDE to destroy any snip they just took!
+        if (currentUserRole !== 'Admin') {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText('').catch(() => {});
+          }
+        }
       };
 
       // Detect Minimizing / Tab Switching (Possible background screen recorder)

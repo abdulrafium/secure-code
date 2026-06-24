@@ -26,7 +26,8 @@ Developers can write, test, and collaborate on code in real-time, but they canno
 
 ### 1. Data Exfiltration Prevention
 - **Anti-Copy/Paste:** Strict OS-level and browser-level interception blocks all copy, cut, and paste attempts, preventing code from leaving the browser window.
-- **Dynamic Watermarking:** A permanent, customized UI overlay displays the current user's Email, IP Address, and Timestamp across the screen to deter physical screen recording or photography.
+- **Dynamic Watermarking:** A permanent, customized UI overlay displays the current user's Username, IP Address, and Timestamp across the screen to deter physical screen recording or photography.
+- **Anti-Screenshot Blackout:** Aggressively beats OS-level screen clipping tools (like Windows Snipping Tool) by instantly painting a black `[SECURITY ALERT]` screen over the IDE the millisecond a screenshot hotkey is pressed or the browser loses focus. It forces the user to manually click to dismiss it, ensuring the screen capture only gets a black square, and aggressively wipes the clipboard to destroy snippets.
 
 ### 2. Intelligent Terminal Sandboxing
 - **Terminal Interceptors:** The built-in IDE terminal does not just pass commands to the OS. It actively intercepts and evaluates every command (like `cd`, `cat`, `rm`, `mv`).
