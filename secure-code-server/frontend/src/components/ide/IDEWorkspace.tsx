@@ -384,6 +384,34 @@ export default function IDEWorkspace() {
 
   const handleRenameCancel = () => setRenamingNodePath(null);
 
+  // ── Auto-Close Restricted Files ──────────────────────────────────────────────
+  useEffect(() => {
+    if (restrictedFiles.length === 0 || openFiles.length === 0) return;
+
+    let filesToClose: string[] = [];
+    for (const file of openFiles) {
+      const isRestrictedPath = restrictedFiles.some(r => {
+        const trimmedR = r.trim().replace(/\\/g, '/').replace(/\/$/, '');
+        const normalizedNodePath = file.path.replace(/\\/g, '/').replace(/\/$/, '');
+        return normalizedNodePath === trimmedR || 
+        normalizedNodePath.startsWith(trimmedR + '/') || 
+        normalizedNodePath.endsWith('/' + trimmedR) || 
+        normalizedNodePath.includes('/' + trimmedR + '/');
+      });
+      if (isRestrictedPath) {
+        filesToClose.push(file.path);
+      }
+    }
+
+    if (filesToClose.length > 0) {
+      setOpenFiles(prev => prev.filter(f => !filesToClose.includes(f.path)));
+      if (activeFilePath && filesToClose.includes(activeFilePath)) {
+        const remainingFiles = openFiles.filter(f => !filesToClose.includes(f.path));
+        setActiveFilePath(remainingFiles.length > 0 ? remainingFiles[remainingFiles.length - 1].path : null);
+      }
+    }
+  }, [restrictedFiles, openFiles, activeFilePath]);
+
   useEffect(() => {
     const handleGlobalClick = () => setContextMenu(null);
     document.addEventListener('click', handleGlobalClick);

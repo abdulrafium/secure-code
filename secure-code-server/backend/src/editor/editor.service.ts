@@ -52,9 +52,13 @@ export class EditorService {
     if (restrictedFiles.length > 0) {
       // It's a blacklist
       for (const restrictedPath of restrictedFiles) {
+        const trimmedR = restrictedPath.trim().replace(/\\/g, '/').replace(/\/$/, '');
+        const normalizedTarget = targetPath.replace(/\\/g, '/').replace(/\/$/, '');
         if (
-          targetPath === restrictedPath ||
-          targetPath.startsWith(restrictedPath + '/')
+          normalizedTarget === trimmedR ||
+          normalizedTarget.startsWith(trimmedR + '/') ||
+          normalizedTarget.endsWith('/' + trimmedR) ||
+          normalizedTarget.includes('/' + trimmedR + '/')
         ) {
           const itemName = targetPath.split('/').pop() || targetPath;
           throw new BadRequestException(
