@@ -44,3 +44,5 @@
 - **Runtime Environment:** Shared Runtime Pool & Rootless Docker Sandboxing (executing safely instead of directly on the host OS).
 - **Centralized Logging:** Integrated Grafana Loki alongside Postgres to serve as a high-performance, horizontally scalable log aggregation engine.
 - **CI/CD Automation:** Fully automated deployment pipeline using GitHub Actions (`deploy.yml`) with secure SSH runners for continuous integration and delivery.
+- **VPN Mandatory Access:** Configuring WireGuard so the dashboard is entirely invisible to the public internet.
+- **Deployment & Infrastructure:** Nginx Reverse Proxy, WireGuard VPN, Prometheus+Grafana, Loki logs.

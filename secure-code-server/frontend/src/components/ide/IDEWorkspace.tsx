@@ -665,9 +665,8 @@ export default function IDEWorkspace() {
         if (isScreenshot) {
           e.preventDefault();
           
-          // Try to wipe clipboard aggressively to thwart print screen
           if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText('');
+            navigator.clipboard.writeText('').catch(() => {});
           }
           
           setAlertMessage("Cannot take Screen Shot due to the security policy.");
@@ -680,22 +679,43 @@ export default function IDEWorkspace() {
 
         if (e.key === 'Meta' || e.key === 'OS') metaHeld = false;
         if (e.key === 'Shift') shiftHeld = false;
-        
-        let isScreenshot = false;
-        if (e.key === 'PrintScreen' || e.code === 'PrintScreen') isScreenshot = true;
-
-        if (isScreenshot) {
-          setAlertMessage("Cannot take Screen Shot due to the security policy.");
-          window.dispatchEvent(new CustomEvent('session-record-trigger', { detail: { reason: `Screen Capture Attempt: ${e.key}` } }));
-        }
       };
 
       // Detect Windows Snipping Tool taking focus
       const handleBlur = () => {
         if (currentUserRole === 'Admin') return;
+        
+        const blackout = document.createElement('div');
+        blackout.id = 'security-blackout-screen';
+        blackout.style.position = 'fixed';
+        blackout.style.top = '0';
+        blackout.style.left = '0';
+        blackout.style.width = '100vw';
+        blackout.style.height = '100vh';
+        blackout.style.backgroundColor = '#000000';
+        blackout.style.zIndex = '2147483647';
+        blackout.style.display = 'flex';
+        blackout.style.flexDirection = 'column';
+        blackout.style.alignItems = 'center';
+        blackout.style.justifyContent = 'center';
+        blackout.innerHTML = `
+          <div style="color: #ef4444; font-family: monospace; font-size: 24px; font-weight: bold; margin-bottom: 16px;">
+            [SECURITY ALERT]
+          </div>
+          <div style="color: #94a3b8; font-family: sans-serif; font-size: 14px;">
+            Screen capture tools and backgrounding are prohibited.
+          </div>
+        `;
+        document.body.appendChild(blackout);
+
         if (metaHeld && shiftHeld) {
           window.dispatchEvent(new CustomEvent('session-record-trigger', { detail: { reason: `External Snipping Tool Overlay Detected` } }));
         }
+      };
+
+      const handleFocus = () => {
+        const blackout = document.getElementById('security-blackout-screen');
+        if (blackout) blackout.remove();
       };
 
       // Detect Minimizing / Tab Switching (Possible background screen recorder)
@@ -719,6 +739,7 @@ export default function IDEWorkspace() {
       window.addEventListener('keydown', handleKeyDown);
       window.addEventListener('keyup', handleKeyUp);
       window.addEventListener('blur', handleBlur);
+      window.addEventListener('focus', handleFocus);
       document.addEventListener('visibilitychange', handleVisibilityChange);
       window.addEventListener('beforeunload', handleBeforeUnload);
 
@@ -728,8 +749,11 @@ export default function IDEWorkspace() {
         window.removeEventListener('keydown', handleKeyDown);
         window.removeEventListener('keyup', handleKeyUp);
         window.removeEventListener('blur', handleBlur);
+        window.removeEventListener('focus', handleFocus);
         document.removeEventListener('visibilitychange', handleVisibilityChange);
         window.removeEventListener('beforeunload', handleBeforeUnload);
+        const blackout = document.getElementById('security-blackout-screen');
+        if (blackout) blackout.remove();
         if (flushTimeout) clearTimeout(flushTimeout);
       };
 
