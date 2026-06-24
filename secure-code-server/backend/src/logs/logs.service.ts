@@ -75,7 +75,6 @@ export class LogsService {
   async getLogs() {
     return await this.logsRepository.find({
       order: { createdAt: 'DESC' },
-      take: 100,
     });
   }
 

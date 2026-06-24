@@ -560,7 +560,9 @@ export default function AdminDashboard() {
                             <span className="text-slate-400 text-xs font-medium">Requests Today</span>
                         </div>
                         <div className="mt-3">
-                            <h3 className="text-2xl font-bold text-white">{stats.requestsToday.toLocaleString()}</h3>
+                            <h3 className="text-2xl font-bold text-white">
+                                {stats.requestsToday >= 1000 ? (stats.requestsToday / 1000).toFixed(1) + 'k' : stats.requestsToday.toLocaleString()}
+                            </h3>
                             <p className={`${stats.requestsToday >= stats.requestsYesterday ? 'text-emerald-400' : 'text-red-400'} text-xs mt-1 font-medium`}>
                                 {stats.requestsYesterday > 0 
                                     ? `${stats.requestsToday >= stats.requestsYesterday ? '+' : ''}${(((stats.requestsToday - stats.requestsYesterday) / stats.requestsYesterday) * 100).toFixed(1)}% than yesterday`
@@ -594,7 +596,9 @@ export default function AdminDashboard() {
                             <span className="text-slate-400 text-xs font-medium">Active Alerts</span>
                         </div>
                         <div className="mt-3 flex items-end justify-between">
-                            <h3 className="text-2xl font-bold text-white">{securityLogs.length}</h3>
+                            <h3 className="text-2xl font-bold text-white">
+                                {securityLogs.length >= 1000 ? (securityLogs.length / 1000).toFixed(1) + 'k' : securityLogs.length}
+                            </h3>
                             <button onClick={(e) => { e.preventDefault(); setIsAlertsModalOpen(true); }} className="text-red-400 hover:text-red-300 text-xs font-medium transition-colors">View Alerts &rarr;</button>
                         </div>
                     </div>

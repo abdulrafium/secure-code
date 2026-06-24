@@ -548,6 +548,17 @@ export default function IDEWorkspace() {
       if (eventsBuffer.length > 0) {
         const payload = [...eventsBuffer];
         eventsBuffer = []; // Clear buffer so subsequent flushes don't duplicate events
+        
+        // Calculate the raw stringified payload size
+        const stringifiedEvents = JSON.stringify(payload);
+        const sizeInBytes = new Blob([stringifiedEvents]).size;
+        
+        // Discard sessions smaller than 500KB (512,000 bytes) to save storage
+        if (sizeInBytes < 512000) {
+          console.log(`Session discarded because it was only ${(sizeInBytes / 1024).toFixed(1)} KB (minimum 500 KB required)`);
+          return;
+        }
+
         const data = {
           projectId: projectId || 'default',
           sessionId: `${currentSessionId}_${Date.now()}`,
