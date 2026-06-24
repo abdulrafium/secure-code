@@ -476,51 +476,64 @@ export default function IDEWorkspace() {
         } catch (e) { }
       }
     }
+    
+    let isDisposed = false;
 
-    // Fetch tree first
+    const fetchRestrictions = () => {
+      if (projectId) {
+        api.get(`/projects/${projectId}`).then(proj => {
+          if (isDisposed) return;
+          let files = [...(proj.allowedFiles || [])];
+          
+          if (proj.memberRestrictions) {
+            let restrictions = proj.memberRestrictions;
+            if (typeof restrictions === 'string') {
+              try { restrictions = JSON.parse(restrictions); } catch(e) {}
+            }
+            
+            if (currentUserRole !== 'Admin') {
+              let userId = '';
+              const token = isViewerRoute 
+                ? (sessionStorage.getItem('viewer_accessToken') || cookies['viewer_accessToken'])
+                : ((window.location.search.includes('asAdmin=true') && (sessionStorage.getItem('admin_accessToken') || cookies['admin_accessToken'])) 
+                   ? (sessionStorage.getItem('admin_accessToken') || cookies['admin_accessToken']) 
+                   : (sessionStorage.getItem('developer_accessToken') || cookies['developer_accessToken']));
+              if (token) {
+                try {
+                  const parsed = JSON.parse(atob(token.split('.')[1]));
+                  userId = parsed.sub || parsed.id;
+                } catch (e) {}
+              }
+              if (userId && restrictions[userId]) {
+                files = [...files, ...(restrictions[userId].allowedFiles || [])];
+              }
+            }
+          }
+          
+          setRestrictedFiles(files);
+        }).catch(() => {});
+      }
+    };
+
     const fetchFullTree = () => {
       const endpoint = projectId ? `/editor/tree?path=&projectId=${projectId}` : `/editor/tree?path=`;
       api.get(endpoint).then(data => {
+        if (isDisposed) return;
         setTree(data || []);
         setRefreshToggle(prev => prev + 1); // Triggers FileTree to also refresh expanded sub-folders
         if (projectId) {
           api.patch(`/projects/${projectId}/recalculate-storage`, {}).catch(() => {});
-          api.get(`/projects/${projectId}`).then(proj => {
-            let files = [...(proj.allowedFiles || [])];
-            
-            if (proj.memberRestrictions) {
-              let restrictions = proj.memberRestrictions;
-              if (typeof restrictions === 'string') {
-                try { restrictions = JSON.parse(restrictions); } catch(e) {}
-              }
-              
-              if (currentUserRole !== 'Admin') {
-                let userId = '';
-                const token = isViewerRoute 
-                  ? (sessionStorage.getItem('viewer_accessToken') || cookies['viewer_accessToken'])
-                  : ((window.location.search.includes('asAdmin=true') && (sessionStorage.getItem('admin_accessToken') || cookies['admin_accessToken'])) 
-                     ? (sessionStorage.getItem('admin_accessToken') || cookies['admin_accessToken']) 
-                     : (sessionStorage.getItem('developer_accessToken') || cookies['developer_accessToken']));
-                if (token) {
-                  try {
-                    const parsed = JSON.parse(atob(token.split('.')[1]));
-                    userId = parsed.sub || parsed.id;
-                  } catch (e) {}
-                }
-                if (userId && restrictions[userId]) {
-                  files = [...files, ...(restrictions[userId].allowedFiles || [])];
-                }
-              }
-            }
-            
-            setRestrictedFiles(files);
-          }).catch(() => {});
         }
       }).catch(err => console.error('Failed to fetch tree', err));
     };
 
     fetchFullTree();
-    const treeInterval = setInterval(fetchFullTree, 5000);
+    fetchRestrictions();
+    
+    // Fast poll ONLY for restrictions (2.5 seconds) - very lightweight DB check
+    const restrictionsInterval = setInterval(fetchRestrictions, 2500);
+    // Slow poll for full file tree (15 seconds) - heavy disk check
+    const treeInterval = setInterval(fetchFullTree, 15000);
 
     // Initialize rrweb session recording - Event-Based 5 Minute Rolling Buffer
     let rrwebStopFn: any = null;
@@ -821,6 +834,8 @@ export default function IDEWorkspace() {
     });
 
     return () => {
+      isDisposed = true;
+      clearInterval(restrictionsInterval);
       clearInterval(treeInterval);
       if (pruneInterval) clearInterval(pruneInterval);
       if (rrwebStopFn) rrwebStopFn();

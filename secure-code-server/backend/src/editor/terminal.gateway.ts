@@ -310,8 +310,16 @@ export class TerminalGateway
               'rm -rf /',
             ];
             let customBlacklist = [...(project?.allowedCommands || [])];
-            if (user && project?.memberRestrictions && project.memberRestrictions[user.id] && project.memberRestrictions[user.id].allowedCommands) {
-              customBlacklist = [...customBlacklist, ...project.memberRestrictions[user.id].allowedCommands];
+            
+            let parsedRestrictions = project?.memberRestrictions;
+            if (typeof parsedRestrictions === 'string') {
+              try { parsedRestrictions = JSON.parse(parsedRestrictions); } catch(e) {}
+            }
+            
+            const userId = user.sub || user.id;
+
+            if (user && parsedRestrictions && parsedRestrictions[userId] && parsedRestrictions[userId].allowedCommands) {
+              customBlacklist = [...customBlacklist, ...parsedRestrictions[userId].allowedCommands];
             }
             const combinedBlacklist = [
               ...new Set([...globalBlacklist, ...customBlacklist]),
@@ -346,37 +354,77 @@ export class TerminalGateway
 
               // Project's "allowedCommands" in the database is actually used as RESTRICTED commands in the UI.
               let projectRestricted = [...(project?.allowedCommands || [])];
-              if (user && project?.memberRestrictions && project.memberRestrictions[user.id] && project.memberRestrictions[user.id].allowedCommands) {
-                projectRestricted = [...projectRestricted, ...project.memberRestrictions[user.id].allowedCommands];
+              let restrictedFiles = [...(project?.allowedFiles || [])];
+              
+              if (user && parsedRestrictions && parsedRestrictions[userId]) {
+                if (parsedRestrictions[userId].allowedCommands) {
+                  projectRestricted = [...projectRestricted, ...parsedRestrictions[userId].allowedCommands];
+                }
+                if (parsedRestrictions[userId].allowedFiles) {
+                  restrictedFiles = [...restrictedFiles, ...parsedRestrictions[userId].allowedFiles];
+                }
               }
 
-              const combinedBlacklist = [
-                ...new Set([...globalBlacklist, ...projectRestricted]),
-              ];
-
               let isBlocked = false;
-              let blockedBy = '';
+              let errorMessage = '';
 
               // Check regex first
               if (dynamicBlockedRegex && dynamicBlockedRegex.test(rawCmd)) {
                 isBlocked = true;
-                blockedBy = 'Custom Regex';
+                errorMessage = `Command execution blocked by security policy.`;
               }
 
               // Check global and project blacklists
               if (!isBlocked) {
-                for (const restrictedCmd of combinedBlacklist) {
-                  const lowerRestricted = restrictedCmd
-                    .toLowerCase()
-                    .replace(/[\s\t]+/g, ' ');
-
+                const globalAndProjectList = [...globalBlacklist, ...(project?.allowedCommands || [])];
+                for (const restrictedCmd of globalAndProjectList) {
+                  const lowerRestricted = restrictedCmd.toLowerCase().replace(/[\s\t]+/g, ' ');
                   if (
                     baseCmd === lowerRestricted ||
                     normalizedCmd === lowerRestricted ||
                     normalizedCmd.startsWith(lowerRestricted + ' ')
                   ) {
                     isBlocked = true;
-                    blockedBy = restrictedCmd;
+                    errorMessage = `Command execution blocked by security policy.`;
+                    break;
+                  }
+                }
+              }
+
+              // Check Admin Member-specific restrictions
+              if (!isBlocked && user && parsedRestrictions && parsedRestrictions[userId] && parsedRestrictions[userId].allowedCommands) {
+                for (const restrictedCmd of parsedRestrictions[userId].allowedCommands) {
+                  const lowerRestricted = restrictedCmd.toLowerCase().replace(/[\s\t]+/g, ' ');
+                  if (
+                    baseCmd === lowerRestricted ||
+                    normalizedCmd === lowerRestricted ||
+                    normalizedCmd.startsWith(lowerRestricted + ' ')
+                  ) {
+                    isBlocked = true;
+                    errorMessage = `Command execution blocked by Admin.`;
+                    break;
+                  }
+                }
+              }
+
+              // Check restricted files/folders interception
+              if (!isBlocked && restrictedFiles.length > 0) {
+                for (const restrictedFile of restrictedFiles) {
+                  const parts = restrictedFile.split('/');
+                  const folderName = parts[parts.length - 1];
+                  if (!folderName) continue;
+                  
+                  const lowerFolderName = folderName.toLowerCase();
+                  
+                  if (
+                    normalizedCmd.includes(` ${lowerFolderName}`) ||
+                    normalizedCmd.includes(`/${lowerFolderName}`) ||
+                    normalizedCmd.includes(`'${lowerFolderName}'`) ||
+                    normalizedCmd.includes(`"${lowerFolderName}"`) ||
+                    normalizedCmd.includes(`=${lowerFolderName}`)
+                  ) {
+                    isBlocked = true;
+                    errorMessage = `Command execution blocked because the file or folder '${folderName}' is restricted.`;
                     break;
                   }
                 }
@@ -385,7 +433,7 @@ export class TerminalGateway
               if (isBlocked) {
                 client.emit(
                   'terminal.output',
-                  `\r\n\x1b[31mError: Command execution blocked by security policy: ${blockedBy}\x1b[0m\r\n`,
+                  `\r\n\x1b[31mError: ${errorMessage}\x1b[0m\r\n`,
                 );
                 this.inputBuffers.set(client.id, '');
 
@@ -395,7 +443,7 @@ export class TerminalGateway
                 // Log as Security Threat
                 this.logsService
                   .logThreat({
-                    userId: user.id,
+                    userId: userId,
                     username: user.username,
                     action: 'BLOCKED_TERMINAL_COMMAND',
                     details: `Attempted to run restricted command: ${rawCmd} in project ${projectId}`,

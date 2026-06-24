@@ -124,16 +124,31 @@ export class ProjectsService {
           // We will proceed to update DB anyway even if folder rename fails (e.g. folder didn't exist)
         }
       }
+    } // Closes `if (newName && newName !== project.name)`
 
+    const updateData: any = {};
+    if (newName && newName !== project.name) {
       project.name = newName;
+      updateData.name = newName;
     }
 
-    if (allowedCommands !== undefined)
+    if (allowedCommands !== undefined) {
       project.allowedCommands = allowedCommands;
-    if (allowedFiles !== undefined) project.allowedFiles = allowedFiles;
-    if (memberRestrictions !== undefined) project.memberRestrictions = memberRestrictions;
+      updateData.allowedCommands = allowedCommands;
+    }
+    if (allowedFiles !== undefined) {
+      project.allowedFiles = allowedFiles;
+      updateData.allowedFiles = allowedFiles;
+    }
+    if (memberRestrictions !== undefined) {
+      project.memberRestrictions = memberRestrictions;
+      updateData.memberRestrictions = memberRestrictions;
+    }
 
-    await this.projectsRepository.save(project);
+    if (Object.keys(updateData).length > 0) {
+      await this.projectsRepository.update(id, updateData);
+    }
+    
     return project;
   }
 
