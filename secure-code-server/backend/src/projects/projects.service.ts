@@ -27,6 +27,12 @@ export class ProjectsService {
     private usersService: UsersService,
   ) {}
 
+  async findOne(id: string): Promise<Project> {
+    const project = await this.projectsRepository.findOne({ where: { id }, relations: ['users'] });
+    if (!project) throw new NotFoundException('Project not found');
+    return project;
+  }
+
   async findAll(): Promise<any[]> {
     const projects = await this.projectsRepository.find({
       relations: { users: true },

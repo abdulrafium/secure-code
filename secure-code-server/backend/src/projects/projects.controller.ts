@@ -32,6 +32,12 @@ export class ProjectsController {
     return this.projectsService.findAll();
   }
 
+  @UseGuards(JwtAuthGuard)
+  @Get(':id')
+  async findOne(@Param('id') id: string) {
+    return this.projectsService.findOne(id);
+  }
+
   @Get('deployments/all')
   async getAllDeployments() {
     return this.projectsService.getAllDeployments();

@@ -1799,17 +1799,12 @@ export default function IDEWorkspace() {
             className="h-[3px] flex-shrink-0 bg-[#333] hover:bg-[#007fd4] cursor-row-resize z-50 transition-colors"
           />
         )}
-{/* Terminal Panel */}
+        {/* Terminal Panel */}
         {terminalOpen && (
           <div
             style={{ height: `${terminalHeight}%` }}
             className="flex flex-shrink-0 min-h-0 bg-[#1e1e1e] overflow-hidden"
           >
-            {/* DEBUG INFO */}
-            <div className="absolute top-[40px] right-[200px] z-[9999] bg-black text-red-500 font-bold p-2 text-xs pointer-events-none border border-red-500">
-              DEBUG: restrictedFiles = {JSON.stringify(restrictedFiles)}
-            </div>
-
             {/* Terminal Content Area */}
             <div className="flex-1 flex flex-col min-w-0">
               <div className="flex px-4 h-[35px] border-b border-[#333333] flex-shrink-0">
