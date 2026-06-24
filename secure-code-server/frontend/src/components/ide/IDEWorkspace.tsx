@@ -466,12 +466,7 @@ export default function IDEWorkspace() {
                 try { restrictions = JSON.parse(restrictions); } catch(e) {}
               }
               
-              if (currentUserRole === 'Admin') {
-                // Admin wants to see all restrictions applied to any member to verify them
-                for (const memberId in restrictions) {
-                  files = [...files, ...(restrictions[memberId].allowedFiles || [])];
-                }
-              } else {
+              if (currentUserRole !== 'Admin') {
                 let userId = '';
                 const token = isViewerRoute 
                   ? (sessionStorage.getItem('viewer_accessToken') || cookies['viewer_accessToken'])
@@ -480,7 +475,8 @@ export default function IDEWorkspace() {
                      : (sessionStorage.getItem('developer_accessToken') || cookies['developer_accessToken']));
                 if (token) {
                   try {
-                    userId = JSON.parse(atob(token.split('.')[1])).id;
+                    const parsed = JSON.parse(atob(token.split('.')[1]));
+                    userId = parsed.sub || parsed.id;
                   } catch (e) {}
                 }
                 if (userId && restrictions[userId]) {
