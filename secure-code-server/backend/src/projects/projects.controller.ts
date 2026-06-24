@@ -32,11 +32,7 @@ export class ProjectsController {
     return this.projectsService.findAll();
   }
 
-  @UseGuards(JwtAuthGuard)
-  @Get(':id')
-  async findOne(@Param('id') id: string) {
-    return this.projectsService.findOne(id);
-  }
+
 
   @Get('deployments/all')
   async getAllDeployments() {
@@ -47,6 +43,12 @@ export class ProjectsController {
   @Get('assigned')
   async findAssigned(@Request() req: any) {
     return this.projectsService.getAssignedProjects(req.user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get(':id')
+  async findOne(@Param('id') id: string) {
+    return this.projectsService.findOne(id);
   }
 
   @Post(':id/users')
