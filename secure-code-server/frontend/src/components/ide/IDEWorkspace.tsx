@@ -818,7 +818,14 @@ export default function IDEWorkspace() {
             <div style="color: #94a3b8; font-family: sans-serif; font-size: 14px; margin-bottom: 24px;">
               Screen is hidden while out of focus to prevent background capturing.
             </div>
+            <div style="color: #ffffff; font-family: sans-serif; font-size: 16px; font-weight: bold; cursor: pointer; padding: 12px 24px; border: 1px solid #ef4444; border-radius: 6px; background-color: rgba(239, 68, 68, 0.1); transition: all 0.2s;" onmouseover="this.style.backgroundColor='rgba(239, 68, 68, 0.2)'" onmouseout="this.style.backgroundColor='rgba(239, 68, 68, 0.1)'">
+              Click anywhere to Continue
+            </div>
           `;
+          
+          blackout.onclick = () => {
+            blackout.remove();
+          };
           
           document.body.appendChild(blackout);
         }
@@ -835,9 +842,8 @@ export default function IDEWorkspace() {
         // Resume session recording
         startRecording();
 
-        // Automatically remove the blackout screen instantly without clicking
-        const blackout = document.getElementById('security-blackout-screen');
-        if (blackout) blackout.remove();
+        // We DO NOT automatically remove the blackout screen anymore. The user MUST click to dismiss it.
+
 
         // Aggressively wipe clipboard when returning to the IDE to destroy any snip they just took!
         if (currentUserRole !== 'Admin') {

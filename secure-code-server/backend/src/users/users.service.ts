@@ -340,9 +340,9 @@ export class UsersService {
       { admin: 0, developer: 0, viewer: 0 },
     );
 
-    // Auto-reset stale online flags: if lastActive is older than 20 minutes, mark as offline
+    // Auto-reset stale online flags: if lastActive is older than 3 minutes, mark as offline
     // This handles cases where browser was closed without logging out (sleep, crash, etc.)
-    const staleThreshold = new Date(Date.now() - 20 * 60 * 1000);
+    const staleThreshold = new Date(Date.now() - 3 * 60 * 1000);
     await this.usersRepository
       .createQueryBuilder()
       .update()

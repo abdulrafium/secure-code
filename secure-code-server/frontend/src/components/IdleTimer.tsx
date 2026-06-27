@@ -11,8 +11,8 @@ export default function IdleTimer({ children }: { children: React.ReactNode }) {
 
   // Set to 15 minutes (15 * 60 seconds * 1000 ms)
   const TIMEOUT_MS = 15 * 60 * 1000;
-  // Heartbeat every 5 minutes to keep lastActive fresh
-  const HEARTBEAT_MS = 5 * 60 * 1000;
+  // Heartbeat every 1 minute to keep lastActive fresh
+  const HEARTBEAT_MS = 1 * 60 * 1000;
 
   // Do not track idle time on the login page or landing page
   const isLoginPage = pathname === '/' || pathname === '/admin/login' || pathname === '/developer/login' || pathname === '/viewer/login';
@@ -76,8 +76,8 @@ export default function IdleTimer({ children }: { children: React.ReactNode }) {
     // Initialize idle timer
     resetTimer();
 
-    // Start heartbeat — pings backend every 5 minutes to keep lastActive fresh.
-    // If the browser is closed without logout, the backend auto-marks user offline within 20 minutes.
+    // Start heartbeat — pings backend every 1 minute to keep lastActive fresh.
+    // If the browser is closed without logout, the backend auto-marks user offline within 3 minutes.
     heartbeatRef.current = setInterval(() => {
       api.post('/auth/heartbeat', {}).catch(() => {});
     }, HEARTBEAT_MS);
