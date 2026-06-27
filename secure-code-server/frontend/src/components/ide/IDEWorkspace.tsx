@@ -823,10 +823,12 @@ export default function IDEWorkspace() {
           document.body.appendChild(blackout);
         }
 
+        /* 
         // ONLY log if they used the actual Snipping tool keyboard shortcut
         if (metaHeld && shiftHeld) {
           window.dispatchEvent(new CustomEvent('session-record-trigger', { detail: { reason: `External Snipping Tool Overlay Detected` } }));
         }
+        */
       };
 
       const handleFocus = () => {
