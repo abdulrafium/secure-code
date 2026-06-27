@@ -124,10 +124,8 @@ export class UsersController {
   async createUser(@Body() body: any, @Request() req: any) {
     const { username, password, role, status, allowIp, publicKey } = body;
 
-    if (!allowIp || allowIp.trim() === '') {
-      throw new UnauthorizedException('Allowed IP is mandatory for all users.');
-    }
-
+    // allowIp is optional. If provided, user can only login from that IP (VPN enforced).
+    // If blank or not provided, user can access from any IP (no VPN required).
     const formattedRole = role
       ? role.charAt(0).toUpperCase() + role.slice(1).toLowerCase()
       : undefined;

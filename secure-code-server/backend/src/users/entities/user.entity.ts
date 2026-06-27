@@ -62,6 +62,12 @@ export class User {
   @UpdateDateColumn({ type: 'timestamptz' })
   updatedAt: Date;
 
+  @Column({ type: 'int', default: 0 })
+  failedLoginAttempts: number;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  lockoutUntil: Date | null;
+
   @ManyToMany(() => Project, (project) => project.users)
   projects: Project[];
 }

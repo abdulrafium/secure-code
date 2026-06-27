@@ -43,9 +43,11 @@ const getHeaders = () => {
 const handleResponse = async (response: Response) => {
     if (!response.ok) {
         let errorMessage = 'An error occurred';
+        let lockoutUntil: string | undefined = undefined;
         try {
             const errorData = await response.json();
             errorMessage = errorData.message || errorData.error || errorMessage;
+            lockoutUntil = errorData.lockoutUntil;
         } catch (e) {
             errorMessage = response.statusText || errorMessage;
         }
@@ -62,7 +64,9 @@ const handleResponse = async (response: Response) => {
             }
         }
 
-        throw new Error(errorMessage);
+        const err = new Error(errorMessage) as any;
+        err.lockoutUntil = lockoutUntil;
+        throw err;
     }
     
     // Check if the response has content

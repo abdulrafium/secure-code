@@ -311,6 +311,17 @@ export class UsersService {
     }
   }
 
+  async saveUser(user: User): Promise<User> {
+    return this.usersRepository.save(user);
+  }
+
+  async resetFailedAttempts(userId: string): Promise<void> {
+    await this.usersRepository.update(userId, {
+      failedLoginAttempts: 0,
+      lockoutUntil: null,
+    });
+  }
+
   async getStats() {
     const qb = this.usersRepository.createQueryBuilder('user');
     qb.select('user.role', 'role');
@@ -328,6 +339,16 @@ export class UsersService {
       },
       { admin: 0, developer: 0, viewer: 0 },
     );
+
+    // Auto-reset stale online flags: if lastActive is older than 20 minutes, mark as offline
+    // This handles cases where browser was closed without logging out (sleep, crash, etc.)
+    const staleThreshold = new Date(Date.now() - 20 * 60 * 1000);
+    await this.usersRepository
+      .createQueryBuilder()
+      .update()
+      .set({ isOnline: false })
+      .where('isOnline = true AND (lastActive IS NULL OR lastActive < :threshold)', { threshold: staleThreshold })
+      .execute();
 
     const onlineCount = await this.usersRepository.count({
       where: { isOnline: true },

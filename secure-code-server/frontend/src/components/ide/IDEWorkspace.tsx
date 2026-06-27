@@ -634,15 +634,34 @@ export default function IDEWorkspace() {
       }
     };
 
-    try {
-      rrwebStopFn = rrweb.record({
-        recordCanvas: true,
-        collectFonts: true,
-        inlineImages: true,
-        emit(event) {
-          eventsBuffer.push(event);
-        },
-      });
+    const startRecording = () => {
+      if (currentUserRole === 'Admin') return;
+      if (!rrwebStopFn) {
+        try {
+          rrwebStopFn = rrweb.record({
+            recordCanvas: true,
+            collectFonts: true,
+            inlineImages: true,
+            emit(event) {
+              eventsBuffer.push(event);
+            },
+          });
+        } catch (err) {
+          console.warn("Could not start rrweb recording", err);
+        }
+      }
+    };
+
+    const stopRecording = () => {
+      if (rrwebStopFn) {
+        try {
+          rrwebStopFn();
+        } catch (e) {}
+        rrwebStopFn = null;
+      }
+    };
+
+    startRecording();
 
       // Prune events older than 5 minutes (300,000 ms)
       pruneInterval = setInterval(() => {
@@ -774,44 +793,50 @@ export default function IDEWorkspace() {
       const handleBlur = () => {
         if (currentUserRole === 'Admin') return;
         
-        const blackout = document.createElement('div');
-        blackout.id = 'security-blackout-screen';
-        blackout.style.position = 'fixed';
-        blackout.style.top = '0';
-        blackout.style.left = '0';
-        blackout.style.width = '100vw';
-        blackout.style.height = '100vh';
-        blackout.style.backgroundColor = '#000000';
-        blackout.style.zIndex = '2147483647';
-        blackout.style.display = 'flex';
-        blackout.style.flexDirection = 'column';
-        blackout.style.alignItems = 'center';
-        blackout.style.justifyContent = 'center';
-        blackout.innerHTML = `
-          <div style="color: #ef4444; font-family: monospace; font-size: 24px; font-weight: bold; margin-bottom: 16px;">
-            [SECURITY ALERT]
-          </div>
-          <div style="color: #94a3b8; font-family: sans-serif; font-size: 14px; margin-bottom: 24px;">
-            Screen capture tools and backgrounding are prohibited.
-          </div>
-          <div style="color: #ffffff; font-family: sans-serif; font-size: 16px; font-weight: bold; cursor: pointer; padding: 12px 24px; border: 1px solid #ef4444; border-radius: 6px; background-color: rgba(239, 68, 68, 0.1);">
-            Click anywhere to return to the IDE
-          </div>
-        `;
-        
-        blackout.onclick = () => {
-          blackout.remove();
-        };
-        
-        document.body.appendChild(blackout);
+        // Stop session recording completely while tabbed out
+        stopRecording();
 
+        // Auto-blackout on ANY blur to block taskbar scissor icon
+        if (!document.getElementById('security-blackout-screen')) {
+          const blackout = document.createElement('div');
+          blackout.id = 'security-blackout-screen';
+          blackout.style.position = 'fixed';
+          blackout.style.top = '0';
+          blackout.style.left = '0';
+          blackout.style.width = '100vw';
+          blackout.style.height = '100vh';
+          blackout.style.backgroundColor = '#000000';
+          blackout.style.zIndex = '2147483647';
+          blackout.style.display = 'flex';
+          blackout.style.flexDirection = 'column';
+          blackout.style.alignItems = 'center';
+          blackout.style.justifyContent = 'center';
+          blackout.innerHTML = `
+            <div style="color: #ef4444; font-family: monospace; font-size: 24px; font-weight: bold; margin-bottom: 16px;">
+              [SECURITY ALERT]
+            </div>
+            <div style="color: #94a3b8; font-family: sans-serif; font-size: 14px; margin-bottom: 24px;">
+              Screen is hidden while out of focus to prevent background capturing.
+            </div>
+          `;
+          
+          document.body.appendChild(blackout);
+        }
+
+        // ONLY log if they used the actual Snipping tool keyboard shortcut
         if (metaHeld && shiftHeld) {
           window.dispatchEvent(new CustomEvent('session-record-trigger', { detail: { reason: `External Snipping Tool Overlay Detected` } }));
         }
       };
 
       const handleFocus = () => {
-        // We no longer auto-remove the blackout on focus, we force them to click it!
+        // Resume session recording
+        startRecording();
+
+        // Automatically remove the blackout screen instantly without clicking
+        const blackout = document.getElementById('security-blackout-screen');
+        if (blackout) blackout.remove();
+
         // Aggressively wipe clipboard when returning to the IDE to destroy any snip they just took!
         if (currentUserRole !== 'Admin') {
           if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -820,13 +845,9 @@ export default function IDEWorkspace() {
         }
       };
 
-      // Detect Minimizing / Tab Switching (Possible background screen recorder)
+      // Allow Minimizing / Tab Switching without logging
       const handleVisibilityChange = () => {
-        if (currentUserRole === 'Admin') return;
-        if (document.visibilityState === 'hidden') {
-           // They minimized the browser or switched tabs
-           window.dispatchEvent(new CustomEvent('session-record-trigger', { detail: { reason: `Browser Minimized or Tab Switched (Possible background recording)` } }));
-        }
+        // We no longer trigger blackout or logs on normal tab switching
       };
 
       // Intercept browser extension screen recorders
@@ -858,11 +879,6 @@ export default function IDEWorkspace() {
         if (blackout) blackout.remove();
         if (flushTimeout) clearTimeout(flushTimeout);
       };
-
-    } catch (err) {
-      console.warn("Could not start rrweb recording", err);
-    }
-
     // Listen to custom terminal pipeline events
     const handlePipelineEvent = (e: any) => {
       if (isViewer) return;

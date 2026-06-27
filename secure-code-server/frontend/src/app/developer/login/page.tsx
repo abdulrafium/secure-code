@@ -19,6 +19,17 @@ export default function DeveloperLogin() {
     const [password, setPassword] = useState('');
     const [errorMsg, setErrorMsg] = useState('');
     const [popupInfo, setPopupInfo] = useState<{ type: 'suspended' | 'blocked' | 'ip_blocked' | 'maintenance', message: string } | null>(null);
+    const [lockoutTimeLeft, setLockoutTimeLeft] = useState<number | null>(null);
+
+    React.useEffect(() => {
+        let timer: NodeJS.Timeout;
+        if (lockoutTimeLeft !== null && lockoutTimeLeft > 0) {
+            timer = setInterval(() => {
+                setLockoutTimeLeft(prev => (prev !== null && prev > 0 ? prev - 1 : 0));
+            }, 1000);
+        }
+        return () => clearInterval(timer);
+    }, [lockoutTimeLeft]);
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -52,7 +63,11 @@ export default function DeveloperLogin() {
         } catch (err: any) {
             setIsLoading(false);
             const msg = err.message || '';
-            if (msg.includes('suspended')) {
+            
+            if (err.lockoutUntil) {
+                const diff = new Date(err.lockoutUntil).getTime() - Date.now();
+                if (diff > 0) setLockoutTimeLeft(Math.ceil(diff / 1000));
+            } else if (msg.includes('suspended')) {
                 setPopupInfo({ type: 'suspended', message: msg });
             } else if (msg.includes('blocked')) {
                 setPopupInfo({ type: 'blocked', message: msg });
@@ -70,6 +85,55 @@ export default function DeveloperLogin() {
         <div className="relative h-screen flex items-center justify-center overflow-hidden bg-slate-950 text-slate-200 font-sans">
 
             <LandingHeader />
+
+            {/* Lockout Timer Overlay */}
+            {lockoutTimeLeft !== null && (
+                <div className="fixed inset-0 z-[300] flex items-center justify-center bg-[#050810]/95 backdrop-blur-xl p-4 transition-all duration-300">
+                    <div className="relative w-full max-w-md bg-[#0a0f1c] border border-blue-500/30 rounded-3xl shadow-[0_0_80px_rgba(59,130,246,0.15)] overflow-hidden">
+                        <div className="h-1.5 w-full bg-gradient-to-r from-blue-600 to-indigo-600 animate-pulse"></div>
+                        <div className="p-10 flex flex-col items-center text-center relative">
+                            {/* Decorative Background Glow */}
+                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+                            <div className="w-20 h-20 rounded-full flex items-center justify-center mb-6 shadow-2xl border border-blue-500/20 bg-[#0d1526] relative z-10">
+                                <Lock className="w-10 h-10 text-blue-500" />
+                            </div>
+
+                            <h2 className="text-[26px] font-bold text-white mb-2 tracking-wide relative z-10">
+                                {lockoutTimeLeft > 0 ? 'Account Locked' : 'Time Out Completed'}
+                            </h2>
+
+                            <p className="text-slate-400 text-[15px] leading-relaxed mb-8 relative z-10">
+                                {lockoutTimeLeft > 0 
+                                    ? 'Too many failed login attempts. Please wait before trying again to protect your account.'
+                                    : 'You may now attempt to login again.'}
+                            </p>
+
+                            {/* Timer Display */}
+                            {lockoutTimeLeft > 0 && (
+                                <div className="mb-10 w-full bg-[#050810]/50 border border-slate-800/80 rounded-2xl p-6 relative z-10 shadow-inner">
+                                    <div className="text-[48px] font-mono font-light text-blue-400 tracking-widest drop-shadow-[0_0_15px_rgba(59,130,246,0.5)]">
+                                        {String(Math.floor(lockoutTimeLeft / 60)).padStart(2, '0')}:
+                                        {String(lockoutTimeLeft % 60).padStart(2, '0')}
+                                    </div>
+                                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500 mt-2 font-semibold">
+                                        Remaining Time
+                                    </div>
+                                </div>
+                            )}
+
+                            {lockoutTimeLeft === 0 && (
+                                <button
+                                    onClick={() => setLockoutTimeLeft(null)}
+                                    className="w-full py-4 rounded-xl font-medium text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 transition-all shadow-[0_4px_20px_rgba(59,130,246,0.3)] active:scale-[0.98] relative z-10"
+                                >
+                                    OK
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Suspension / Blocked Popup Overlay */}
             {popupInfo && (

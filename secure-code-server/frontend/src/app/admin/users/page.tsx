@@ -53,15 +53,17 @@ export default function UsersPage() {
     }, []);
 
     const handleSubmit = async () => {
+        /* WireGuard IP Check Disabled
         const ipRegex = /^10\.8\.0\.([1-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$/;
         if (!ipRegex.test(createAllowIp)) {
             showToast('Invalid IP Format. Must be a WireGuard IP (e.g., 10.8.0.2)', 'error');
             return;
         }
+        */
 
         if (modalMode === 'edit') {
-            if (!createUsername || !createRole || !createStatus || !createAllowIp) {
-                showToast('Please fill out username, role, status, and Allow IP', 'error');
+            if (!createUsername || !createRole || !createStatus) {
+                showToast('Please fill out username, role, and status', 'error');
                 return;
             }
             setIsSubmitting(true);
@@ -83,8 +85,8 @@ export default function UsersPage() {
             return;
         }
 
-        if (!createUsername || !createPassword || !createRole || !createStatus || !createAllowIp) {
-            showToast('Please fill out username, password, role, status, and Allow IP', 'error');
+        if (!createUsername || !createPassword || !createRole || !createStatus) {
+            showToast('Please fill out username, password, role, and status', 'error');
             return;
         }
 
@@ -193,8 +195,8 @@ export default function UsersPage() {
     };
 
     const isPasswordValid = modalMode === 'edit' || (passwordCriteria.length && passwordCriteria.lower && passwordCriteria.upper && passwordCriteria.number && passwordCriteria.special);
-    const ipRegex = /^10\.8\.0\.([1-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$/;
-    const isFormValid = createUsername && createRole && createStatus && createAllowIp && ipRegex.test(createAllowIp) && (modalMode === 'edit' || (createPassword && isPasswordValid));
+    // const ipRegex = /^10\.8\.0\.([1-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$/;
+    const isFormValid = createUsername && createRole && createStatus && (modalMode === 'edit' || (createPassword && isPasswordValid));
 
     return (
         <div className="min-h-screen bg-[#050810] text-slate-200 font-sans">
@@ -244,7 +246,7 @@ export default function UsersPage() {
                             <thead>
                                 <tr className="border-b border-slate-800/80 text-[14px] text-slate-200 bg-[#070b14]">
                                     <th className="px-8 py-5 font-semibold tracking-wide">Username</th>
-                                    <th className="px-8 py-5 font-semibold tracking-wide">IP Address</th>
+                                    {/* <th className="px-8 py-5 font-semibold tracking-wide">IP Address</th> */}
                                     <th className="px-8 py-5 font-semibold tracking-wide">Project</th>
                                     <th className="px-8 py-5 font-semibold tracking-wide text-center">Role</th>
                                     <th className="px-8 py-5 font-semibold tracking-wide">Status</th>
@@ -256,7 +258,7 @@ export default function UsersPage() {
                                 {currentUsers.map((user, idx) => (
                                     <tr key={idx} className="border-b border-slate-800/60 hover:bg-[#0f172a]/30 transition-colors bg-[#080d18]">
                                         <td className="px-8 py-6 text-[15px] font-medium text-slate-200">{user.username}</td>
-                                        <td className="px-8 py-6 text-[15px] text-slate-400">{user.allowIp || 'N/A'}</td>
+                                        {/* <td className="px-8 py-6 text-[15px] text-slate-400">{user.allowIp || 'N/A'}</td> */}
                                         <td className="px-8 py-6 text-[15px] text-slate-400">
                                             {user.role === 'Admin' ? 'All Projects' : `${user.projects?.length || 0} Project${user.projects?.length === 1 ? '' : 's'}`}
                                         </td>
@@ -520,7 +522,8 @@ export default function UsersPage() {
                                 </div>
                             </div>
 
-                            {/* Allow IP */}
+                            {/* Allow IP (Temporarily Disabled for Cloudflare Tunnel) */}
+                            {/* 
                             <div className="flex flex-col">
                                 <input
                                     type="text"
@@ -541,6 +544,7 @@ export default function UsersPage() {
                                     className="w-full bg-[#050810] border border-slate-800/60 rounded-xl px-4 py-3.5 text-[14px] text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 focus:bg-[#070b14] transition-all shadow-inner"
                                 />
                             </div>
+                            */}
 
                         </div>
 
