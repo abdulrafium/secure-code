@@ -281,7 +281,12 @@ export default function UsersPage() {
                                                     <span className="text-emerald-400 font-medium tracking-wide">Online</span>
                                                 </div>
                                             ) : (
-                                                <span className="text-slate-400">{user.lastActive ? formatRelativeTime(user.lastActive) : 'Not Yet'}</span>
+                                                <div className="flex items-center space-x-2">
+                                                    <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.6)]"></div>
+                                                    <span className="text-red-400/90 font-medium tracking-wide">
+                                                        Offline <span className="text-slate-500 font-normal">({user.lastActive ? formatRelativeTime(user.lastActive) : 'Never'})</span>
+                                                    </span>
+                                                </div>
                                             )}
                                         </td>
                                         <td className="px-8 py-6">

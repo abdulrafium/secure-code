@@ -58,7 +58,19 @@ export class UsersService {
     return this.usersRepository.findOne({ where: { id } });
   }
 
+  async cleanupStaleOnlineUsers() {
+    const staleThreshold = new Date(Date.now() - 3 * 60 * 1000);
+    await this.usersRepository
+      .createQueryBuilder()
+      .update()
+      .set({ isOnline: false })
+      .where('isOnline = true AND (lastActive IS NULL OR lastActive < :threshold)', { threshold: staleThreshold })
+      .execute();
+  }
+
   async findAll(): Promise<User[]> {
+    await this.cleanupStaleOnlineUsers();
+
     const users = await this.usersRepository.find({
       relations: { projects: true },
       order: { createdAt: 'DESC' },
@@ -340,15 +352,8 @@ export class UsersService {
       { admin: 0, developer: 0, viewer: 0 },
     );
 
-    // Auto-reset stale online flags: if lastActive is older than 3 minutes, mark as offline
-    // This handles cases where browser was closed without logging out (sleep, crash, etc.)
-    const staleThreshold = new Date(Date.now() - 3 * 60 * 1000);
-    await this.usersRepository
-      .createQueryBuilder()
-      .update()
-      .set({ isOnline: false })
-      .where('isOnline = true AND (lastActive IS NULL OR lastActive < :threshold)', { threshold: staleThreshold })
-      .execute();
+    // Auto-reset stale online flags
+    await this.cleanupStaleOnlineUsers();
 
     const onlineCount = await this.usersRepository.count({
       where: { isOnline: true },
