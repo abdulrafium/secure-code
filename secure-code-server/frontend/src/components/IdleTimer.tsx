@@ -76,11 +76,16 @@ export default function IdleTimer({ children }: { children: React.ReactNode }) {
     // Initialize idle timer
     resetTimer();
 
-    // Start heartbeat — pings backend every 1 minute to keep lastActive fresh.
+    // Start heartbeat — pings backend immediately and then every 1 minute to keep lastActive fresh.
     // If the browser is closed without logout, the backend auto-marks user offline within 3 minutes.
-    heartbeatRef.current = setInterval(() => {
+    const sendHeartbeat = () => {
       api.post('/auth/heartbeat', {}).catch(() => {});
-    }, HEARTBEAT_MS);
+    };
+    
+    // Send immediate heartbeat on mount or navigation
+    sendHeartbeat();
+    
+    heartbeatRef.current = setInterval(sendHeartbeat, HEARTBEAT_MS);
 
     // Event listeners for user activity
     const events = ['mousemove', 'keydown', 'mousedown', 'touchstart', 'scroll'];
