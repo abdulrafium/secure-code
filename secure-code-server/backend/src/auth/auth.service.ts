@@ -69,6 +69,7 @@ export class AuthService {
       await this.usersService.updateProfile(payload.sub, {
         newPassword,
         backupCode: 'RECOVERED',
+        reactivate: true,
       });
       return { message: 'Password reset successfully', userId: payload.sub };
     } catch (e) {

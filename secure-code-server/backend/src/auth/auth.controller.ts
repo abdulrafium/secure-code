@@ -32,64 +32,72 @@ export class AuthController {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    // Enforce lockouts for non-Admin users
-    if (userRecord.role !== Role.Admin) {
-      if (userRecord.status === Status.Suspended) {
+    // Enforce lockouts for all users
+    if (userRecord.status === Status.Suspended) {
+      if (userRecord.role === Role.Admin) {
+        throw new UnauthorizedException(
+          'Admin account suspended due to too many failed attempts. Use your Backup Recovery Code to restore access.',
+        );
+      } else {
         throw new UnauthorizedException(
           'Sorry, you are temporarily suspended by the Admin. Contact admin to activate the account.',
         );
       }
-      if (userRecord.status === Status.Blocked) {
-        throw new UnauthorizedException(
-          'Sorry, you are permanently blocked by the Admin.',
-        );
-      }
-      // Check if currently locked out
-      if (userRecord.lockoutUntil && new Date() < userRecord.lockoutUntil) {
-        throw new UnauthorizedException({
-          message: 'Account locked due to too many failed attempts.',
-          lockoutUntil: userRecord.lockoutUntil.toISOString(),
-        });
-      }
+    }
+    if (userRecord.status === Status.Blocked) {
+      throw new UnauthorizedException(
+        'Sorry, you are permanently blocked by the Admin.',
+      );
+    }
+    // Check if currently locked out
+    if (userRecord.lockoutUntil && new Date() < userRecord.lockoutUntil) {
+      throw new UnauthorizedException({
+        message: 'Account locked due to too many failed attempts.',
+        lockoutUntil: userRecord.lockoutUntil.toISOString(),
+      });
     }
 
     const user = await this.authService.validateUser(username, password);
     if (!user) {
-      // Handle failed attempt for non-admins
-      if (userRecord.role !== Role.Admin) {
-        userRecord.failedLoginAttempts += 1;
-        
-        if (userRecord.failedLoginAttempts >= 9) {
-          userRecord.status = Status.Suspended;
-          userRecord.failedLoginAttempts = 0;
-          userRecord.lockoutUntil = null;
-          await this.usersService.saveUser(userRecord);
+      // Handle failed attempt for all users
+      userRecord.failedLoginAttempts += 1;
+      
+      if (userRecord.failedLoginAttempts >= 9) {
+        userRecord.status = Status.Suspended;
+        userRecord.failedLoginAttempts = 0;
+        userRecord.lockoutUntil = null;
+        await this.usersService.saveUser(userRecord);
+        if (userRecord.role === Role.Admin) {
+          throw new UnauthorizedException(
+            'Admin account suspended due to too many failed attempts. Use your Backup Recovery Code to restore access.',
+          );
+        } else {
           throw new UnauthorizedException(
             'Sorry, you are temporarily suspended by the Admin. Contact admin to activate the account.',
           );
-        } else if (userRecord.failedLoginAttempts === 6) {
-          userRecord.lockoutUntil = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
-          await this.usersService.saveUser(userRecord);
-          throw new UnauthorizedException({
-            message: 'Account locked due to too many failed attempts.',
-            lockoutUntil: userRecord.lockoutUntil.toISOString(),
-          });
-        } else if (userRecord.failedLoginAttempts === 3) {
-          userRecord.lockoutUntil = new Date(Date.now() + 3 * 60 * 1000); // 3 mins
-          await this.usersService.saveUser(userRecord);
-          throw new UnauthorizedException({
-            message: 'Account locked due to too many failed attempts.',
-            lockoutUntil: userRecord.lockoutUntil.toISOString(),
-          });
-        } else {
-          await this.usersService.saveUser(userRecord);
         }
+      } else if (userRecord.failedLoginAttempts === 6) {
+        userRecord.lockoutUntil = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
+        await this.usersService.saveUser(userRecord);
+        throw new UnauthorizedException({
+          message: 'Account locked due to too many failed attempts.',
+          lockoutUntil: userRecord.lockoutUntil.toISOString(),
+        });
+      } else if (userRecord.failedLoginAttempts === 3) {
+        userRecord.lockoutUntil = new Date(Date.now() + 3 * 60 * 1000); // 3 mins
+        await this.usersService.saveUser(userRecord);
+        throw new UnauthorizedException({
+          message: 'Account locked due to too many failed attempts.',
+          lockoutUntil: userRecord.lockoutUntil.toISOString(),
+        });
+      } else {
+        await this.usersService.saveUser(userRecord);
       }
       throw new UnauthorizedException('Invalid credentials');
     }
 
     // Success - reset attempts
-    if (userRecord.role !== Role.Admin && userRecord.failedLoginAttempts > 0) {
+    if (userRecord.failedLoginAttempts > 0) {
       await this.usersService.resetFailedAttempts(userRecord.id);
     }
 

@@ -224,6 +224,7 @@ export class UsersService {
       newUsername?: string;
       newPassword?: string;
       backupCode?: string | null;
+      reactivate?: boolean;
     },
   ): Promise<User> {
     const user = await this.usersRepository.findOne({ where: { id: userId } });
@@ -244,6 +245,11 @@ export class UsersService {
     }
     if (updates.backupCode !== undefined) {
       user.backupCode = updates.backupCode; // can be null or 'RECOVERED'
+    }
+    if (updates.reactivate) {
+      user.status = Status.Active;
+      user.failedLoginAttempts = 0;
+      user.lockoutUntil = null;
     }
 
     return this.usersRepository.save(user);
